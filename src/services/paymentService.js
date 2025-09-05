@@ -1,0 +1,465 @@
+const supabase = require('../config/supabase');
+const ecartPayService = require('./ecartpayService');
+
+class PaymentService {
+  async addPaymentMethod(userId, paymentData, context = {}) {
+    try {
+      // Validate input data
+      const validation = this.validatePaymentData(paymentData);
+      if (!validation.isValid) {
+        return {
+          success: false,
+          error: {
+            type: 'validation_error',
+            message: validation.errors.join(', ')
+          }
+        };
+      }
+
+      // Check if user exists and get their info
+      let user;
+      const { isGuest, userEmail } = context;
+      
+      if (isGuest) {
+        // For guest users, create a temporary user object with valid email format
+        const cleanGuestId = userId.replace(/[^a-zA-Z0-9]/g, ''); // Remove special chars
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substr(2, 9);
+        
+        // Use provided email but make it unique for eCartpay to avoid conflicts
+        const uniqueGuestEmail = userEmail ? 
+          `${userEmail.split('@')[0]}+${cleanGuestId}${timestamp}${randomSuffix}@${userEmail.split('@')[1]}` : 
+          `guest${cleanGuestId}${timestamp}${randomSuffix}@xquisito.com`;
+        
+        user = {
+          user: {
+            email: uniqueGuestEmail,
+            id: userId,
+            originalEmail: userEmail // Store original email for reference
+          }
+        };
+        console.log(`Processing guest user: ${userId} with unique email: ${uniqueGuestEmail} (original: ${userEmail})`);
+      } else {
+        // For authenticated users, get from Supabase
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+        if (userError || !userData) {
+          return {
+            success: false,
+            error: {
+              type: 'user_error',
+              message: 'User not found'
+            }
+          };
+        }
+        user = userData;
+        console.log(`Processing authenticated user: ${userId}`);
+      }
+
+      // Check if user already has an EcartPay customer
+      let ecartPayCustomerId;
+      const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
+      const userFieldName = isGuest ? 'guest_id' : 'user_id';
+      
+      const { data: existingMethods } = await supabase
+        .from(tableName)
+        .select('ecartpay_customer_id')
+        .eq(userFieldName, userId)
+        .limit(1);
+
+      if (existingMethods && existingMethods.length > 0 && existingMethods[0].ecartpay_customer_id) {
+        ecartPayCustomerId = existingMethods[0].ecartpay_customer_id;
+        console.log('🔄 Using existing eCartpay customer:', ecartPayCustomerId);
+      } else {
+        // First, try to find if customer already exists in eCartpay by user_id
+        console.log('🔍 Checking if customer already exists in eCartpay...');
+        const existingCustomer = await ecartPayService.findCustomerByUserId(userId);
+        
+        if (existingCustomer.success) {
+          // Customer exists, use it
+          ecartPayCustomerId = existingCustomer.customer.id;
+          console.log('✅ Found existing eCartpay customer:', ecartPayCustomerId);
+        } else {
+          // Create new customer
+          console.log('👤 Creating new EcartPay customer for:', { name: paymentData.cardholderName, userId });
+          
+          // Generate a phone number from user data or use default
+          const phone = user.user.phone || "0000000000"; // Default phone for testing
+          
+          const customerResult = await ecartPayService.createCustomer({
+            name: paymentData.cardholderName,
+            userId: userId, // Use the original userId, not modified
+            phone: phone
+          });
+
+          console.log('👤 EcartPay customer creation result:', {
+            success: customerResult.success,
+            error: customerResult.error?.type,
+            message: customerResult.error?.message
+          });
+
+          if (!customerResult.success) {
+            console.error('❌ Failed to create EcartPay customer:', customerResult.error);
+            return {
+              success: false,
+              error: customerResult.error
+            };
+          }
+
+          ecartPayCustomerId = customerResult.customer.id;
+          console.log('✅ EcartPay customer created:', ecartPayCustomerId);
+        }
+      }
+
+      // Create payment method in EcartPay
+      const paymentMethodResult = await ecartPayService.createPaymentMethod({
+        cardNumber: paymentData.cardNumber,
+        expMonth: paymentData.expMonth,
+        expYear: paymentData.expYear,
+        cvv: paymentData.cvv,
+        cardholderName: paymentData.cardholderName,
+        country: paymentData.country,
+        postalCode: paymentData.postalCode,
+        customerId: ecartPayCustomerId
+      });
+
+      if (!paymentMethodResult.success) {
+        return {
+          success: false,
+          error: paymentMethodResult.error
+        };
+      }
+
+      const ecartPayPaymentMethod = paymentMethodResult.paymentMethod;
+      
+      // Log the actual structure from eCartpay
+      console.log('📋 eCartpay payment method structure:', JSON.stringify(ecartPayPaymentMethod, null, 2));
+
+      // Determine if this should be the default payment method
+      const { data: existingDefault } = await supabase
+        .from(tableName)
+        .select('id')
+        .eq(userFieldName, userId)
+        .eq('is_default', true)
+        .limit(1);
+
+      const isDefault = !existingDefault || existingDefault.length === 0;
+
+      // Prepare the data object for insertion with proper structure mapping
+      const insertData = {
+        ecartpay_token: ecartPayPaymentMethod.id,
+        ecartpay_customer_id: ecartPayCustomerId,
+        // Map fields based on actual eCartpay response structure
+        last_four_digits: ecartPayPaymentMethod.last || ecartPayPaymentMethod.last4 || ecartPayPaymentMethod.last_four || paymentData.cardNumber.slice(-4),
+        card_type: ecartPayPaymentMethod.type || ecartPayPaymentMethod.brand || 'card',
+        card_brand: ecartPayPaymentMethod.brand || ecartPayPaymentMethod.type || 'unknown',
+        expiry_month: paymentData.expMonth, // Use original data as eCartpay may not return it
+        expiry_year: paymentData.expYear,   // Use original data as eCartpay may not return it
+        cardholder_name: (paymentData.cardholderName || '').substring(0, 50), // Limit length to avoid database error
+        billing_country: (paymentData.country || '').substring(0, 10), // Limit length
+        billing_postal_code: (paymentData.postalCode || '').substring(0, 20), // Limit length
+        is_default: isDefault,
+        is_active: true
+      };
+
+      // Add user/guest specific fields
+      if (isGuest) {
+        insertData.guest_id = userId;
+        // Add guest-specific data
+        if (context.tableNumber) {
+          insertData.table_number = context.tableNumber;
+        }
+        if (context.sessionData) {
+          insertData.session_data = context.sessionData;
+        }
+      } else {
+        insertData.user_id = userId;
+      }
+
+      // Store payment method metadata in our database
+      const { data: savedMethod, error: saveError } = await supabase
+        .from(tableName)
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (saveError) {
+        console.error('Database save error:', saveError);
+        
+        // Note: We don't detach from eCartpay here because:
+        // 1. The payment method was successfully created in eCartpay
+        // 2. The user might retry and we can reuse it
+        // 3. Detach endpoint seems to have different URL structure
+        
+        return {
+          success: false,
+          error: {
+            type: 'database_error',
+            message: 'Failed to save payment method',
+            details: saveError.message || saveError
+          }
+        };
+      }
+
+      return {
+        success: true,
+        paymentMethod: {
+          id: savedMethod.id,
+          lastFourDigits: savedMethod.last_four_digits,
+          cardType: savedMethod.card_type,
+          expiryMonth: savedMethod.expiry_month,
+          expiryYear: savedMethod.expiry_year,
+          cardholderName: savedMethod.cardholder_name,
+          isDefault: savedMethod.is_default,
+          createdAt: savedMethod.created_at
+        }
+      };
+
+    } catch (error) {
+      console.error('Error in addPaymentMethod:', error);
+      return {
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error',
+          details: error.message
+        }
+      };
+    }
+  }
+
+  async getUserPaymentMethods(userId, context = {}) {
+    try {
+      const { isGuest } = context;
+      const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
+      const userFieldName = isGuest ? 'guest_id' : 'user_id';
+
+      // For guest users, also filter by non-expired records
+      let query = supabase
+        .from(tableName)
+        .select(`
+          id,
+          last_four_digits,
+          card_type,
+          card_brand,
+          expiry_month,
+          expiry_year,
+          cardholder_name,
+          billing_country,
+          is_default,
+          is_active,
+          created_at
+        `)
+        .eq(userFieldName, userId)
+        .eq('is_active', true);
+
+      // For guests, only return non-expired payment methods
+      if (isGuest) {
+        query = query.gt('expires_at', new Date().toISOString());
+      }
+
+      const { data: methods, error } = await query
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return {
+          success: false,
+          error: {
+            type: 'database_error',
+            message: 'Failed to retrieve payment methods',
+            details: error
+          }
+        };
+      }
+
+      return {
+        success: true,
+        paymentMethods: methods || []
+      };
+
+    } catch (error) {
+      console.error('Error in getUserPaymentMethods:', error);
+      return {
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      };
+    }
+  }
+
+  async deletePaymentMethod(userId, paymentMethodId) {
+    try {
+      // Get the payment method to delete
+      const { data: method, error: fetchError } = await supabase
+        .from('user_payment_methods')
+        .select('ecartpay_token, is_default')
+        .eq('user_id', userId)
+        .eq('id', paymentMethodId)
+        .single();
+
+      if (fetchError || !method) {
+        return {
+          success: false,
+          error: {
+            type: 'not_found',
+            message: 'Payment method not found'
+          }
+        };
+      }
+
+      // Detach from EcartPay
+      const detachResult = await ecartPayService.detachPaymentMethod(method.ecartpay_token);
+      if (!detachResult.success) {
+        console.warn('Failed to detach payment method from EcartPay:', detachResult.error);
+      }
+
+      // Mark as inactive in our database
+      const { error: updateError } = await supabase
+        .from('user_payment_methods')
+        .update({ is_active: false, is_default: false })
+        .eq('user_id', userId)
+        .eq('id', paymentMethodId);
+
+      if (updateError) {
+        return {
+          success: false,
+          error: {
+            type: 'database_error',
+            message: 'Failed to delete payment method',
+            details: updateError
+          }
+        };
+      }
+
+      // If this was the default method, set another one as default
+      if (method.is_default) {
+        const { data: otherMethods } = await supabase
+          .from('user_payment_methods')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (otherMethods && otherMethods.length > 0) {
+          await supabase
+            .from('user_payment_methods')
+            .update({ is_default: true })
+            .eq('id', otherMethods[0].id);
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Payment method deleted successfully'
+      };
+
+    } catch (error) {
+      console.error('Error in deletePaymentMethod:', error);
+      return {
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      };
+    }
+  }
+
+  async setDefaultPaymentMethod(userId, paymentMethodId) {
+    try {
+      // Verify the payment method belongs to the user
+      const { data: method, error: fetchError } = await supabase
+        .from('user_payment_methods')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('id', paymentMethodId)
+        .eq('is_active', true)
+        .single();
+
+      if (fetchError || !method) {
+        return {
+          success: false,
+          error: {
+            type: 'not_found',
+            message: 'Payment method not found'
+          }
+        };
+      }
+
+      // Update all payment methods for this user to not be default
+      await supabase
+        .from('user_payment_methods')
+        .update({ is_default: false })
+        .eq('user_id', userId);
+
+      // Set the selected one as default
+      const { error: updateError } = await supabase
+        .from('user_payment_methods')
+        .update({ is_default: true })
+        .eq('id', paymentMethodId);
+
+      if (updateError) {
+        return {
+          success: false,
+          error: {
+            type: 'database_error',
+            message: 'Failed to set default payment method',
+            details: updateError
+          }
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Default payment method updated successfully'
+      };
+
+    } catch (error) {
+      console.error('Error in setDefaultPaymentMethod:', error);
+      return {
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      };
+    }
+  }
+
+  validatePaymentData(data) {
+    const errors = [];
+
+    if (!data.cardNumber || !ecartPayService.validateCardNumber(data.cardNumber)) {
+      errors.push('Invalid card number');
+    }
+
+    if (!data.expMonth || !data.expYear || !ecartPayService.validateExpiry(data.expMonth, data.expYear)) {
+      errors.push('Invalid expiry date');
+    }
+
+    if (!data.cvv || data.cvv.length < 3 || data.cvv.length > 4) {
+      errors.push('Invalid CVV');
+    }
+
+    if (!data.cardholderName || data.cardholderName.trim().length < 2) {
+      errors.push('Invalid cardholder name');
+    }
+
+    if (!data.country || data.country.length < 2) {
+      errors.push('Invalid country');
+    }
+
+    if (!data.postalCode || data.postalCode.trim().length < 3) {
+      errors.push('Invalid postal code');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+}
+
+module.exports = new PaymentService();

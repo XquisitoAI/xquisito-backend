@@ -6,12 +6,22 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const tableRoutes = require('./routes/tableRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: true, // Allow all origins (or specify your frontend URL)
+  credentials: true,
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'x-guest-id', 
+    'x-table-number'
+  ]
+}));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -22,6 +32,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api', tableRoutes);
+app.use('/api', paymentRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API endpoint not found' });
