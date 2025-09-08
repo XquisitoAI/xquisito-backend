@@ -24,24 +24,13 @@ router.post('/webhooks/ecartpay', (req, res, next) => {
   next();
 }, paymentController.handleWebhook);
 
-// Debug/Testing endpoints (remove in production)
-router.get('/debug/ecartpay/customers', async (req, res) => {
-  try {
-    const ecartPayService = require('../services/ecartpayService');
-    const result = await ecartPayService.getCustomers();
-    
-    res.json({
-      success: result.success,
-      customers: result.customers,
-      error: result.error
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: { message: error.message }
-    });
-  }
-});
+// Admin endpoints for managing eCartPay data (development only)
+router.get('/admin/ecartpay/customers', paymentController.listEcartPayCustomers);
+router.delete('/admin/ecartpay/customers/cleanup', paymentController.cleanupTestCustomers);
+router.delete('/admin/ecartpay/customers/:customerId', paymentController.deleteEcartPayCustomer);
+
+// Legacy debug endpoints (keep for compatibility)
+router.get('/debug/ecartpay/customers', paymentController.listEcartPayCustomers);
 
 router.get('/debug/ecartpay/customers/:userId', async (req, res) => {
   try {

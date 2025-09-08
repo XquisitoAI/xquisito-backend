@@ -82,8 +82,9 @@ class PaymentService {
           // Create new customer
           console.log('👤 Creating new EcartPay customer for:', { name: paymentData.cardholderName, userId });
           
-          // Generate a phone number from user data or use default
-          const phone = user.user.phone || "0000000000"; // Default phone for testing
+          // Generate a unique phone number for testing to avoid eCartPay conflicts
+          // Revisar 
+          const phone = user.user.phone || `1${Date.now().toString().slice(-9)}`; // Unique 10-digit phone
           
           const customerResult = await ecartPayService.createCustomer({
             name: paymentData.cardholderName,
@@ -117,8 +118,8 @@ class PaymentService {
         expYear: paymentData.expYear,
         cvv: paymentData.cvv,
         cardholderName: paymentData.cardholderName,
-        country: paymentData.country,
-        postalCode: paymentData.postalCode,
+        country: paymentData?.country,
+        postalCode: paymentData?.postalCode,
         customerId: ecartPayCustomerId
       });
 
@@ -149,13 +150,13 @@ class PaymentService {
         ecartpay_token: ecartPayPaymentMethod.id,
         ecartpay_customer_id: ecartPayCustomerId,
         // Map fields based on actual eCartpay response structure
-        last_four_digits: ecartPayPaymentMethod.last || ecartPayPaymentMethod.last4 || ecartPayPaymentMethod.last_four || paymentData.cardNumber.slice(-4),
+        last_four_digits: (ecartPayPaymentMethod.last || ecartPayPaymentMethod.last4 || ecartPayPaymentMethod.last_four || paymentData.cardNumber.slice(-4)).slice(-4).substring(0, 3),
         card_type: ecartPayPaymentMethod.type || ecartPayPaymentMethod.brand || 'card',
         card_brand: ecartPayPaymentMethod.brand || ecartPayPaymentMethod.type || 'unknown',
         expiry_month: paymentData.expMonth, // Use original data as eCartpay may not return it
         expiry_year: paymentData.expYear,   // Use original data as eCartpay may not return it
         cardholder_name: (paymentData.cardholderName || '').substring(0, 50), // Limit length to avoid database error
-        billing_country: (paymentData.country || '').substring(0, 10), // Limit length
+        billing_country: (paymentData.country || '').substring(0, 3), // Limit to 3 chars for VARCHAR(3)
         billing_postal_code: (paymentData.postalCode || '').substring(0, 20), // Limit length
         is_default: isDefault,
         is_active: true
@@ -425,6 +426,54 @@ class PaymentService {
           message: 'Internal server error'
         }
       };
+    }
+  }
+
+  async cleanupTestData(userId, context = {}) {
+    try {
+      const { isGuest } = context;
+      const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
+      const userFieldName = isGuest ? 'guest_id' : 'user_id';
+
+      // Get all payment methods for this user/guest
+      const { data: methods, error } = await supabase
+        .from(tableName)
+        .select('ecartpay_token, id')
+        .eq(userFieldName, userId);
+
+      if (error) {
+        console.error('Error fetching methods for cleanup:', error);
+        return { success: false, error };
+      }
+
+      console.log(`🧹 Cleaning up ${methods?.length || 0} payment methods for ${isGuest ? 'guest' : 'user'}: ${userId}`);
+
+      // Detach each from eCartPay
+      for (const method of methods || []) {
+        try {
+          await ecartPayService.detachPaymentMethod(method.ecartpay_token);
+          console.log(`✅ Detached ${method.ecartpay_token} from eCartPay`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to detach ${method.ecartpay_token}:`, error);
+        }
+      }
+
+      // Delete from our database
+      const { error: deleteError } = await supabase
+        .from(tableName)
+        .delete()
+        .eq(userFieldName, userId);
+
+      if (deleteError) {
+        console.error('Error deleting from database:', deleteError);
+        return { success: false, error: deleteError };
+      }
+
+      console.log('🎉 Cleanup completed successfully');
+      return { success: true, cleaned: methods?.length || 0 };
+    } catch (error) {
+      console.error('Error in cleanupTestData:', error);
+      return { success: false, error };
     }
   }
 

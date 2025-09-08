@@ -452,6 +452,103 @@ class PaymentController {
       });
     }
   }
+
+  // Admin endpoints for managing eCartPay data
+  async listEcartPayCustomers(req, res) {
+    try {
+      console.log('🔍 Admin request: List eCartPay customers');
+      
+      const result = await ecartPayService.listAllCustomers();
+
+      if (!result.success) {
+        return res.status(500).json(result);
+      }
+
+      res.json({
+        success: true,
+        customers: result.customers,
+        count: result.customers.length
+      });
+
+    } catch (error) {
+      console.error('Error in listEcartPayCustomers controller:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      });
+    }
+  }
+
+  async cleanupTestCustomers(req, res) {
+    try {
+      console.log('🧹 Admin request: Cleanup test customers');
+      
+      const result = await ecartPayService.deleteAllTestCustomers();
+
+      if (!result.success) {
+        return res.status(500).json(result);
+      }
+
+      res.json({
+        success: true,
+        message: result.message,
+        details: result.details
+      });
+
+    } catch (error) {
+      console.error('Error in cleanupTestCustomers controller:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      });
+    }
+  }
+
+  async deleteEcartPayCustomer(req, res) {
+    try {
+      const { customerId } = req.params;
+      
+      if (!customerId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: 'validation_error',
+            message: 'Customer ID is required'
+          }
+        });
+      }
+
+      console.log(`🗑️ Admin request: Delete eCartPay customer ${customerId}`);
+      
+      const result = await ecartPayService.deleteCustomer(customerId);
+
+      if (!result.success) {
+        const statusCode = result.error.status || 500;
+        return res.status(statusCode).json(result);
+      }
+
+      res.json({
+        success: true,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('Error in deleteEcartPayCustomer controller:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      });
+    }
+  }
 }
 
 module.exports = new PaymentController();

@@ -353,6 +353,123 @@ class EcartPayService {
     }
   }
 
+  // Admin/Debug methods for managing eCartPay data
+  async listAllCustomers(limit = 100) {
+    try {
+      console.log('📋 Listing all eCartPay customers...');
+      
+      const response = await this.makeAuthenticatedRequest('get', '/customers', {}, {
+        params: { limit }
+      });
+
+      console.log(`✅ Found ${response.data?.data?.length || 0} customers`);
+      
+      // Handle the response structure from eCartPay
+      const customers = response.data?.data?.docs || response.data?.docs || response.data || [];
+      
+      return {
+        success: true,
+        customers: customers
+      };
+    } catch (error) {
+      console.error('❌ Failed to list customers:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
+  async deleteCustomer(customerId) {
+    try {
+      console.log(`🗑️ Deleting eCartPay customer: ${customerId}`);
+      
+      const response = await this.makeAuthenticatedRequest('delete', `/customers/${customerId}`);
+
+      console.log('✅ Customer deleted successfully');
+      
+      return {
+        success: true,
+        message: 'Customer deleted successfully'
+      };
+    } catch (error) {
+      console.error('❌ Failed to delete customer:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
+  async deleteAllTestCustomers() {
+    try {
+      console.log('🧹 Starting cleanup of test customers...');
+      
+      // Get all customers
+      const customersResult = await this.listAllCustomers();
+      if (!customersResult.success) {
+        return customersResult;
+      }
+
+      const customers = customersResult.customers;
+      console.log(`📊 Total customers to review: ${customers.length}`);
+      
+      // Filter test customers (those with test emails or user_ids)
+      const testCustomers = customers.filter(customer => {
+        const email = customer.email || '';
+        const userId = customer.user_id || '';
+        const name = customer.name || '';
+        
+        return (
+          email.includes('test') || 
+          email.includes('guest') ||
+          email.includes('temp.com') ||
+          email.includes('@example.com') ||
+          userId.includes('guest-') ||
+          userId.includes('test-') ||
+          name.includes('Test') ||
+          name.includes('User')
+        );
+      });
+
+      console.log(`🎯 Found ${testCustomers.length} test customers to delete`);
+
+      // Delete each test customer
+      const deleteResults = [];
+      for (const customer of testCustomers) {
+        console.log(`🗑️ Deleting test customer: ${customer.id} (${customer.email})`);
+        const result = await this.deleteCustomer(customer.id);
+        deleteResults.push({ customer, result });
+        
+        // Add small delay between deletions to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      const successCount = deleteResults.filter(r => r.result.success).length;
+      const failCount = deleteResults.filter(r => !r.result.success).length;
+
+      console.log(`✅ Cleanup complete: ${successCount} deleted, ${failCount} failed`);
+      
+      return {
+        success: true,
+        message: `Cleanup complete: ${successCount} customers deleted, ${failCount} failed`,
+        details: {
+          totalReviewed: customers.length,
+          testCustomersFound: testCustomers.length,
+          deleted: successCount,
+          failed: failCount,
+          results: deleteResults
+        }
+      };
+    } catch (error) {
+      console.error('❌ Failed to cleanup test customers:', error);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
   handleError(error) {
     if (error.response) {
       const { status, data } = error.response;
