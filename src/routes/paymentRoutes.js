@@ -13,9 +13,12 @@ router.get('/payment-methods', paymentController.getUserPaymentMethods);
 router.delete('/payment-methods/:paymentMethodId', paymentController.deletePaymentMethod);
 router.put('/payment-methods/:paymentMethodId/default', paymentController.setDefaultPaymentMethod);
 
-// Payment Processing (for future implementation)
+// Payment Processing
 router.post('/payments', paymentController.processPayment);
 router.get('/payments/history', paymentController.getPaymentHistory);
+
+// Guest Data Cleanup
+router.post('/payments/cleanup-guest', paymentController.cleanupGuestData);
 
 // Webhook endpoint (no authentication required for EcartPay webhooks)
 router.post('/webhooks/ecartpay', (req, res, next) => {

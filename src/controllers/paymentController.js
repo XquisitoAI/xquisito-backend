@@ -243,6 +243,8 @@ class PaymentController {
   }
 
   async processPayment(req, res) {
+
+    console.log('body de la request', req.body)
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
@@ -320,40 +322,62 @@ class PaymentController {
         });
       }
 
-      // Create payment with EcartPay
-      const paymentResult = await ecartPayService.createPayment({
+      // Prepare order data for eCartPay
+      const orderDescription = description || `Xquisito Restaurant - Table ${tableNumber}`;
+      const itemName = `${orderDescription}${req.body.selectedUsers ? ' - ' + req.body.selectedUsers : ''}`;
+
+      console.log('💰 Processing eCartPay order:', {
+        customerId: paymentMethod.ecartpay_customer_id,
         amount: amount,
         currency: currency,
-        paymentMethodId: paymentMethod.ecartpay_token,
-        customerId: paymentMethod.ecartpay_customer_id,
-        description: description || `Xquisito Restaurant Payment - Order ${orderId}`,
-        orderId: orderId,
         tableNumber: tableNumber,
-        restaurantId: restaurantId
+        orderId: orderId
       });
 
-      if (!paymentResult.success) {
-        console.error('❌ Payment creation failed:', paymentResult.error);
+      // Create order with EcartPay
+      const orderResult = await ecartPayService.createOrder({
+        customerId: paymentMethod.ecartpay_customer_id,
+        currency: currency,
+        items: [{
+          name: itemName.substring(0, 100), // Limit length for eCartPay
+          quantity: 1,
+          price: amount
+        }],
+        webhookUrl: `${process.env.BASE_URL || 'http://localhost:3001'}/api/payments/webhooks/ecartpay`,
+        redirectUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment-success?orderId=${orderId}&amount=${amount}&table=${tableNumber}`
+      });
+
+      if (!orderResult.success) {
+        console.error('❌ Order creation failed:', orderResult.error);
         return res.status(400).json({
           success: false,
-          error: paymentResult.error
+          error: orderResult.error
         });
       }
 
-      console.log('✅ Payment created successfully:', paymentResult.payment.id);
+      console.log('✅ Order created successfully:', orderResult.order.id);
 
       res.status(200).json({
         success: true,
-        payment: {
-          id: paymentResult.payment.id,
+        order: {
+          id: orderResult.order.id,
           amount: amount,
           currency: currency,
-          status: paymentResult.payment.status,
+          status: orderResult.order.status,
+          payLink: orderResult.order.pay_link,
           paymentMethod: {
             lastFourDigits: paymentMethod.last_four_digits,
             cardType: paymentMethod.card_type
           },
-          createdAt: paymentResult.payment.created
+          createdAt: orderResult.order.created_at || new Date().toISOString()
+        },
+        // For backward compatibility, also return as payment
+        payment: {
+          id: orderResult.order.id,
+          amount: amount,
+          currency: currency,
+          status: orderResult.order.status,
+          payLink: orderResult.order.pay_link
         }
       });
 
@@ -540,6 +564,83 @@ class PaymentController {
 
     } catch (error) {
       console.error('Error in deleteEcartPayCustomer controller:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: 'internal_error',
+          message: 'Internal server error'
+        }
+      });
+    }
+  }
+
+  async cleanupGuestData(req, res) {
+    try {
+      const { guestId } = req.body;
+      const isGuest = req.isGuest || req.user?.isGuest;
+      
+      if (!isGuest) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: 'validation_error',
+            message: 'This operation is only allowed for guest users'
+          }
+        });
+      }
+
+      if (!guestId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: 'validation_error',
+            message: 'Guest ID is required'
+          }
+        });
+      }
+
+      console.log(`🧹 Cleaning up guest data for: ${guestId}`);
+
+      // Find eCartPay customer for this guest
+      const customerResult = await ecartPayService.findCustomerByUserId(guestId);
+      
+      if (customerResult.success && customerResult.customer) {
+        console.log(`🗑️ Deleting eCartPay customer: ${customerResult.customer.id}`);
+        
+        // Delete from eCartPay
+        const deleteResult = await ecartPayService.deleteCustomer(customerResult.customer.id);
+        
+        if (!deleteResult.success) {
+          console.error('Failed to delete eCartPay customer:', deleteResult.error);
+        }
+
+        // Delete from local database
+        const { error: dbError } = await require('../config/supabase')
+          .from('guest_payment_methods')
+          .delete()
+          .eq('guest_id', guestId);
+
+        if (dbError) {
+          console.error('Failed to delete guest payment methods from DB:', dbError);
+        }
+
+        res.json({
+          success: true,
+          message: 'Guest data cleanup completed',
+          cleaned: {
+            ecartpayCustomer: deleteResult.success,
+            localPaymentMethods: !dbError
+          }
+        });
+      } else {
+        res.json({
+          success: true,
+          message: 'No guest data found to cleanup'
+        });
+      }
+
+    } catch (error) {
+      console.error('Error in cleanupGuestData controller:', error);
       res.status(500).json({
         success: false,
         error: {

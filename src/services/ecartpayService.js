@@ -266,28 +266,102 @@ class EcartPayService {
     }
   }
 
-  async createPayment(paymentData) {
+  async createOrder(orderData) {
+    console.log('OrderData',orderData);
+    
     try {
-      const response = await this.makeAuthenticatedRequest('post', '/payments', {
-        amount: Math.round(paymentData.amount * 100), // Convert to cents
-        currency: paymentData.currency || 'USD',
-        payment_method: paymentData.paymentMethodId,
-        customer: paymentData.customerId,
-        confirmation_method: 'manual',
-        confirm: true,
-        description: paymentData.description || 'Xquisito Restaurant Payment',
-        metadata: {
-          order_id: paymentData.orderId,
-          table_number: paymentData.tableNumber,
-          restaurant_id: paymentData.restaurantId
+      // Validate required parameters according to eCartPay docs
+      if (!orderData.customerId) {
+        throw new Error('customer_id is required');
+      }
+      
+      if (!orderData.items || orderData.items.length === 0) {
+        // Create default item if not provided
+        orderData.items = [{
+          name: orderData.description || 'Xquisito Restaurant Order',
+          quantity: orderData.quantity,
+          price: orderData.amount
+        }];
+      }
+
+      // Validate items have required fields
+      orderData.items.forEach(item => {
+        if (!item.name || !item.quantity || item.price === undefined) {
+          throw new Error('Each item must have name, quantity, and price');
         }
+      });
+
+      const payload = {
+        customer_id: orderData.customerId,
+        currency: orderData.currency || 'USD',
+        items: orderData.items,
+        notify_url: orderData.webhookUrl || `${process.env.BASE_URL || 'http://localhost:3001'}/api/payments/webhooks/ecartpay`
+      };
+
+      // Add optional redirect_url if provided
+      if (orderData.redirectUrl) {
+        payload.redirect_url = orderData.redirectUrl;
+      }
+
+      console.log('🛒 Creating eCartPay order with payload:', {
+        ...payload,
+        items: payload.items.map(item => ({ ...item, price: '***' })) // Hide price in logs
+      });
+      
+      const response = await this.makeAuthenticatedRequest('post', '/orders', payload);
+
+      console.log('✅ eCartPay order created successfully:', {
+        id: response.data?.id,
+        status: response.data?.status,
+        payLink: response.data?.pay_link ? 'present' : 'missing'
       });
 
       return {
         success: true,
-        payment: response.data
+        order: response.data
       };
     } catch (error) {
+      console.error('❌ eCartPay order creation failed:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
+  async createPayment(paymentData) {
+    console.log('⚠️  Using deprecated createPayment - consider using createOrder instead');
+    
+    // For backward compatibility, convert to order creation
+    return this.createOrder({
+      customerId: paymentData.customerId,
+      amount: paymentData.amount,
+      currency: paymentData.currency,
+      description: paymentData.description,
+      webhookUrl: paymentData.webhookUrl,
+      redirectUrl: paymentData.redirectUrl,
+      items: [{
+        name: paymentData.description || 'Xquisito Restaurant Payment',
+        quantity: paymentData.quantity,
+        price: paymentData.amount
+      }]
+    });
+  }
+
+  async getOrder(orderId) {
+    try {
+      console.log('🔍 Getting eCartPay order:', orderId);
+      
+      const response = await this.makeAuthenticatedRequest('get', `/orders/${orderId}`);
+
+      console.log('✅ eCartPay order retrieved:', response.data?.id);
+
+      return {
+        success: true,
+        order: response.data
+      };
+    } catch (error) {
+      console.error('❌ eCartPay order retrieval failed:', error.response?.data);
       return {
         success: false,
         error: this.handleError(error)
@@ -296,21 +370,10 @@ class EcartPayService {
   }
 
   async confirmPayment(paymentId, paymentMethodId) {
-    try {
-      const response = await this.makeAuthenticatedRequest('post', `/payments/${paymentId}/confirm`, {
-        payment_method: paymentMethodId
-      });
-
-      return {
-        success: true,
-        payment: response.data
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: this.handleError(error)
-      };
-    }
+    console.log('⚠️  confirmPayment is deprecated for eCartPay orders - orders are auto-confirmed via webhook');
+    
+    // Try to get order status instead
+    return this.getOrder(paymentId);
   }
 
   async retrievePayment(paymentId) {
