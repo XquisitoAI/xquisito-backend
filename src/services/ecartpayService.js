@@ -266,6 +266,78 @@ class EcartPayService {
     }
   }
 
+  async createCheckoutWithStoredMethod(checkoutData) {
+    try {
+      // Validate required parameters for checkout with stored payment method
+      if (!checkoutData.customerId || !checkoutData.amount) {
+        throw new Error('customerId and amount are required for checkout');
+      }
+
+      const payload = {
+        customer_id: checkoutData.customerId,
+        title: checkoutData.title || 'Xquisito Restaurant Payment',
+        currency: checkoutData.currency || 'USD',
+        amounts: [checkoutData.amount],
+        concept: checkoutData.description || 'Restaurant order payment',
+        notify_url: checkoutData.webhookUrl,
+        reference_id: checkoutData.referenceId || `xq_${Date.now()}`
+      };
+
+      console.log('💳 Creating eCartPay checkout with stored method:', {
+        customerId: checkoutData.customerId,
+        amount: checkoutData.amount,
+        currency: checkoutData.currency,
+        referenceId: payload.reference_id
+      });
+      
+      const response = await this.makeAuthenticatedRequest('post', '/checkouts', payload);
+
+      console.log('✅ eCartPay checkout created:', {
+        id: response.data?.id,
+        publicId: response.data?.public_id,
+        hasLink: !!response.data?.link
+      });
+
+      return {
+        success: true,
+        checkout: response.data
+      };
+    } catch (error) {
+      console.error('❌ eCartPay checkout creation failed:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
+  async processCheckoutWithPaymentMethod(checkoutId, paymentMethodId) {
+    try {
+      console.log('⚡ Processing checkout with stored payment method:', {
+        checkoutId,
+        paymentMethodId
+      });
+
+      // Try to process the checkout using the stored payment method
+      const response = await this.makeAuthenticatedRequest('post', `/checkouts/${checkoutId}/process`, {
+        payment_method_id: paymentMethodId
+      });
+
+      console.log('✅ Checkout processed successfully:', response.data);
+
+      return {
+        success: true,
+        payment: response.data
+      };
+    } catch (error) {
+      console.error('❌ Checkout processing failed:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
   async createOrder(orderData) {
     console.log('OrderData',orderData);
     

@@ -334,7 +334,62 @@ class PaymentController {
         orderId: orderId
       });
 
-      // Create order with EcartPay
+      // Create checkout in eCartPay and process with stored payment method
+      try {
+        console.log('💳 Creating eCartPay checkout for direct processing');
+        
+        const checkoutResult = await ecartPayService.createCheckoutWithStoredMethod({
+          customerId: paymentMethod.ecartpay_customer_id,
+          amount: amount,
+          currency: currency,
+          title: `${orderDescription}`,
+          description: `${orderDescription} - Order: ${orderId}`,
+          webhookUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`,
+          referenceId: orderId
+        });
+
+        if (!checkoutResult.success) {
+          console.error('❌ Checkout creation failed:', checkoutResult.error);
+          throw new Error('Failed to create eCartPay checkout');
+        }
+
+        console.log('✅ Checkout created, processing with stored payment method');
+        
+        // Process the checkout using the stored payment method
+        const processResult = await ecartPayService.processCheckoutWithPaymentMethod(
+          checkoutResult.checkout.id,
+          paymentMethod.ecartpay_token
+        );
+
+        if (processResult.success) {
+          console.log('✅ Payment processed successfully with eCartPay:', processResult.payment.id);
+          
+          res.status(200).json({
+            success: true,
+            payment: {
+              id: processResult.payment.id || checkoutResult.checkout.id,
+              amount: amount,
+              currency: currency,
+              status: processResult.payment.status || 'succeeded',
+              type: 'direct_charge',
+              paymentMethod: {
+                lastFourDigits: paymentMethod.last_four_digits,
+                cardType: paymentMethod.card_type
+              },
+              createdAt: processResult.payment.created_at || new Date().toISOString()
+            }
+          });
+          return;
+        } else {
+          console.error('❌ Payment processing failed:', processResult.error);
+          throw new Error('Failed to process payment with stored method');
+        }
+      } catch (directProcessError) {
+        console.error('❌ Direct processing failed:', directProcessError.message);
+        console.log('⚠️ Falling back to order creation with payLink');
+      }
+
+      // Fallback to order creation if direct charge fails
       const orderResult = await ecartPayService.createOrder({
         customerId: paymentMethod.ecartpay_customer_id,
         currency: currency,
@@ -377,7 +432,8 @@ class PaymentController {
           amount: amount,
           currency: currency,
           status: orderResult.order.status,
-          payLink: orderResult.order.pay_link
+          payLink: orderResult.order.pay_link,
+          type: 'order_with_link'
         }
       });
 
