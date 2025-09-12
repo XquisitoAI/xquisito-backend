@@ -312,30 +312,23 @@ class EcartPayService {
   }
 
   async processCheckoutWithPaymentMethod(checkoutId, paymentMethodId) {
-    try {
-      console.log('⚡ Processing checkout with stored payment method:', {
-        checkoutId,
-        paymentMethodId
-      });
-
-      // Try to process the checkout using the stored payment method
-      const response = await this.makeAuthenticatedRequest('post', `/checkouts/${checkoutId}/process`, {
-        payment_method_id: paymentMethodId
-      });
-
-      console.log('✅ Checkout processed successfully:', response.data);
-
-      return {
-        success: true,
-        payment: response.data
-      };
-    } catch (error) {
-      console.error('❌ Checkout processing failed:', error.response?.data);
-      return {
-        success: false,
-        error: this.handleError(error)
-      };
-    }
+    console.log('⚠️ processCheckoutWithPaymentMethod: This endpoint is not available in eCartPay API');
+    console.log('⚡ Checkout processing with stored payment method is not supported via direct API call');
+    console.log('📍 eCartPay requires users to complete payment via payLink interface');
+    
+    return {
+      success: false,
+      error: {
+        type: 'api_limitation',
+        code: 'endpoint_not_supported',
+        message: 'Direct checkout processing is not supported by eCartPay API. Payment must be completed via payLink.',
+        details: {
+          checkoutId,
+          paymentMethodId,
+          solution: 'Use createOrder with redirect URL instead'
+        }
+      }
+    };
   }
 
   async createOrder(orderData) {
@@ -367,7 +360,7 @@ class EcartPayService {
         customer_id: orderData.customerId,
         currency: orderData.currency || 'USD',
         items: orderData.items,
-        notify_url: orderData.webhookUrl || `${process.env.BASE_URL || 'http://localhost:3001'}/api/payments/webhooks/ecartpay`
+        notify_url: orderData.webhookUrl || `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`
       };
 
       // Add optional redirect_url if provided

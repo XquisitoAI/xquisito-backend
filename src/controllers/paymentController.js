@@ -398,7 +398,7 @@ class PaymentController {
           quantity: 1,
           price: amount
         }],
-        webhookUrl: `${process.env.BASE_URL || 'http://localhost:3001'}/api/payments/webhooks/ecartpay`,
+        webhookUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`,
         redirectUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment-success?orderId=${orderId}&amount=${amount}&table=${tableNumber}`
       });
 
