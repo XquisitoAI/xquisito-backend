@@ -370,7 +370,7 @@ class EcartPayService {
 
       console.log('🛒 Creating eCartPay order with payload:', {
         ...payload,
-        items: payload.items.map(item => ({ ...item, price: '***' })) // Hide price in logs
+        items: payload.items.map(item => ({ ...item, price: '***' })) 
       });
       
       const response = await this.makeAuthenticatedRequest('post', '/orders', payload);
