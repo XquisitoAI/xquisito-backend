@@ -306,7 +306,7 @@ class PaymentController {
       
       const { data: paymentMethod, error: fetchError } = await require('../config/supabase')
         .from(tableName)
-        .select('ecartpay_token, ecartpay_customer_id, last_four_digits, card_type')
+        .select('ecartpay_token, ecartpay_customer_id, last_four_digits, card_type, cardholder_name')
         .eq(userFieldName, userId)
         .eq('id', paymentMethodId)
         .eq('is_active', true)
@@ -334,55 +334,57 @@ class PaymentController {
         orderId: orderId
       });
 
-      // Create checkout in eCartPay and process with stored payment method
+      // Try direct payment processing with stored card token
       try {
-        console.log('💳 Creating eCartPay checkout for direct processing');
-        
-        const checkoutResult = await ecartPayService.createCheckoutWithStoredMethod({
-          customerId: paymentMethod.ecartpay_customer_id,
-          amount: amount,
-          currency: currency,
-          title: `${orderDescription}`,
-          description: `${orderDescription} - Order: ${orderId}`,
-          webhookUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`,
-          referenceId: orderId
-        });
+        console.log('💳 Processing direct payment with stored card token');
 
-        if (!checkoutResult.success) {
-          console.error('❌ Checkout creation failed:', checkoutResult.error);
-          throw new Error('Failed to create eCartPay checkout');
-        }
-
-        console.log('✅ Checkout created, processing with stored payment method');
-        
-        // Process the checkout using the stored payment method
-        const processResult = await ecartPayService.processCheckoutWithPaymentMethod(
-          checkoutResult.checkout.id,
-          paymentMethod.ecartpay_token
+        const directPaymentResult = await ecartPayService.processCheckoutWithPaymentMethod(
+          paymentMethod.ecartpay_customer_id,
+          paymentMethod.ecartpay_token, // This is the card ID
+          {
+            amount: amount,
+            currency: currency,
+            description: orderDescription,
+            quantity: 1,
+            cardholderName: paymentMethod.cardholder_name, // Pass the cardholder name
+            items: [{
+              name: itemName.substring(0, 100),
+              quantity: 1,
+              price: amount
+            }],
+            webhookUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`
+          }
         );
 
-        if (processResult.success) {
-          console.log('✅ Payment processed successfully with eCartPay:', processResult.payment.id);
-          
+        if (directPaymentResult.success) {
+          console.log('✅ Direct payment processed successfully:', directPaymentResult.order.id);
+          console.log('📊 Direct payment details:', {
+            orderId: directPaymentResult.order.id,
+            orderStatus: directPaymentResult.order.status,
+            hasToken: !!directPaymentResult.token
+          });
+
           res.status(200).json({
             success: true,
             payment: {
-              id: processResult.payment.id || checkoutResult.checkout.id,
+              id: directPaymentResult.order.id,
               amount: amount,
               currency: currency,
-              status: processResult.payment.status || 'succeeded',
+              status: directPaymentResult.order.status || 'succeeded',
               type: 'direct_charge',
               paymentMethod: {
                 lastFourDigits: paymentMethod.last_four_digits,
                 cardType: paymentMethod.card_type
               },
-              createdAt: processResult.payment.created_at || new Date().toISOString()
+              token: directPaymentResult.token,
+              createdAt: directPaymentResult.order.created_at || new Date().toISOString()
             }
           });
           return;
         } else {
-          console.error('❌ Payment processing failed:', processResult.error);
-          throw new Error('Failed to process payment with stored method');
+          console.error('❌ Direct payment processing failed:', directPaymentResult.error);
+          console.log('🔄 Will fallback to payLink method');
+          throw new Error('Failed to process direct payment with stored card');
         }
       } catch (directProcessError) {
         console.error('❌ Direct processing failed:', directProcessError.message);

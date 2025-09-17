@@ -311,24 +311,136 @@ class EcartPayService {
     }
   }
 
-  async processCheckoutWithPaymentMethod(checkoutId, paymentMethodId) {
-    console.log('⚠️ processCheckoutWithPaymentMethod: This endpoint is not available in eCartPay API');
-    console.log('⚡ Checkout processing with stored payment method is not supported via direct API call');
-    console.log('📍 eCartPay requires users to complete payment via payLink interface');
-    
-    return {
-      success: false,
-      error: {
-        type: 'api_limitation',
-        code: 'endpoint_not_supported',
-        message: 'Direct checkout processing is not supported by eCartPay API. Payment must be completed via payLink.',
-        details: {
-          checkoutId,
-          paymentMethodId,
-          solution: 'Use createOrder with redirect URL instead'
-        }
+  async generateCardToken(customerId, cardId, cardholderName) {
+    try {
+      console.log('🔑 Generating card token for customer:', customerId, 'card:', cardId);
+
+      // Based on EcartPay documentation, the /tokens endpoint expects:
+      // - id: the card_id
+      // - cvc: the card's CVC (we don't store this for security)
+      // But the API is also asking for 'name', so we'll include it
+      const payload = {
+        id: cardId
+      };
+
+      // Add name if provided (seems to be required by current API version)
+      if (cardholderName) {
+        payload.name = cardholderName;
       }
-    };
+
+      // Note: CVC is required according to docs but we don't store it for security reasons
+      // For production, you may need to ask user to re-enter CVC for tokenization
+      // For now, we'll try without CVC and see what the API returns
+
+      console.log('🔑 Token generation payload:', {
+        id: cardId,
+        hasName: !!cardholderName,
+        note: 'CVC not included for security reasons'
+      });
+
+      const response = await this.makeAuthenticatedRequest('post', '/tokens', payload);
+
+      console.log('✅ Card token generated successfully:', response.data?.token ? 'present' : 'missing');
+
+      return {
+        success: true,
+        token: response.data?.token,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('❌ Card token generation failed:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
+  async createOrderWithToken(orderData) {
+    try {
+      if (!orderData.customerId || !orderData.token) {
+        throw new Error('customer_id and token are required');
+      }
+
+      if (!orderData.items || orderData.items.length === 0) {
+        orderData.items = [{
+          name: orderData.description || 'Xquisito Restaurant Order',
+          quantity: orderData.quantity || 1,
+          price: orderData.amount
+        }];
+      }
+
+      const payload = {
+        customer_id: orderData.customerId,
+        currency: orderData.currency || 'USD',
+        items: orderData.items,
+        token: orderData.token,
+        notify_url: orderData.webhookUrl || `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`
+      };
+
+      console.log('🛒 Creating eCartPay order with token:', {
+        customerId: orderData.customerId,
+        token: orderData.token ? 'present' : 'missing',
+        itemsCount: payload.items.length,
+        currency: payload.currency
+      });
+
+      const response = await this.makeAuthenticatedRequest('post', '/orders', payload);
+
+      console.log('✅ eCartPay order with token created successfully:', {
+        id: response.data?.id,
+        status: response.data?.status
+      });
+
+      return {
+        success: true,
+        order: response.data
+      };
+    } catch (error) {
+      console.error('❌ eCartPay order with token creation failed:', error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
+  }
+
+  async processCheckoutWithPaymentMethod(customerId, cardId, orderData) {
+    try {
+      console.log('💳 Processing payment with stored card:', { customerId, cardId });
+
+      // Step 1: Generate token for the stored card
+      const tokenResult = await this.generateCardToken(customerId, cardId, orderData.cardholderName);
+      if (!tokenResult.success) {
+        return tokenResult;
+      }
+
+      // Step 2: Create order with the token
+      const orderResult = await this.createOrderWithToken({
+        ...orderData,
+        customerId,
+        token: tokenResult.token
+      });
+
+      if (!orderResult.success) {
+        return orderResult;
+      }
+
+      console.log('✅ Payment processed successfully with stored card');
+
+      return {
+        success: true,
+        order: orderResult.order,
+        token: tokenResult.token
+      };
+
+    } catch (error) {
+      console.error('❌ Payment processing with stored card failed:', error);
+      return {
+        success: false,
+        error: this.handleError(error)
+      };
+    }
   }
 
   async createOrder(orderData) {
