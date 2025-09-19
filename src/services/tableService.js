@@ -17,18 +17,82 @@ class TableService {
     }
   }
 
-  // Obtener todas las órdenes de una mesa específica
+  // Obtener todas las órdenes activas (no pagadas) de una mesa específica
   async getTableOrders(tableNumber) {
     try {
       const { data, error } = await supabase
         .from('user_orders')
         .select('*')
         .eq('table_number', tableNumber)
+        .eq('payment_status', 'pending') // Solo órdenes con pago pendiente
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return { success: true, data: data || [] };
     } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Obtener TODAS las órdenes de una mesa (incluyendo pagadas) - para reportes/histórico
+  async getAllTableOrders(tableNumber) {
+    try {
+      const { data, error } = await supabase
+        .from('user_orders')
+        .select('*')
+        .eq('table_number', tableNumber)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Marcar órdenes como pagadas
+  async markOrdersAsPaid(tableNumber, orderIds = null) {
+    try {
+      console.log('🔍 Backend markOrdersAsPaid called with:');
+      console.log('   tableNumber:', tableNumber);
+      console.log('   orderIds:', orderIds);
+      console.log('   orderIds type:', typeof orderIds);
+      console.log('   orderIds length:', orderIds ? orderIds.length : 'null');
+
+      let query = supabase
+        .from('user_orders')
+        .update({
+          paid_at: new Date().toISOString(),
+          payment_status: 'paid',
+          status: 'delivered' // Opcional: cambiar estado a entregado
+        })
+        .eq('table_number', tableNumber)
+        .eq('payment_status', 'pending'); // Solo actualizar órdenes pendientes
+
+      // Si se especifican IDs específicos, filtrar por ellos
+      if (orderIds && orderIds.length > 0) {
+        console.log('🎯 Adding .in() filter for specific orderIds:', orderIds);
+        query = query.in('id', orderIds);
+      } else {
+        console.log('🌍 No orderIds filter - will update ALL pending orders for table');
+      }
+
+      const { data, error } = await query.select();
+
+      if (error) throw error;
+
+      console.log(`✅ Backend: Marked ${data?.length || 0} orders as paid for table ${tableNumber}`);
+      if (data && data.length > 0) {
+        console.log('✅ Updated orders:', data.map(o => ({ id: o.id, user_name: o.user_name, payment_status: o.payment_status })));
+      }
+
+      return {
+        success: true,
+        data: data || [],
+        count: data?.length || 0
+      };
+    } catch (error) {
+      console.error('❌ Error marking orders as paid:', error.message);
       return { success: false, error: error.message };
     }
   }
@@ -50,7 +114,8 @@ class TableService {
           items: orderData.items,
           total_items: orderData.total_items,
           total_price: orderData.total_price,
-          status: 'pending'
+          status: 'pending',
+          payment_status: 'pending'
         })
         .select()
         .single();

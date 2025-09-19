@@ -475,6 +475,13 @@ class EcartPayService {
         notify_url: orderData.webhookUrl || `${process.env.BASE_URL || 'http://localhost:5000'}/api/payments/webhooks/ecartpay`
       };
 
+      // Add reference_id with table information for webhook processing
+      if (orderData.tableNumber) {
+        payload.reference_id = `xq_table_${orderData.tableNumber}_${Date.now()}`;
+      } else if (orderData.referenceId) {
+        payload.reference_id = orderData.referenceId;
+      }
+
       // Add optional redirect_url if provided
       if (orderData.redirectUrl) {
         payload.redirect_url = orderData.redirectUrl;

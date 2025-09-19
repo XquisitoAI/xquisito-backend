@@ -19,16 +19,19 @@ CREATE TABLE IF NOT EXISTS user_orders (
     total_items INTEGER NOT NULL,
     total_price DECIMAL(10,2) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled')),
+    paid_at TIMESTAMP WITH TIME ZONE DEFAULT NULL, -- Timestamp cuando se pagó la orden (NULL = no pagada)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- Índices para mejorar performance
-    CONSTRAINT fk_table_number FOREIGN KEY (table_number) REFERENCES tables(table_number) ON DELETE CASCADE
+
+    -- Constraints
+    CONSTRAINT fk_table_number FOREIGN KEY (table_number) REFERENCES tables(table_number) ON DELETE CASCADE,
+    CONSTRAINT chk_paid_at_not_future CHECK (paid_at IS NULL OR paid_at <= NOW())
 );
 
 -- Índices para optimizar consultas
 CREATE INDEX IF NOT EXISTS idx_user_orders_table_number ON user_orders(table_number);
 CREATE INDEX IF NOT EXISTS idx_user_orders_status ON user_orders(status);
+CREATE INDEX IF NOT EXISTS idx_user_orders_paid_at ON user_orders(paid_at);
 CREATE INDEX IF NOT EXISTS idx_user_orders_created_at ON user_orders(created_at DESC);
 
 -- Función para actualizar el campo updated_at automáticamente

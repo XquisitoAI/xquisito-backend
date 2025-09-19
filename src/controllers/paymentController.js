@@ -1,5 +1,6 @@
 const paymentService = require('../services/paymentService');
 const ecartPayService = require('../services/ecartpayService');
+const tableService = require('../services/tableService');
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -395,6 +396,7 @@ class PaymentController {
       const orderResult = await ecartPayService.createOrder({
         customerId: paymentMethod.ecartpay_customer_id,
         currency: currency,
+        tableNumber: tableNumber, // Add table number for webhook processing
         items: [{
           name: itemName.substring(0, 100), // Limit length for eCartPay
           quantity: 1,
@@ -502,7 +504,7 @@ class PaymentController {
       switch (webhookData.type) {
         case 'payment_intent.succeeded':
           console.log('✅ Payment succeeded:', webhookData.data.object.id);
-          // Update payment status in database
+          await this.handlePaymentSuccess(webhookData.data.object);
           break;
           
         case 'payment_intent.payment_failed':
@@ -706,6 +708,60 @@ class PaymentController {
           message: 'Internal server error'
         }
       });
+    }
+  }
+  // Helper method to handle successful payments
+  async handlePaymentSuccess(paymentObject) {
+    try {
+      console.log('🔄 Processing payment success:', paymentObject.id);
+
+      // Extract table number from payment metadata or description
+      // eCartPay may include this in the order reference or metadata
+      let tableNumber = null;
+
+      // Try to extract table number from reference_id or description
+      if (paymentObject.reference_id) {
+        // Match our format: xq_table_12_timestamp
+        const match = paymentObject.reference_id.match(/(?:xq_)?table[_-]?(\d+)/i);
+        if (match) {
+          tableNumber = parseInt(match[1]);
+        }
+      }
+
+      // Try to extract from description if not found in reference
+      if (!tableNumber && paymentObject.description) {
+        const match = paymentObject.description.match(/table[_\s-]?(\d+)/i);
+        if (match) {
+          tableNumber = parseInt(match[1]);
+        }
+      }
+
+      // Try to extract from metadata if available
+      if (!tableNumber && paymentObject.metadata && paymentObject.metadata.table_number) {
+        tableNumber = parseInt(paymentObject.metadata.table_number);
+      }
+
+      if (tableNumber) {
+        console.log(`🎯 Marking orders as paid for table ${tableNumber}`);
+
+        // Mark all unpaid orders for this table as paid
+        const result = await tableService.markOrdersAsPaid(tableNumber);
+
+        if (result.success) {
+          console.log(`✅ Successfully marked ${result.count} orders as paid for table ${tableNumber}`);
+        } else {
+          console.error(`❌ Failed to mark orders as paid for table ${tableNumber}:`, result.error);
+        }
+      } else {
+        console.warn('⚠️ Could not extract table number from payment object:', {
+          id: paymentObject.id,
+          reference_id: paymentObject.reference_id,
+          description: paymentObject.description
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error in handlePaymentSuccess:', error);
     }
   }
 }

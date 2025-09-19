@@ -243,6 +243,53 @@ class TableController {
       });
     }
   }
+  // POST /api/tables/:tableNumber/orders/mark-paid - Marcar órdenes como pagadas
+  async markOrdersAsPaid(req, res) {
+    try {
+      const { tableNumber } = req.params;
+      const { orderIds } = req.body; // Opcional: IDs específicos de órdenes
+
+      if (!tableNumber || isNaN(tableNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valid table number is required'
+        });
+      }
+
+      // Validar orderIds si se proporcionan
+      if (orderIds && (!Array.isArray(orderIds) || orderIds.some(id => typeof id !== 'string'))) {
+        return res.status(400).json({
+          success: false,
+          message: 'orderIds must be an array of strings (UUIDs)'
+        });
+      }
+
+      const result = await tableService.markOrdersAsPaid(parseInt(tableNumber), orderIds);
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to mark orders as paid',
+          error: result.error
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `${result.count} orders marked as paid`,
+        data: {
+          updatedOrders: result.data,
+          count: result.count
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = new TableController();

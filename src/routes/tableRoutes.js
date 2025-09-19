@@ -7,6 +7,7 @@ const router = express.Router();
 router.get('/tables/:tableNumber', tableController.getTableInfo);
 router.get('/tables/:tableNumber/orders', tableController.getTableOrders);
 router.post('/tables/:tableNumber/orders', tableController.createUserOrder);
+router.post('/tables/:tableNumber/orders/mark-paid', tableController.markOrdersAsPaid);
 router.get('/tables/:tableNumber/stats', tableController.getTableStats);
 router.delete('/tables/:tableNumber/orders', tableController.clearTableOrders);
 
