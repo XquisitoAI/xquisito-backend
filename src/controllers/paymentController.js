@@ -337,7 +337,6 @@ class PaymentController {
 
       // Try direct payment processing with stored card token
       try {
-        console.log('💳 Processing direct payment with stored card token');
 
         const directPaymentResult = await ecartPayService.processCheckoutWithPaymentMethod(
           paymentMethod.ecartpay_customer_id,
@@ -396,7 +395,7 @@ class PaymentController {
       const orderResult = await ecartPayService.createOrder({
         customerId: paymentMethod.ecartpay_customer_id,
         currency: currency,
-        tableNumber: tableNumber, // Add table number for webhook processing
+        tableNumber: tableNumber,
         items: [{
           name: itemName.substring(0, 100), // Limit length for eCartPay
           quantity: 1,
@@ -413,8 +412,6 @@ class PaymentController {
           error: orderResult.error
         });
       }
-
-      console.log('✅ Order created successfully:', orderResult.order.id);
 
       res.status(200).json({
         success: true,
