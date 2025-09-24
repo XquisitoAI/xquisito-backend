@@ -59,10 +59,13 @@ class TableService {
       console.log('   orderIds type:', typeof orderIds);
       console.log('   orderIds length:', orderIds ? orderIds.length : 'null');
 
+      // Subtract 1 second to ensure we're not in the future due to clock differences
+      const paidAtTime = new Date(Date.now() - 1000).toISOString();
+
       let query = supabase
         .from('user_orders')
         .update({
-          paid_at: new Date().toISOString(),
+          paid_at: paidAtTime,
           payment_status: 'paid',
           status: 'delivered' // Opcional: cambiar estado a entregado
         })
