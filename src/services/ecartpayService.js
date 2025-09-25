@@ -252,13 +252,19 @@ class EcartPayService {
 
   async detachPaymentMethod(paymentMethodId) {
     try {
-      const response = await this.makeAuthenticatedRequest('post', `/payment_methods/${paymentMethodId}/detach`);
+      console.log('🗑️ Deleting payment method from EcartPay using correct endpoint:', paymentMethodId);
+
+      // Use the correct endpoint from EcartPay documentation: DELETE /api/cards/{card_id}
+      const response = await this.makeAuthenticatedRequest('delete', `/cards/${paymentMethodId}`);
+
+      console.log('✅ Payment method deleted successfully from EcartPay');
 
       return {
         success: true,
-        paymentMethod: response.data
+        paymentMethod: response.data || { deleted: true }
       };
     } catch (error) {
+      console.error('❌ Failed to delete payment method from EcartPay:', error.response?.data || error.message);
       return {
         success: false,
         error: this.handleError(error)

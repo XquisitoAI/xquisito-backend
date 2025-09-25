@@ -1,11 +1,12 @@
 const express = require('express');
 const paymentController = require('../controllers/paymentController');
 const { authenticateSupabaseToken, optionalAuth, guestAuth } = require('../middleware/supabaseAuth');
+const { optionalClerkAuth } = require('../middleware/clerkAuth');
 
 const router = express.Router();
 
-// Use guestAuth middleware - supports both authenticated users and guests
-router.use(guestAuth);
+// Use optionalClerkAuth middleware - supports both Clerk-authenticated users and guests
+router.use(optionalClerkAuth);
 
 // Payment Methods Management
 router.post('/payment-methods', paymentController.addPaymentMethod);

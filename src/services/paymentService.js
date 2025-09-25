@@ -40,25 +40,38 @@ class PaymentService {
         };
         console.log(`Processing guest user: ${userId} with unique email: ${uniqueGuestEmail} (original: ${userEmail})`);
       } else {
-        // For authenticated users, get from Supabase
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+        // For authenticated users (Clerk), get from public.users table
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('clerk_user_id', userId)
+          .single();
+
         if (userError || !userData) {
           return {
             success: false,
             error: {
               type: 'user_error',
-              message: 'User not found'
+              message: 'Registered user not found'
             }
           };
         }
-        user = userData;
-        console.log(`Processing authenticated user: ${userId}`);
+
+        // Format userData to match expected structure
+        user = {
+          user: {
+            email: userData.email,
+            id: userData.clerk_user_id,
+            phone: userData.phone
+          }
+        };
+        console.log(`Processing authenticated user (Clerk): ${userId}`);
       }
 
       // Check if user already has an EcartPay customer
       let ecartPayCustomerId;
       const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
-      const userFieldName = isGuest ? 'guest_id' : 'user_id';
+      const userFieldName = isGuest ? 'guest_id' : 'clerk_user_id';
       
       const { data: existingMethods } = await supabase
         .from(tableName)
@@ -173,7 +186,7 @@ class PaymentService {
           insertData.session_data = context.sessionData;
         }
       } else {
-        insertData.user_id = userId;
+        insertData.clerk_user_id = userId;
       }
 
       // Store payment method metadata in our database
@@ -232,7 +245,7 @@ class PaymentService {
     try {
       const { isGuest } = context;
       const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
-      const userFieldName = isGuest ? 'guest_id' : 'user_id';
+      const userFieldName = isGuest ? 'guest_id' : 'clerk_user_id';
 
       // For guest users, also filter by non-expired records
       let query = supabase
@@ -273,9 +286,24 @@ class PaymentService {
         };
       }
 
+      // Transform the data to match frontend expectations (camelCase)
+      const transformedMethods = (methods || []).map(method => ({
+        id: method.id,
+        lastFourDigits: method.last_four_digits,
+        cardType: method.card_type,
+        cardBrand: method.card_brand,
+        expiryMonth: method.expiry_month,
+        expiryYear: method.expiry_year,
+        cardholderName: method.cardholder_name,
+        billingCountry: method.billing_country,
+        isDefault: method.is_default,
+        isActive: method.is_active,
+        createdAt: method.created_at
+      }));
+
       return {
         success: true,
-        paymentMethods: methods || []
+        paymentMethods: transformedMethods
       };
 
     } catch (error) {
@@ -296,7 +324,7 @@ class PaymentService {
       const { data: method, error: fetchError } = await supabase
         .from('user_payment_methods')
         .select('ecartpay_token, is_default')
-        .eq('user_id', userId)
+        .eq('clerk_user_id', userId)
         .eq('id', paymentMethodId)
         .single();
 
@@ -310,26 +338,39 @@ class PaymentService {
         };
       }
 
-      // Detach from EcartPay
+      // Detach from EcartPay first
+      console.log(`🗑️ Attempting to delete from EcartPay: ${method.ecartpay_token}`);
       const detachResult = await ecartPayService.detachPaymentMethod(method.ecartpay_token);
+
       if (!detachResult.success) {
-        console.warn('Failed to detach payment method from EcartPay:', detachResult.error);
+        console.error('❌ Failed to delete payment method from EcartPay:', detachResult.error);
+        return {
+          success: false,
+          error: {
+            type: 'external_service_error',
+            message: 'Failed to delete payment method from payment processor',
+            details: detachResult.error
+          }
+        };
       }
 
-      // Mark as inactive in our database
-      const { error: updateError } = await supabase
+      console.log('✅ Successfully deleted from EcartPay, now deleting from database');
+
+      // Delete completely from our database after successful EcartPay deletion
+      const { error: deleteError } = await supabase
         .from('user_payment_methods')
-        .update({ is_active: false, is_default: false })
-        .eq('user_id', userId)
+        .delete()
+        .eq('clerk_user_id', userId)
         .eq('id', paymentMethodId);
 
-      if (updateError) {
+      if (deleteError) {
+        console.error('❌ Database deletion failed after EcartPay deletion:', deleteError);
         return {
           success: false,
           error: {
             type: 'database_error',
-            message: 'Failed to delete payment method',
-            details: updateError
+            message: 'Failed to delete payment method from database',
+            details: deleteError
           }
         };
       }
@@ -339,7 +380,7 @@ class PaymentService {
         const { data: otherMethods } = await supabase
           .from('user_payment_methods')
           .select('id')
-          .eq('user_id', userId)
+          .eq('clerk_user_id', userId)
           .eq('is_active', true)
           .limit(1);
 
@@ -374,7 +415,7 @@ class PaymentService {
       const { data: method, error: fetchError } = await supabase
         .from('user_payment_methods')
         .select('id')
-        .eq('user_id', userId)
+        .eq('clerk_user_id', userId)
         .eq('id', paymentMethodId)
         .eq('is_active', true)
         .single();
@@ -393,7 +434,7 @@ class PaymentService {
       await supabase
         .from('user_payment_methods')
         .update({ is_default: false })
-        .eq('user_id', userId);
+        .eq('clerk_user_id', userId);
 
       // Set the selected one as default
       const { error: updateError } = await supabase
@@ -433,7 +474,7 @@ class PaymentService {
     try {
       const { isGuest } = context;
       const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
-      const userFieldName = isGuest ? 'guest_id' : 'user_id';
+      const userFieldName = isGuest ? 'guest_id' : 'clerk_user_id';
 
       // Get all payment methods for this user/guest
       const { data: methods, error } = await supabase

@@ -24,7 +24,7 @@ class TableService {
         .from('user_orders')
         .select('*')
         .eq('table_number', tableNumber)
-        .eq('payment_status', 'pending') // Solo órdenes con pago pendiente
+        .eq('payment_status', 'unpaid') // Solo órdenes con pago pendiente
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -67,7 +67,7 @@ class TableService {
           status: 'delivered' // Opcional: cambiar estado a entregado
         })
         .eq('table_number', tableNumber)
-        .eq('payment_status', 'pending'); // Solo actualizar órdenes pendientes
+        .eq('payment_status', 'unpaid'); // Solo actualizar órdenes no pagadas
 
       // Si se especifican IDs específicos, filtrar por ellos
       if (orderIds && orderIds.length > 0) {
@@ -115,7 +115,7 @@ class TableService {
           total_items: orderData.total_items,
           total_price: orderData.total_price,
           status: 'pending',
-          payment_status: 'pending'
+          payment_status: 'unpaid'
         })
         .select()
         .single();
