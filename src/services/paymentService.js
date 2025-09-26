@@ -164,7 +164,7 @@ class PaymentService {
         ecartpay_customer_id: ecartPayCustomerId,
         // Map fields based on actual eCartpay response structure
         last_four_digits: (ecartPayPaymentMethod.last || ecartPayPaymentMethod.last4 || ecartPayPaymentMethod.last_four || paymentData.cardNumber.slice(-4)).slice(-4).substring(0, 3),
-        card_type: ecartPayPaymentMethod.type || ecartPayPaymentMethod.brand || 'card',
+        card_type: this.normalizeCardType(ecartPayPaymentMethod.type || ecartPayPaymentMethod.brand || 'unknown', paymentData.cardNumber),
         card_brand: ecartPayPaymentMethod.brand || ecartPayPaymentMethod.type || 'unknown',
         expiry_month: paymentData.expMonth, // Use original data as eCartpay may not return it
         expiry_year: paymentData.expYear,   // Use original data as eCartpay may not return it
@@ -549,6 +549,51 @@ class PaymentService {
       isValid: errors.length === 0,
       errors
     };
+  }
+
+  // Normalize card type from EcartPay to standard values
+  normalizeCardType(ecartPayType, cardNumber) {
+    // First try to determine from card number if ecartPayType is generic
+    if (ecartPayType === 'credit' || ecartPayType === 'card' || ecartPayType === 'unknown') {
+      return this.detectCardTypeFromNumber(cardNumber);
+    }
+
+    // Normalize EcartPay types to standard values
+    const typeMap = {
+      'visa': 'visa',
+      'mastercard': 'mastercard',
+      'master': 'mastercard',
+      'amex': 'amex',
+      'american-express': 'amex',
+      'american_express': 'amex',
+      'discover': 'discover',
+      'credit': this.detectCardTypeFromNumber(cardNumber), // fallback to number detection
+      'debit': this.detectCardTypeFromNumber(cardNumber)   // fallback to number detection
+    };
+
+    return typeMap[ecartPayType.toLowerCase()] || this.detectCardTypeFromNumber(cardNumber);
+  }
+
+  // Detect card type from card number patterns
+  detectCardTypeFromNumber(cardNumber) {
+    if (!cardNumber) return 'unknown';
+
+    const cleaned = cardNumber.replace(/\s/g, '');
+
+    const patterns = {
+      visa: /^4[0-9]{12}(?:[0-9]{3})?$/,
+      mastercard: /^5[1-5][0-9]{14}$/,
+      amex: /^3[47][0-9]{13}$/,
+      discover: /^6(?:011|5[0-9]{2})[0-9]{12}$/
+    };
+
+    for (const [type, pattern] of Object.entries(patterns)) {
+      if (pattern.test(cleaned)) {
+        return type;
+      }
+    }
+
+    return 'unknown';
   }
 }
 

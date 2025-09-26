@@ -246,6 +246,7 @@ class PaymentController {
   async processPayment(req, res) {
 
     console.log('body de la request', req.body)
+    console.log('⚡ processPayment method STARTED');
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
@@ -303,8 +304,16 @@ class PaymentController {
 
       // Get the payment method from database
       const tableName = isGuest ? 'guest_payment_methods' : 'user_payment_methods';
-      const userFieldName = isGuest ? 'guest_id' : 'user_id';
-      
+      const userFieldName = isGuest ? 'guest_id' : 'clerk_user_id';
+
+      console.log(`🔍 Fetching payment method from database:`, {
+        tableName,
+        userFieldName,
+        userId,
+        paymentMethodId,
+        isGuest
+      });
+
       const { data: paymentMethod, error: fetchError } = await require('../config/supabase')
         .from(tableName)
         .select('ecartpay_token, ecartpay_customer_id, last_four_digits, card_type, cardholder_name')
@@ -313,7 +322,25 @@ class PaymentController {
         .eq('is_active', true)
         .single();
 
+      console.log(`🔍 Database query result:`, {
+        paymentMethodFound: !!paymentMethod,
+        fetchError: fetchError?.message,
+        paymentMethodDetails: paymentMethod ? {
+          hasToken: !!paymentMethod.ecartpay_token,
+          hasCustomerId: !!paymentMethod.ecartpay_customer_id,
+          cardType: paymentMethod.card_type,
+          lastFour: paymentMethod.last_four_digits
+        } : null
+      });
+
       if (fetchError || !paymentMethod) {
+        console.error(`❌ Payment method fetch failed:`, {
+          error: fetchError?.message,
+          paymentMethodId,
+          tableName,
+          userId
+        });
+
         return res.status(404).json({
           success: false,
           error: {
