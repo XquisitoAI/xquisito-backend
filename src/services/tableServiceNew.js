@@ -28,6 +28,7 @@ class TableService {
                     price,
                     status,
                     payment_status,
+                    images,
                     user_order!inner(
                         user_id,
                         guest_name,
@@ -52,6 +53,7 @@ class TableService {
         total_price: item.quantity * item.price,
         status: item.status,
         payment_status: item.payment_status,
+        images: item.images || [],
         user_id: item.user_order.user_id,
         guest_name: item.user_order.guest_name,
         table_order_id: item.user_order.table_order.id,
@@ -62,7 +64,16 @@ class TableService {
   }
 
   // Crear nueva orden de platillo
-  async createDishOrder(tableNumber, userId, guestName, item, quantity, price) {
+  async createDishOrder(
+    tableNumber,
+    userId,
+    guestName,
+    item,
+    quantity,
+    price,
+    guestId = null,
+    images = []
+  ) {
     try {
       const { data, error } = await supabase.rpc("create_dish_order", {
         p_table_number: tableNumber,
@@ -71,16 +82,22 @@ class TableService {
         p_user_id: userId,
         p_guest_name: guestName,
         p_quantity: quantity,
+        p_guest_id: guestId,
+        p_images: images,
       });
 
       if (error) throw error;
 
       // Registrar usuario como activo en la mesa
-      await this.addActiveUser(tableNumber, userId, guestName);
+      await this.addActiveUser(tableNumber, userId, guestName, guestId);
 
       // Verificar si hay división activa y re-dividir automáticamente
-      const redistributionResult =
-        await this.redistributeSplitBill(tableNumber, userId, guestName);
+      const redistributionResult = await this.redistributeSplitBill(
+        tableNumber,
+        userId,
+        guestName,
+        guestId
+      );
 
       const result = {
         dish_order_id: data,
@@ -88,6 +105,7 @@ class TableService {
         item,
         quantity,
         price: parseFloat(price),
+        images: images || [],
       };
 
       if (redistributionResult && redistributionResult.redistributed) {
@@ -125,7 +143,7 @@ class TableService {
           dishData.table_number,
           dishData.user_id,
           dishData.guest_name,
-          'individual',
+          "individual",
           parseFloat(dishData.price)
         );
       }
@@ -286,7 +304,12 @@ class TableService {
   }
 
   // Re-dividir cuando se agrega un nuevo item
-  async redistributeSplitBill(tableNumber, newOrderUserId = null, newOrderGuestName = null) {
+  async redistributeSplitBill(
+    tableNumber,
+    newOrderUserId = null,
+    newOrderGuestName = null,
+    newOrderGuestId = null
+  ) {
     try {
       // Verificar si hay división activa
       const { data: activeSplits, error: selectError } = await supabase
@@ -301,12 +324,14 @@ class TableService {
       const orders = await this.getTableOrders(tableNumber);
       const uniqueGuests = new Map();
 
-      orders.forEach(order => {
-        const key = order.user_id || order.guest_name;
+      orders.forEach((order) => {
+        // Usar guest_id como key si está disponible, sino user_id o guest_name
+        const key = order.guest_id || order.user_id || order.guest_name;
         if (!uniqueGuests.has(key)) {
           uniqueGuests.set(key, {
             user_id: order.user_id,
             guest_name: order.guest_name,
+            guest_id: order.guest_id,
           });
         }
       });
@@ -328,26 +353,32 @@ class TableService {
       const newGuests = [];
 
       uniqueGuests.forEach((guest, key) => {
-        const existsInSplit = activeSplits.some(split =>
-          (split.user_id && split.user_id === guest.user_id) ||
-          (split.guest_name && split.guest_name === guest.guest_name)
+        const existsInSplit = activeSplits.some(
+          (split) =>
+            (split.guest_id && split.guest_id === guest.guest_id) ||
+            (split.user_id && split.user_id === guest.user_id) ||
+            (split.guest_name && split.guest_name === guest.guest_name)
         );
 
         if (!existsInSplit) {
           // Verificar si es la persona que hizo la nueva orden
           const isNewOrderPerson =
+            (newOrderGuestId && guest.guest_id === newOrderGuestId) ||
             (newOrderUserId && guest.user_id === newOrderUserId) ||
             (newOrderGuestName && guest.guest_name === newOrderGuestName);
 
           // Buscar en usuarios activos para ver cuánto ha pagado
-          const activeUser = activeUsers.find(user =>
-            (user.user_id && user.user_id === guest.user_id) ||
-            (user.guest_name && user.guest_name === guest.guest_name)
+          const activeUser = activeUsers.find(
+            (user) =>
+              (user.guest_id && user.guest_id === guest.guest_id) ||
+              (user.user_id && user.user_id === guest.user_id) ||
+              (user.guest_name && user.guest_name === guest.guest_name)
           );
 
-          const totalPaidByUser = activeUser ?
-            parseFloat(activeUser.total_paid_individual || 0) +
-            parseFloat(activeUser.total_paid_amount || 0) : 0;
+          const totalPaidByUser = activeUser
+            ? parseFloat(activeUser.total_paid_individual || 0) +
+              parseFloat(activeUser.total_paid_amount || 0)
+            : 0;
 
           // Incluir en split SOLO si:
           // 1. Es quien hizo la nueva orden (siempre se incluye)
@@ -364,13 +395,14 @@ class TableService {
 
       // Agregar nuevos huéspedes a la división
       if (newGuests.length > 0) {
-        const newSplitRecords = newGuests.map(guest => ({
+        const newSplitRecords = newGuests.map((guest) => ({
           table_number: tableNumber,
           expected_amount: 0, // Se calculará después
           original_total: newTotalAmount,
           user_id: guest.user_id,
           guest_name: guest.guest_name,
-          status: 'pending'
+          guest_id: guest.guest_id,
+          status: "pending",
         }));
 
         const { data: insertedSplits, error: insertError } = await supabase
@@ -389,9 +421,11 @@ class TableService {
         if (split.status !== "pending") return false;
 
         // Buscar si esta persona ya pagó significativamente por otros métodos
-        const activeUser = activeUsers.find(user =>
-          (user.user_id && user.user_id === split.user_id) ||
-          (user.guest_name && user.guest_name === split.guest_name)
+        const activeUser = activeUsers.find(
+          (user) =>
+            (user.guest_id && user.guest_id === split.guest_id) ||
+            (user.user_id && user.user_id === split.user_id) ||
+            (user.guest_name && user.guest_name === split.guest_name)
         );
 
         if (activeUser) {
@@ -416,9 +450,11 @@ class TableService {
       const remainingAmountTable = parseFloat(summary.remaining_amount);
 
       // Dividir el restante real entre las personas pendientes
-      const newAmountPerPendingPerson = pendingPeople.length > 0
-        ? Math.round((remainingAmountTable / pendingPeople.length) * 100) / 100
-        : 0;
+      const newAmountPerPendingPerson =
+        pendingPeople.length > 0
+          ? Math.round((remainingAmountTable / pendingPeople.length) * 100) /
+            100
+          : 0;
 
       // Actualizar solo las personas pendientes
       const updatePromises = pendingPeople.map((split) => {
@@ -432,7 +468,6 @@ class TableService {
       });
 
       await Promise.all(updatePromises);
-
 
       return {
         redistributed: true,
@@ -520,7 +555,7 @@ class TableService {
         tableNumber,
         userId,
         guestName,
-        'split',
+        "split",
         amountToPay
       );
 
@@ -533,18 +568,27 @@ class TableService {
   // === MÉTODOS PARA ACTIVE TABLE USERS ===
 
   // Registrar usuario en la mesa (cuando hace primera orden)
-  async addActiveUser(tableNumber, userId = null, guestName = null) {
+  async addActiveUser(
+    tableNumber,
+    userId = null,
+    guestName = null,
+    guestId = null
+  ) {
     try {
       const { data, error } = await supabase
         .from("active_table_users")
-        .upsert({
-          table_number: tableNumber,
-          user_id: userId,
-          guest_name: guestName,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'table_number,user_id,guest_name'
-        })
+        .upsert(
+          {
+            table_number: tableNumber,
+            user_id: userId,
+            guest_name: guestName,
+            guest_id: guestId,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "table_number,user_id,guest_id,guest_name",
+          }
+        )
         .select();
 
       if (error) throw error;
@@ -556,24 +600,29 @@ class TableService {
   }
 
   // Actualizar pagos de un usuario
-  async updateUserPayment(tableNumber, userId = null, guestName = null, paymentType, amount) {
+  async updateUserPayment(
+    tableNumber,
+    userId = null,
+    guestName = null,
+    paymentType,
+    amount
+  ) {
     try {
       const updateField = {
-        individual: 'total_paid_individual',
-        amount: 'total_paid_amount',
-        split: 'total_paid_split'
+        individual: "total_paid_individual",
+        amount: "total_paid_amount",
+        split: "total_paid_split",
       }[paymentType];
 
       if (!updateField) throw new Error(`Invalid payment type: ${paymentType}`);
 
-      const { data, error } = await supabase
-        .rpc('increment_user_payment', {
-          p_table_number: tableNumber,
-          p_field: updateField,
-          p_amount: amount,
-          p_user_id: userId,
-          p_guest_name: guestName
-        });
+      const { data, error } = await supabase.rpc("increment_user_payment", {
+        p_table_number: tableNumber,
+        p_field: updateField,
+        p_amount: amount,
+        p_user_id: userId,
+        p_guest_name: guestName,
+      });
 
       if (error) throw error;
       return data;
@@ -662,6 +711,61 @@ class TableService {
   }
 
   // === FIN MÉTODOS ACTIVE TABLE USERS ===
+
+  // Vincular órdenes de invitado con userId cuando se autentica
+  async linkGuestOrdersToUser(guestId, userId, tableNumber = null) {
+    try {
+      // Actualizar user_order para vincular guest_id con user_id
+      // Usamos guest_id como identificador único para evitar conflictos
+      const { data: userOrderData, error: userOrderError } = await supabase
+        .from("user_order")
+        .update({ user_id: userId })
+        .eq("guest_id", guestId)
+        .is("user_id", null)
+        .select();
+
+      if (userOrderError) throw userOrderError;
+
+      // Actualizar active_table_users para vincular guest_id con user_id
+      let activeUserQuery = supabase
+        .from("active_table_users")
+        .update({ user_id: userId })
+        .eq("guest_id", guestId)
+        .is("user_id", null);
+
+      if (tableNumber) {
+        activeUserQuery = activeUserQuery.eq("table_number", tableNumber);
+      }
+
+      const { data: activeUserData, error: activeUserError } =
+        await activeUserQuery.select();
+
+      if (activeUserError) throw activeUserError;
+
+      // Actualizar split_payments para vincular guest_id con user_id
+      let splitQuery = supabase
+        .from("split_payments")
+        .update({ user_id: userId })
+        .eq("guest_id", guestId)
+        .is("user_id", null);
+
+      if (tableNumber) {
+        splitQuery = splitQuery.eq("table_number", tableNumber);
+      }
+
+      const { data: splitData, error: splitError } = await splitQuery.select();
+
+      if (splitError) throw splitError;
+
+      return {
+        updated_orders: userOrderData?.length || 0,
+        updated_active_users: activeUserData?.length || 0,
+        updated_split_payments: splitData?.length || 0,
+      };
+    } catch (error) {
+      throw new Error(`Error linking guest orders to user: ${error.message}`);
+    }
+  }
 
   // Obtener estado de pagos divididos
   async getSplitPaymentStatus(tableNumber) {

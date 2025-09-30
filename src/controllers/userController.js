@@ -1,28 +1,21 @@
-const supabase = require('../config/supabase');
+const supabase = require("../config/supabase");
+const userService = require("../services/userService");
 
 class UserController {
   // Create or update user from Clerk sign-up
   async createUser(req, res) {
     try {
-      const {
-        clerkUserId,
-        email,
-        firstName,
-        lastName,
-        age,
-        gender,
-        phone
-      } = req.body;
-
+      const { clerkUserId, email, firstName, lastName, age, gender, phone } =
+        req.body;
 
       // Validate required fields
       if (!clerkUserId || !email || !firstName || !lastName) {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: 'clerkUserId, email, firstName, and lastName are required'
-          }
+            type: "validation_error",
+            message: "clerkUserId, email, firstName, and lastName are required",
+          },
         });
       }
 
@@ -31,40 +24,46 @@ class UserController {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: 'Age must be between 18 and 100'
-          }
+            type: "validation_error",
+            message: "Age must be between 18 and 100",
+          },
         });
       }
 
       // Validate gender options
-      const validGenders = ['male', 'female', 'non-binary', 'prefer-not-to-say'];
+      const validGenders = [
+        "male",
+        "female",
+        "non-binary",
+        "prefer-not-to-say",
+      ];
       if (gender && !validGenders.includes(gender)) {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: `Gender must be one of: ${validGenders.join(', ')}`
-          }
+            type: "validation_error",
+            message: `Gender must be one of: ${validGenders.join(", ")}`,
+          },
         });
       }
 
       // Check if user already exists
       const { data: existingUser, error: findError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('clerk_user_id', clerkUserId)
+        .from("users")
+        .select("*")
+        .eq("clerk_user_id", clerkUserId)
         .single();
 
-      if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows found
-        console.error('❌ Error checking existing user:', findError);
+      if (findError && findError.code !== "PGRST116") {
+        // PGRST116 = no rows found
+        console.error("❌ Error checking existing user:", findError);
         return res.status(500).json({
           success: false,
           error: {
-            type: 'database_error',
-            message: 'Error checking existing user',
-            details: findError
-          }
+            type: "database_error",
+            message: "Error checking existing user",
+            details: findError,
+          },
         });
       }
 
@@ -74,7 +73,7 @@ class UserController {
       if (existingUser) {
         // Update existing user
         const { data: updatedUser, error: updateError } = await supabase
-          .from('users')
+          .from("users")
           .update({
             email,
             first_name: firstName,
@@ -82,30 +81,30 @@ class UserController {
             age: age || null,
             gender: gender || null,
             phone: phone || null,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('clerk_user_id', clerkUserId)
+          .eq("clerk_user_id", clerkUserId)
           .select()
           .single();
 
         if (updateError) {
-          console.error('❌ Error updating user:', updateError);
+          console.error("❌ Error updating user:", updateError);
           return res.status(500).json({
             success: false,
             error: {
-              type: 'database_error',
-              message: 'Error updating user',
-              details: updateError
-            }
+              type: "database_error",
+              message: "Error updating user",
+              details: updateError,
+            },
           });
         }
 
         user = updatedUser;
-        operation = 'updated';
+        operation = "updated";
       } else {
         // Create new user
         const { data: newUser, error: createError } = await supabase
-          .from('users')
+          .from("users")
           .insert({
             clerk_user_id: clerkUserId,
             email,
@@ -113,29 +112,28 @@ class UserController {
             last_name: lastName,
             age: age || null,
             gender: gender || null,
-            phone: phone || null
+            phone: phone || null,
           })
           .select()
           .single();
 
         if (createError) {
-          console.error('❌ Error creating user:', createError);
+          console.error("❌ Error creating user:", createError);
           return res.status(500).json({
             success: false,
             error: {
-              type: 'database_error',
-              message: 'Error creating user',
-              details: createError
-            }
+              type: "database_error",
+              message: "Error creating user",
+              details: createError,
+            },
           });
         }
 
         user = newUser;
-        operation = 'created';
+        operation = "created";
       }
 
-
-      res.status(operation === 'created' ? 201 : 200).json({
+      res.status(operation === "created" ? 201 : 200).json({
         success: true,
         message: `User ${operation} successfully`,
         user: {
@@ -148,19 +146,18 @@ class UserController {
           gender: user.gender,
           phone: user.phone,
           createdAt: user.created_at,
-          updatedAt: user.updated_at
-        }
+          updatedAt: user.updated_at,
+        },
       });
-
     } catch (error) {
-      console.error('❌ Unexpected error in createUser:', error);
+      console.error("❌ Unexpected error in createUser:", error);
       res.status(500).json({
         success: false,
         error: {
-          type: 'server_error',
-          message: 'Internal server error',
-          details: error.message
-        }
+          type: "server_error",
+          message: "Internal server error",
+          details: error.message,
+        },
       });
     }
   }
@@ -174,41 +171,40 @@ class UserController {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: 'clerkUserId is required'
-          }
+            type: "validation_error",
+            message: "clerkUserId is required",
+          },
         });
       }
 
-
       const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('clerk_user_id', clerkUserId)
+        .from("users")
+        .select("*")
+        .eq("clerk_user_id", clerkUserId)
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') { // No rows found
+        if (error.code === "PGRST116") {
+          // No rows found
           return res.status(404).json({
             success: false,
             error: {
-              type: 'not_found',
-              message: 'User not found'
-            }
+              type: "not_found",
+              message: "User not found",
+            },
           });
         }
 
-        console.error('❌ Error getting user:', error);
+        console.error("❌ Error getting user:", error);
         return res.status(500).json({
           success: false,
           error: {
-            type: 'database_error',
-            message: 'Error retrieving user',
-            details: error
-          }
+            type: "database_error",
+            message: "Error retrieving user",
+            details: error,
+          },
         });
       }
-
 
       res.json({
         success: true,
@@ -222,19 +218,48 @@ class UserController {
           gender: user.gender,
           phone: user.phone,
           createdAt: user.created_at,
-          updatedAt: user.updated_at
-        }
+          updatedAt: user.updated_at,
+        },
       });
-
     } catch (error) {
-      console.error('❌ Unexpected error in getUserByClerkId:', error);
+      console.error("❌ Unexpected error in getUserByClerkId:", error);
       res.status(500).json({
         success: false,
         error: {
-          type: 'server_error',
-          message: 'Internal server error',
-          details: error.message
-        }
+          type: "server_error",
+          message: "Internal server error",
+          details: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Obtener información de usuarios (principalmente imágenes)
+   * POST body: { userIds: string[] }
+   */
+  async getUsersInfo(req, res) {
+    try {
+      const { userIds } = req.body;
+
+      if (!Array.isArray(userIds)) {
+        return res.status(400).json({
+          success: false,
+          message: "userIds debe ser un array",
+        });
+      }
+
+      const usersInfo = await userService.getUsersInfo(userIds);
+
+      res.json({
+        success: true,
+        data: usersInfo,
+      });
+    } catch (error) {
+      console.error("Error getting users info:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
       });
     }
   }
@@ -249,9 +274,9 @@ class UserController {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: 'clerkUserId is required'
-          }
+            type: "validation_error",
+            message: "clerkUserId is required",
+          },
         });
       }
 
@@ -260,27 +285,31 @@ class UserController {
       delete updates.clerk_user_id;
       delete updates.created_at;
 
-
       // Validate age if provided
       if (updates.age && (updates.age < 18 || updates.age > 100)) {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: 'Age must be between 18 and 100'
-          }
+            type: "validation_error",
+            message: "Age must be between 18 and 100",
+          },
         });
       }
 
       // Validate gender if provided
-      const validGenders = ['male', 'female', 'non-binary', 'prefer-not-to-say'];
+      const validGenders = [
+        "male",
+        "female",
+        "non-binary",
+        "prefer-not-to-say",
+      ];
       if (updates.gender && !validGenders.includes(updates.gender)) {
         return res.status(400).json({
           success: false,
           error: {
-            type: 'validation_error',
-            message: `Gender must be one of: ${validGenders.join(', ')}`
-          }
+            type: "validation_error",
+            message: `Gender must be one of: ${validGenders.join(", ")}`,
+          },
         });
       }
 
@@ -297,38 +326,38 @@ class UserController {
       updates.updated_at = new Date().toISOString();
 
       const { data: user, error } = await supabase
-        .from('users')
+        .from("users")
         .update(updates)
-        .eq('clerk_user_id', clerkUserId)
+        .eq("clerk_user_id", clerkUserId)
         .select()
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') { // No rows found
+        if (error.code === "PGRST116") {
+          // No rows found
           return res.status(404).json({
             success: false,
             error: {
-              type: 'not_found',
-              message: 'User not found'
-            }
+              type: "not_found",
+              message: "User not found",
+            },
           });
         }
 
-        console.error('❌ Error updating user:', error);
+        console.error("❌ Error updating user:", error);
         return res.status(500).json({
           success: false,
           error: {
-            type: 'database_error',
-            message: 'Error updating user',
-            details: error
-          }
+            type: "database_error",
+            message: "Error updating user",
+            details: error,
+          },
         });
       }
 
-
       res.json({
         success: true,
-        message: 'User updated successfully',
+        message: "User updated successfully",
         user: {
           id: user.id,
           clerkUserId: user.clerk_user_id,
@@ -339,19 +368,18 @@ class UserController {
           gender: user.gender,
           phone: user.phone,
           createdAt: user.created_at,
-          updatedAt: user.updated_at
-        }
+          updatedAt: user.updated_at,
+        },
       });
-
     } catch (error) {
-      console.error('❌ Unexpected error in updateUser:', error);
+      console.error("❌ Unexpected error in updateUser:", error);
       res.status(500).json({
         success: false,
         error: {
-          type: 'server_error',
-          message: 'Internal server error',
-          details: error.message
-        }
+          type: "server_error",
+          message: "Internal server error",
+          details: error.message,
+        },
       });
     }
   }

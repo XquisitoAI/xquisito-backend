@@ -48,4 +48,7 @@ router.get("/tables/:tableNumber/active-users", tableController.getActiveUsers);
 // Rutas para cocina
 router.put("/dishes/:dishId/status", tableController.updateDishStatus);
 
+// Ruta para vincular órdenes de invitado con userId
+router.put("/orders/link-user", tableController.linkGuestOrdersToUser);
+
 module.exports = router;
