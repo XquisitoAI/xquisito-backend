@@ -8,6 +8,7 @@ const authRoutes = require('./routes/authRoutes');
 const tableRoutes = require('./routes/tableRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const userRoutes = require('./routes/userRoutes');
+const menuRoutes = require('./routes/menuRoutes');
 
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', tableRoutes);
 app.use('/api', paymentRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/menu', menuRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API endpoint not found' });
