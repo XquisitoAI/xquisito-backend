@@ -1,9 +1,22 @@
 const { createClerkClient } = require('@clerk/clerk-sdk-node');
+const { getClerkConfig } = require('../config/clerkConfig');
 
-// Initialize Clerk client with secret key
-const clerkClient = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY
-});
+// Initialize Clerk client with secret key for xquisito project
+let clerkClient;
+
+try {
+  const xquisitoConfig = getClerkConfig('xquisito');
+  clerkClient = createClerkClient({
+    secretKey: xquisitoConfig.secretKey
+  });
+  console.log('✅ Clerk client initialized for xquisito project');
+} catch (error) {
+  console.error('❌ Failed to initialize Clerk client for xquisito:', error.message);
+  // Fallback to environment variable
+  clerkClient = createClerkClient({
+    secretKey: process.env.CLERK_SECRET_KEY
+  });
+}
 
 const authenticateClerkToken = async (req, res, next) => {
   try {
