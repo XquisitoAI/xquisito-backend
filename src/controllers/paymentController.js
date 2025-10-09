@@ -22,19 +22,10 @@ class PaymentController {
         `Processing payment method for ${isGuest ? "guest" : "authenticated"} user: ${userId}`
       );
 
-      const { fullName, email, cardNumber, expDate, cvv, country, postalCode } =
-        req.body;
+      const { fullName, email, cardNumber, expDate, cvv } = req.body;
 
       // Validate required fields
-      if (
-        !fullName ||
-        !email ||
-        !cardNumber ||
-        !expDate ||
-        !cvv ||
-        !country ||
-        !postalCode
-      ) {
+      if (!fullName || !email || !cardNumber || !expDate || !cvv) {
         return res.status(400).json({
           success: false,
           error: {
@@ -56,8 +47,6 @@ class PaymentController {
         expMonth: monthInt,
         expYear: fullYear,
         cvv: cvv.trim(),
-        country: country.trim(),
-        postalCode: postalCode.trim(),
       };
 
       console.log("💳 About to call paymentService.addPaymentMethod with:", {

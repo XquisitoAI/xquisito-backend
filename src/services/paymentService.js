@@ -131,8 +131,6 @@ class PaymentService {
         expYear: paymentData.expYear,
         cvv: paymentData.cvv,
         cardholderName: paymentData.cardholderName,
-        country: paymentData?.country,
-        postalCode: paymentData?.postalCode,
         customerId: ecartPayCustomerId
       });
 
@@ -169,8 +167,6 @@ class PaymentService {
         expiry_month: paymentData.expMonth, // Use original data as eCartpay may not return it
         expiry_year: paymentData.expYear,   // Use original data as eCartpay may not return it
         cardholder_name: (paymentData.cardholderName || '').substring(0, 50), // Limit length to avoid database error
-        billing_country: (paymentData.country || '').substring(0, 3), // Limit to 3 chars for VARCHAR(3)
-        billing_postal_code: (paymentData.postalCode || '').substring(0, 20), // Limit length
         is_default: isDefault,
         is_active: true
       };
@@ -258,7 +254,6 @@ class PaymentService {
           expiry_month,
           expiry_year,
           cardholder_name,
-          billing_country,
           is_default,
           is_active,
           created_at
@@ -295,7 +290,6 @@ class PaymentService {
         expiryMonth: method.expiry_month,
         expiryYear: method.expiry_year,
         cardholderName: method.cardholder_name,
-        billingCountry: method.billing_country,
         isDefault: method.is_default,
         isActive: method.is_active,
         createdAt: method.created_at
@@ -535,14 +529,6 @@ class PaymentService {
 
     if (!data.cardholderName || data.cardholderName.trim().length < 2) {
       errors.push('Invalid cardholder name');
-    }
-
-    if (!data.country || data.country.length < 2) {
-      errors.push('Invalid country');
-    }
-
-    if (!data.postalCode || data.postalCode.trim().length < 3) {
-      errors.push('Invalid postal code');
     }
 
     return {
