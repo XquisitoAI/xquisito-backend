@@ -58,6 +58,9 @@ class TableController {
         price,
         guestId,
         images = [],
+        customFields = null,
+        extraPrice = 0,
+        restaurantId = null,
       } = req.body;
 
       // Validar campos requeridos
@@ -83,7 +86,10 @@ class TableController {
         quantity,
         parseFloat(price),
         guestId,
-        images
+        images,
+        customFields,
+        parseFloat(extraPrice),
+        restaurantId ? parseInt(restaurantId) : null
       );
 
       res.status(201).json({

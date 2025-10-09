@@ -383,6 +383,152 @@ class UserController {
       });
     }
   }
+
+  // Get user order history
+  async getUserOrderHistory(req, res) {
+    try {
+      const { clerkUserId } = req.params;
+
+      console.log("📝 Getting order history for clerkUserId:", clerkUserId);
+
+      if (!clerkUserId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: "clerkUserId is required",
+          },
+        });
+      }
+
+      // First, get the user's internal ID
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("clerk_user_id", clerkUserId)
+        .single();
+
+      if (userError) {
+        console.error("❌ Error finding user:", userError);
+        return res.status(404).json({
+          success: false,
+          error: {
+            type: "not_found",
+            message: "User not found",
+            details: userError,
+          },
+        });
+      }
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            type: "not_found",
+            message: "User not found",
+          },
+        });
+      }
+
+      // Get all user_orders for this user with their dishes and restaurant info
+      const { data: userOrders, error: ordersError } = await supabase
+        .from("user_order")
+        .select(
+          `
+          id,
+          user_id,
+          guest_name,
+          table_order!inner(
+            id,
+            status,
+            created_at,
+            tables!inner(
+              table_number,
+              restaurant_id,
+              restaurants(
+                id,
+                name,
+                logo_url
+              )
+            )
+          ),
+          dish_order(
+            id,
+            item,
+            quantity,
+            price,
+            status,
+            payment_status,
+            images,
+            custom_fields,
+            extra_price
+          )
+        `
+        )
+        .eq("user_id", clerkUserId);
+
+      if (ordersError) {
+        console.error("❌ Error getting user orders:", ordersError);
+        return res.status(500).json({
+          success: false,
+          error: {
+            type: "database_error",
+            message: "Error retrieving order history",
+            details: ordersError,
+          },
+        });
+      }
+
+      console.log(`✅ Found ${userOrders?.length || 0} user orders`);
+
+      // Transform and flatten the data
+      const orderHistory = [];
+      (userOrders || []).forEach((userOrder) => {
+        if (userOrder.dish_order && userOrder.dish_order.length > 0) {
+          userOrder.dish_order.forEach((dish) => {
+            const restaurant = userOrder.table_order.tables.restaurants;
+            orderHistory.push({
+              dishOrderId: dish.id,
+              item: dish.item,
+              quantity: dish.quantity,
+              price: dish.price,
+              totalPrice:
+                dish.quantity * (dish.price + (dish.extra_price || 0)),
+              status: dish.status,
+              paymentStatus: dish.payment_status,
+              images: dish.images || [],
+              customFields: dish.custom_fields,
+              extraPrice: dish.extra_price || 0,
+              createdAt: userOrder.created_at,
+              tableNumber: userOrder.table_order.tables.table_number,
+              tableOrderId: userOrder.table_order.id,
+              tableOrderStatus: userOrder.table_order.status,
+              tableOrderDate: userOrder.table_order.created_at,
+              // Restaurant information
+              restaurantId: restaurant?.id || null,
+              restaurantName: restaurant?.name || "Restaurant Name",
+              restaurantLogo: restaurant?.logo_url || null,
+            });
+          });
+        }
+      });
+
+      res.json({
+        success: true,
+        data: orderHistory,
+      });
+    } catch (error) {
+      console.error("❌ Unexpected error in getUserOrderHistory:", error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: "server_error",
+          message: "Internal server error",
+          details: error.message,
+        },
+      });
+    }
+  }
 }
 
 module.exports = new UserController();

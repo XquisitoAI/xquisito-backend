@@ -29,6 +29,8 @@ class TableService {
                     status,
                     payment_status,
                     images,
+                    custom_fields,
+                    extra_price,
                     user_order!inner(
                         user_id,
                         guest_name,
@@ -50,10 +52,12 @@ class TableService {
         item: item.item,
         quantity: item.quantity,
         price: item.price,
-        total_price: item.quantity * item.price,
+        total_price: item.quantity * (item.price + (item.extra_price || 0)),
         status: item.status,
         payment_status: item.payment_status,
         images: item.images || [],
+        custom_fields: item.custom_fields,
+        extra_price: item.extra_price || 0,
         user_id: item.user_order.user_id,
         guest_name: item.user_order.guest_name,
         table_order_id: item.user_order.table_order.id,
@@ -72,7 +76,10 @@ class TableService {
     quantity,
     price,
     guestId = null,
-    images = []
+    images = [],
+    customFields = null,
+    extraPrice = 0,
+    restaurantId = null
   ) {
     try {
       const { data, error } = await supabase.rpc("create_dish_order", {
@@ -84,6 +91,9 @@ class TableService {
         p_quantity: quantity,
         p_guest_id: guestId,
         p_images: images,
+        p_custom_fields: customFields,
+        p_extra_price: extraPrice,
+        p_restaurant_id: restaurantId,
       });
 
       if (error) throw error;
