@@ -202,6 +202,14 @@ BEGIN
             WHERE id = v_table_id
         );
 
+        -- Limpiar active_table_users de esta mesa
+        DELETE FROM active_table_users
+        WHERE table_number = (
+            SELECT table_number
+            FROM tables
+            WHERE id = v_table_id
+        );
+
         RETURN TRUE;
     END IF;
 
