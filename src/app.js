@@ -11,6 +11,7 @@ const userRoutes = require('./routes/userRoutes');
 const menuRoutes = require('./routes/menuRoutes');
 const userAdminPortalRoutes = require('./routes/userAdminPortalRoutes');
 const menuAdminPortalRoutes = require('./routes/menuAdminPortalRoutes');
+const imageUploadRoutes = require('./routes/imageUploadRoutes');
 
 
 const app = express();
@@ -42,6 +43,7 @@ app.use('/api/menu', menuRoutes);
 
 app.use('/api/admin-portal', userAdminPortalRoutes);
 app.use('/api/admin-portal/menu', menuAdminPortalRoutes);
+app.use('/api/images', imageUploadRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API endpoint not found' });
