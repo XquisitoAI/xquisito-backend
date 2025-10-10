@@ -438,6 +438,9 @@ class UserController {
           id,
           user_id,
           guest_name,
+          payment_method_id,
+          payment_card_last_four,
+          payment_card_type,
           table_order!inner(
             id,
             status,
@@ -508,6 +511,10 @@ class UserController {
               restaurantId: restaurant?.id || null,
               restaurantName: restaurant?.name || "Restaurant Name",
               restaurantLogo: restaurant?.logo_url || null,
+              // Payment method information
+              paymentMethodId: userOrder.payment_method_id,
+              paymentCardLastFour: userOrder.payment_card_last_four,
+              paymentCardType: userOrder.payment_card_type,
             });
           });
         }

@@ -109,8 +109,12 @@ class TableController {
   async payDishOrder(req, res) {
     try {
       const { dishId } = req.params;
+      const { paymentMethodId } = req.body;
 
-      const success = await tableService.payDishOrder(dishId);
+      const success = await tableService.payDishOrder(
+        dishId,
+        paymentMethodId || null
+      );
 
       if (success) {
         res.json({
@@ -136,7 +140,7 @@ class TableController {
   async payTableAmount(req, res) {
     try {
       const { tableNumber } = req.params;
-      const { amount } = req.body;
+      const { amount, userId, guestName, paymentMethodId } = req.body;
 
       if (!amount || amount <= 0) {
         return res.status(400).json({
@@ -147,7 +151,10 @@ class TableController {
 
       const success = await tableService.payTableAmount(
         parseInt(tableNumber),
-        parseFloat(amount)
+        parseFloat(amount),
+        userId || null,
+        guestName || null,
+        paymentMethodId || null
       );
 
       if (success) {
@@ -296,7 +303,7 @@ class TableController {
   async paySplitAmount(req, res) {
     try {
       const { tableNumber } = req.params;
-      const { userId, guestName } = req.body;
+      const { userId, guestName, paymentMethodId } = req.body;
 
       if (!userId && !guestName) {
         return res.status(400).json({
@@ -308,7 +315,8 @@ class TableController {
       const success = await tableService.paySplitAmount(
         parseInt(tableNumber),
         userId,
-        guestName
+        guestName,
+        paymentMethodId || null
       );
 
       if (success) {

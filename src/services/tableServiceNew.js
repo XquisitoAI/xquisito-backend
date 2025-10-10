@@ -130,7 +130,7 @@ class TableService {
   }
 
   // Pagar un platillo individual
-  async payDishOrder(dishOrderId) {
+  async payDishOrder(dishOrderId, paymentMethodId = null) {
     try {
       // Obtener información del dish order antes de pagarlo
       const { data: dishData, error: dishError } = await supabase
@@ -147,14 +147,39 @@ class TableService {
 
       if (error) throw error;
 
-      // Trackear pago individual en active users
-      if (dishData) {
+      // Si se proporcionó paymentMethodId, guardar en user_order
+      if (paymentMethodId && dishData) {
+        await this.savePaymentMethodToUserOrder(
+          dishData.table_number,
+          dishData.user_id,
+          dishData.guest_name,
+          paymentMethodId
+        );
+      }
+
+      const amountPaid = parseFloat(dishData.total_price || dishData.price);
+
+      // Verificar si la mesa sigue activa (no se cerró automáticamente)
+      const summary = await this.getTableSummary(dishData.table_number);
+      const tableStillActive = summary && summary.status !== "paid";
+
+      // Solo trackear pago si la mesa sigue activa
+      if (dishData && tableStillActive) {
         await this.updateUserPayment(
           dishData.table_number,
           dishData.user_id,
           dishData.guest_name,
           "individual",
-          parseFloat(dishData.price)
+          amountPaid
+        );
+
+        // Actualizar split_payments si existe
+        await this.updateSplitPaymentProgress(
+          dishData.table_number,
+          dishData.user_id,
+          dishData.guest_name,
+          dishData.guest_id,
+          amountPaid
         );
       }
 
@@ -165,7 +190,13 @@ class TableService {
   }
 
   // Pagar monto específico a la mesa (sin marcar items como pagados)
-  async payTableAmount(tableNumber, amount) {
+  async payTableAmount(
+    tableNumber,
+    amount,
+    userId = null,
+    guestName = null,
+    paymentMethodId = null
+  ) {
     try {
       const { data, error } = await supabase.rpc("pay_table_amount", {
         p_table_number: tableNumber,
@@ -173,6 +204,42 @@ class TableService {
       });
 
       if (error) throw error;
+
+      // Si se proporcionó paymentMethodId, guardar en user_order
+      if (paymentMethodId && (userId || guestName)) {
+        await this.savePaymentMethodToUserOrder(
+          tableNumber,
+          userId,
+          guestName,
+          paymentMethodId
+        );
+      }
+
+      // Verificar si la mesa sigue activa (no se cerró automáticamente)
+      const summary = await this.getTableSummary(tableNumber);
+      const tableStillActive = summary && summary.status !== "paid";
+
+      // Solo trackear pago si la mesa sigue activa y se proporciona userId o guestName
+      if ((userId || guestName) && tableStillActive) {
+        await this.updateUserPayment(
+          tableNumber,
+          userId,
+          guestName,
+          "amount",
+          amount
+        );
+
+        // Actualizar split_payments si existe - marcar como paid sin importar la cantidad
+        await this.updateSplitPaymentProgress(
+          tableNumber,
+          userId,
+          guestName,
+          null, // guest_id no disponible aquí
+          amount,
+          true // forceMarkAsPaid = true
+        );
+      }
+
       return data;
     } catch (error) {
       throw new Error(`Error paying table amount: ${error.message}`);
@@ -280,16 +347,37 @@ class TableService {
 
       if (deleteError) throw deleteError;
 
+      // Obtener active users para obtener guest_ids
+      const { data: activeUsers } = await supabase
+        .from("active_table_users")
+        .select("*")
+        .eq("table_number", tableNumber);
+
       // Crear registros para cada persona
       const splitRecords = [];
       for (let i = 0; i < numberOfPeople; i++) {
+        const userId = userIds && userIds[i] ? userIds[i] : null;
+        const guestName =
+          guestNames && guestNames[i] ? guestNames[i] : `Persona ${i + 1}`;
+
+        // Buscar guest_id en active_table_users
+        let guestId = null;
+        if (activeUsers && activeUsers.length > 0) {
+          const activeUser = activeUsers.find(
+            (u) =>
+              (userId && u.user_id === userId) ||
+              (!userId && u.guest_name === guestName)
+          );
+          guestId = activeUser?.guest_id || null;
+        }
+
         const record = {
           table_number: tableNumber,
           expected_amount: amountPerPerson,
           original_total: totalAmount,
-          user_id: userIds && userIds[i] ? userIds[i] : null,
-          guest_name:
-            guestNames && guestNames[i] ? guestNames[i] : `Persona ${i + 1}`,
+          user_id: userId,
+          guest_name: guestName,
+          guest_id: guestId,
         };
         splitRecords.push(record);
       }
@@ -495,7 +583,7 @@ class TableService {
   }
 
   // Pagar parte individual
-  async paySplitAmount(tableNumber, userId = null, guestName = null) {
+  async paySplitAmount(tableNumber, userId = null, guestName = null, paymentMethodId = null) {
     try {
       // Obtener todos los pagos pendientes para ver si es la última persona
       const { data: allPendingSplits, error: allPendingError } = await supabase
@@ -558,16 +646,23 @@ class TableService {
       if (updateError) throw updateError;
 
       // Aplicar el pago al total de la mesa usando la función existente
-      await this.payTableAmount(tableNumber, amountToPay);
+      await this.payTableAmount(tableNumber, amountToPay, userId, guestName, paymentMethodId);
 
-      // Trackear pago por split en active users
-      await this.updateUserPayment(
-        tableNumber,
-        userId,
-        guestName,
-        "split",
-        amountToPay
-      );
+      // Verificar si la mesa sigue activa después del pago
+      const summaryAfterPayment = await this.getTableSummary(tableNumber);
+      const tableStillActive =
+        summaryAfterPayment && summaryAfterPayment.status !== "paid";
+
+      // Solo trackear pago por split si la mesa sigue activa
+      if (tableStillActive) {
+        await this.updateUserPayment(
+          tableNumber,
+          userId,
+          guestName,
+          "split",
+          amountToPay
+        );
+      }
 
       return true;
     } catch (error) {
@@ -585,24 +680,52 @@ class TableService {
     guestId = null
   ) {
     try {
-      const { data, error } = await supabase
+      // Primero intentar encontrar el usuario existente
+      let query = supabase
         .from("active_table_users")
-        .upsert(
-          {
+        .select("*")
+        .eq("table_number", tableNumber);
+
+      // Filtrar por el identificador apropiado
+      if (userId) {
+        query = query.eq("user_id", userId);
+      } else if (guestId) {
+        query = query.eq("guest_id", guestId);
+      } else if (guestName) {
+        query = query.eq("guest_name", guestName).is("guest_id", null);
+      }
+
+      const { data: existingUser } = await query.maybeSingle();
+
+      if (existingUser) {
+        // Usuario ya existe, actualizar
+        const { data, error } = await supabase
+          .from("active_table_users")
+          .update({
+            guest_name: guestName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingUser.id)
+          .select();
+
+        if (error) throw error;
+        return data[0];
+      } else {
+        // Usuario no existe, insertar
+        const { data, error } = await supabase
+          .from("active_table_users")
+          .insert({
             table_number: tableNumber,
             user_id: userId,
             guest_name: guestName,
             guest_id: guestId,
             updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "table_number,user_id,guest_id,guest_name",
-          }
-        )
-        .select();
+          })
+          .select();
 
-      if (error) throw error;
-      return data[0];
+        if (error) throw error;
+        return data[0];
+      }
     } catch (error) {
       console.error("Error adding active user:", error);
       return null;
@@ -627,11 +750,11 @@ class TableService {
       if (!updateField) throw new Error(`Invalid payment type: ${paymentType}`);
 
       const { data, error } = await supabase.rpc("increment_user_payment", {
-        p_table_number: tableNumber,
-        p_field: updateField,
         p_amount: amount,
-        p_user_id: userId,
+        p_field: updateField,
         p_guest_name: guestName,
+        p_table_number: tableNumber,
+        p_user_id: userId,
       });
 
       if (error) throw error;
@@ -639,6 +762,142 @@ class TableService {
     } catch (error) {
       console.error("Error updating user payment:", error);
       return false;
+    }
+  }
+
+  // Actualizar progreso de pago en split_payments cuando se hace un pago individual o por monto
+  async updateSplitPaymentProgress(
+    tableNumber,
+    userId = null,
+    guestName = null,
+    guestId = null,
+    amountPaid,
+    forceMarkAsPaid = false
+  ) {
+    try {
+      // Buscar el registro en split_payments para este usuario
+      let query = supabase
+        .from("split_payments")
+        .select("*")
+        .eq("table_number", tableNumber)
+        .eq("status", "pending");
+
+      // Filtrar por identificador apropiado
+      if (userId) {
+        query = query.eq("user_id", userId);
+      } else if (guestId) {
+        query = query.eq("guest_id", guestId);
+      } else if (guestName) {
+        query = query.eq("guest_name", guestName);
+      } else {
+        return; // No hay identificador, no hacer nada
+      }
+
+      const { data: splitPayment, error: selectError } =
+        await query.maybeSingle();
+
+      if (selectError) throw selectError;
+      if (!splitPayment) return; // No hay split activo para este usuario
+
+      // Incrementar amount_paid
+      const newAmountPaid =
+        parseFloat(splitPayment.amount_paid || 0) + parseFloat(amountPaid);
+      const expectedAmount = parseFloat(splitPayment.expected_amount);
+
+      // Determinar si el pago está completo
+      const isPaid = forceMarkAsPaid || newAmountPaid >= expectedAmount;
+
+      // Actualizar el registro
+      const { error: updateError } = await supabase
+        .from("split_payments")
+        .update({
+          amount_paid: newAmountPaid,
+          status: isPaid ? "paid" : "pending",
+          paid_at: isPaid ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", splitPayment.id);
+
+      if (updateError) throw updateError;
+
+      return true;
+    } catch (error) {
+      console.error("Error updating split payment progress:", error);
+      return false;
+    }
+  }
+
+  // Marcar usuario como pagado en split_payments si existe un split activo
+  async markUserAsPaidInSplit(
+    tableNumber,
+    userId = null,
+    guestName = null,
+    amount
+  ) {
+    try {
+      console.log(`🔍 Checking split_payments for table ${tableNumber}:`, {
+        userId,
+        guestName,
+        amount,
+      });
+
+      // Buscar si hay un split_payment pendiente para este usuario
+      let query = supabase
+        .from("split_payments")
+        .select("*")
+        .eq("table_number", tableNumber)
+        .eq("status", "pending");
+
+      if (userId) {
+        query = query.eq("user_id", userId);
+      } else if (guestName) {
+        query = query.eq("guest_name", guestName);
+      } else {
+        console.log(
+          "⚠️ No userId or guestName provided, skipping split_payments update"
+        );
+        return; // No hay identificador de usuario
+      }
+
+      const { data: splitPayments, error: selectError } = await query;
+      if (selectError) {
+        console.error("❌ Error querying split_payments:", selectError);
+        throw selectError;
+      }
+
+      console.log(
+        `📊 Found ${splitPayments?.length || 0} pending split_payments`
+      );
+
+      // Si existe un split payment pendiente, marcarlo como pagado
+      if (splitPayments && splitPayments.length > 0) {
+        const splitPayment = splitPayments[0];
+        console.log(`💳 Updating split_payment:`, splitPayment);
+
+        const { error: updateError } = await supabase
+          .from("split_payments")
+          .update({
+            amount_paid: amount,
+            status: "paid",
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", splitPayment.id);
+
+        if (updateError) {
+          console.error("❌ Error updating split_payment:", updateError);
+          throw updateError;
+        }
+        console.log(
+          `✅ Marked user as paid in split_payments: ${userId || guestName}`
+        );
+      } else {
+        console.log(
+          `ℹ️ No pending split_payment found for ${userId || guestName}`
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error marking user as paid in split:", error);
+      // No fallar si esto no funciona, es solo un update adicional
     }
   }
 
@@ -801,6 +1060,88 @@ class TableService {
       }));
     } catch (error) {
       throw new Error(`Error getting split payment status: ${error.message}`);
+    }
+  }
+
+  // Guardar información del método de pago en user_order
+  async savePaymentMethodToUserOrder(
+    tableNumber,
+    userId = null,
+    guestName = null,
+    paymentMethodId
+  ) {
+    try {
+      // Obtener info del método de pago
+      const tableName = userId
+        ? "user_payment_methods"
+        : "guest_payment_methods";
+      const userFieldName = userId ? "clerk_user_id" : "guest_id";
+      const userValue = userId || guestName;
+
+      const { data: paymentMethod, error: pmError } = await supabase
+        .from(tableName)
+        .select("last_four_digits, card_type")
+        .eq(userFieldName, userValue)
+        .eq("id", paymentMethodId)
+        .single();
+
+      if (pmError || !paymentMethod) {
+        console.error("Payment method not found:", pmError);
+        return; // No fallar, solo no guardar
+      }
+
+      // Obtener el table_id desde la tabla tables
+      const { data: tableData, error: tableError } = await supabase
+        .from("tables")
+        .select("id")
+        .eq("table_number", tableNumber)
+        .single();
+
+      if (tableError || !tableData) {
+        console.error("Table not found:", tableError);
+        return;
+      }
+
+      // Obtener el table_order más reciente para esta mesa
+      const { data: tableOrders, error: orderError } = await supabase
+        .from("table_order")
+        .select("id")
+        .eq("table_id", tableData.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (orderError || !tableOrders || tableOrders.length === 0) {
+        console.error("Table order not found:", orderError);
+        return;
+      }
+
+      const tableOrderId = tableOrders[0].id;
+
+      // Actualizar user_order con info del método de pago
+      let updateQuery = supabase
+        .from("user_order")
+        .update({
+          payment_card_last_four: paymentMethod.last_four_digits,
+          payment_card_type: paymentMethod.card_type,
+        })
+        .eq("table_order_id", tableOrderId);
+
+      if (userId) {
+        updateQuery = updateQuery.eq("user_id", userId);
+      } else if (guestName) {
+        updateQuery = updateQuery.eq("guest_name", guestName);
+      }
+
+      const { error: updateError } = await updateQuery;
+
+      if (updateError) {
+        console.error(
+          "Error updating user_order with payment method:",
+          updateError
+        );
+      }
+    } catch (error) {
+      console.error("Error in savePaymentMethodToUserOrder:", error);
     }
   }
 }

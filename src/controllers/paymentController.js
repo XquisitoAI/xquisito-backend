@@ -1,6 +1,7 @@
 const paymentService = require("../services/paymentService");
 const ecartPayService = require("../services/ecartpayService");
 const tableService = require("../services/tableService");
+const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -343,6 +344,8 @@ class PaymentController {
           .eq("id", paymentMethodId)
           .eq("is_active", true)
           .single();
+
+      savePaymentMethodToUserOrder(userId, paymentMethodId);
 
       console.log(`🔍 Database query result:`, {
         paymentMethodFound: !!paymentMethod,
