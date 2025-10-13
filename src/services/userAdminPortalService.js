@@ -263,7 +263,10 @@ class UserAdminPortalService {
         address,
         phone,
         email,
-        opening_hours
+        opening_hours,
+        order_notifications,
+        email_notifications,
+        sms_notifications
       } = updateData;
 
       const updateFields = {};
@@ -279,6 +282,29 @@ class UserAdminPortalService {
         this.validateOpeningHours(opening_hours);
         updateFields.opening_hours = opening_hours;
       }
+
+      // Manejar configuraciones de notificaciones
+      if (order_notifications !== undefined) {
+        console.log('🔔 Setting order_notifications to:', order_notifications);
+        updateFields.order_notifications = order_notifications;
+      }
+      if (email_notifications !== undefined) {
+        console.log('📧 Setting email_notifications to:', email_notifications);
+        updateFields.email_notifications = email_notifications;
+      }
+      if (sms_notifications !== undefined) {
+        console.log('📱 Setting sms_notifications to:', sms_notifications);
+        updateFields.sms_notifications = sms_notifications;
+      }
+
+      // Aplicar lógica de dependencias en el backend
+      if (order_notifications === false) {
+        console.log('⚠️ order_notifications is false, disabling email and sms');
+        updateFields.email_notifications = false;
+        updateFields.sms_notifications = false;
+      }
+
+      console.log('📊 Final updateFields:', updateFields);
 
       updateFields.updated_at = new Date().toISOString();
 
