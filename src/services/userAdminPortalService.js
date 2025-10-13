@@ -262,7 +262,8 @@ class UserAdminPortalService {
         banner_url,
         address,
         phone,
-        email
+        email,
+        opening_hours
       } = updateData;
 
       const updateFields = {};
@@ -273,6 +274,11 @@ class UserAdminPortalService {
       if (address !== undefined) updateFields.address = address;
       if (phone !== undefined) updateFields.phone = phone;
       if (email !== undefined) updateFields.email = email;
+      if (opening_hours !== undefined) {
+        // Validar estructura de opening_hours
+        this.validateOpeningHours(opening_hours);
+        updateFields.opening_hours = opening_hours;
+      }
 
       updateFields.updated_at = new Date().toISOString();
 
@@ -389,6 +395,62 @@ class UserAdminPortalService {
       console.error('❌ Error getting user stats:', error);
       throw new Error(`Error getting user stats: ${error.message}`);
     }
+  }
+
+  /**
+   * Validar estructura de opening_hours
+   */
+  validateOpeningHours(openingHours) {
+    const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    if (!openingHours || typeof openingHours !== 'object') {
+      throw new Error('opening_hours debe ser un objeto válido');
+    }
+
+    for (const day of validDays) {
+      if (!openingHours[day]) {
+        throw new Error(`Falta configuración para ${day}`);
+      }
+
+      const dayConfig = openingHours[day];
+
+      // Validar campos requeridos
+      if (typeof dayConfig.is_closed !== 'boolean') {
+        throw new Error(`${day}: is_closed debe ser boolean`);
+      }
+
+      // Si no está cerrado, validar horarios
+      if (!dayConfig.is_closed) {
+        if (!dayConfig.open_time || !dayConfig.close_time) {
+          throw new Error(`${day}: open_time y close_time son requeridos cuando no está cerrado`);
+        }
+
+        // Validar formato de tiempo (HH:MM)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!timeRegex.test(dayConfig.open_time)) {
+          throw new Error(`${day}: open_time debe tener formato HH:MM`);
+        }
+        if (!timeRegex.test(dayConfig.close_time)) {
+          throw new Error(`${day}: close_time debe tener formato HH:MM`);
+        }
+
+        // Validar que hora de apertura sea menor que hora de cierre
+        const open = new Date(`2000-01-01T${dayConfig.open_time}:00`);
+        const close = new Date(`2000-01-01T${dayConfig.close_time}:00`);
+
+        if (open >= close) {
+          throw new Error(`${day}: La hora de apertura debe ser menor que la hora de cierre`);
+        }
+
+        // Validar duración mínima (1 hora)
+        const diffHours = (close.getTime() - open.getTime()) / (1000 * 60 * 60);
+        if (diffHours < 1) {
+          throw new Error(`${day}: El restaurante debe estar abierto al menos 1 hora`);
+        }
+      }
+    }
+
+    console.log('✅ opening_hours validado correctamente');
   }
 }
 
