@@ -1,0 +1,283 @@
+const supabase = require('../config/supabase');
+
+class AnalyticsService {
+    /**
+     * Obtiene métricas del dashboard con filtros aplicados
+     * @param {Object} filters - Filtros para las métricas
+     * @param {number} filters.restaurant_id - ID del restaurante
+     * @param {string} filters.start_date - Fecha de inicio (ISO string)
+     * @param {string} filters.end_date - Fecha de fin (ISO string)
+     * @param {string} filters.gender - Género ('todos', 'hombre', 'mujer', 'otro')
+     * @param {string} filters.age_range - Rango de edad ('todos', '14-17', '18-25', '26-35', '36-45', '46+')
+     * @param {string} filters.granularity - Granularidad ('hora', 'dia', 'mes', 'ano')
+     * @returns {Promise<Object>} Métricas del dashboard
+     */
+    async getDashboardMetrics(filters) {
+        const {
+            restaurant_id,
+            start_date,
+            end_date,
+            gender = 'todos',
+            age_range = 'todos',
+            granularity = 'dia'
+        } = filters;
+
+        try {
+            const { data, error } = await supabase.rpc('get_dashboard_metrics', {
+                p_restaurant_id: restaurant_id || null,
+                p_start_date: start_date || null,
+                p_end_date: end_date || null,
+                p_gender: gender,
+                p_age_range: age_range,
+                p_granularity: granularity
+            });
+
+            if (error) {
+                console.error('Error in getDashboardMetrics:', error);
+                throw error;
+            }
+
+            // Procesar y formatear los datos
+            const processedData = this.processDashboardData(data, granularity);
+            return processedData;
+
+        } catch (error) {
+            console.error('Error fetching dashboard metrics:', error);
+            throw new Error(`Error fetching dashboard metrics: ${error.message}`);
+        }
+    }
+
+    /**
+     * Obtiene órdenes activas del restaurante
+     * @param {number} restaurant_id - ID del restaurante
+     * @returns {Promise<Array>} Lista de órdenes activas
+     */
+    async getActiveOrders(restaurant_id) {
+        try {
+            const { data, error } = await supabase.rpc('get_active_orders', {
+                p_restaurant_id: restaurant_id || null
+            });
+
+            if (error) {
+                console.error('Error in getActiveOrders:', error);
+                throw error;
+            }
+
+            return data || [];
+
+        } catch (error) {
+            console.error('Error fetching active orders:', error);
+            throw new Error(`Error fetching active orders: ${error.message}`);
+        }
+    }
+
+    /**
+     * Obtiene el artículo más vendido
+     * @param {Object} filters - Filtros para el artículo más vendido
+     * @returns {Promise<Object>} Artículo más vendido
+     */
+    async getTopSellingItem(filters) {
+        const {
+            restaurant_id,
+            start_date,
+            end_date
+        } = filters;
+
+        try {
+            const { data, error } = await supabase.rpc('get_top_selling_item', {
+                p_restaurant_id: restaurant_id || null,
+                p_start_date: start_date || null,
+                p_end_date: end_date || null
+            });
+
+            if (error) {
+                console.error('Error in getTopSellingItem:', error);
+                throw error;
+            }
+
+            return data || { nombre: 'Sin datos', unidades_vendidas: 0 };
+
+        } catch (error) {
+            console.error('Error fetching top selling item:', error);
+            throw new Error(`Error fetching top selling item: ${error.message}`);
+        }
+    }
+
+    /**
+     * Obtiene datos completos del dashboard incluyendo métricas, gráfico y datos adicionales
+     * @param {Object} filters - Filtros aplicados
+     * @returns {Promise<Object>} Datos completos del dashboard
+     */
+    async getCompleteDashboardData(filters) {
+        try {
+            // Ejecutar todas las consultas en paralelo para mejor performance
+            const [metricsData, topSellingItem] = await Promise.all([
+                this.getDashboardMetrics(filters),
+                this.getTopSellingItem(filters)
+            ]);
+
+            return {
+                ...metricsData,
+                articulo_mas_vendido: topSellingItem,
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            console.error('Error fetching complete dashboard data:', error);
+            throw new Error(`Error fetching complete dashboard data: ${error.message}`);
+        }
+    }
+
+    /**
+     * Procesa y formatea los datos del dashboard
+     * @param {Object} rawData - Datos crudos de la función SQL
+     * @param {string} granularity - Granularidad seleccionada
+     * @returns {Object} Datos procesados y formateados
+     */
+    processDashboardData(rawData, granularity) {
+        if (!rawData) {
+            return this.getEmptyDashboardData(granularity);
+        }
+
+        const { metricas, grafico, filtros_aplicados } = rawData;
+
+        // Formatear métricas
+        const formattedMetrics = {
+            ventasTotales: parseFloat(metricas?.ventas_totales || 0),
+            ordenesActivas: parseInt(metricas?.ordenes_activas || 0),
+            pedidos: parseInt(metricas?.pedidos || 0),
+            ticketPromedio: parseFloat(metricas?.ticket_promedio || 0)
+        };
+
+        // Formatear datos del gráfico
+        const formattedChart = this.formatChartData(grafico || [], granularity);
+
+        return {
+            metricas: formattedMetrics,
+            grafico: formattedChart,
+            filtros_aplicados: filtros_aplicados || {},
+            success: true
+        };
+    }
+
+    /**
+     * Formatea los datos del gráfico según la granularidad
+     * @param {Array} chartData - Datos del gráfico
+     * @param {string} granularity - Granularidad
+     * @returns {Array} Datos del gráfico formateados
+     */
+    formatChartData(chartData, granularity) {
+        if (!Array.isArray(chartData) || chartData.length === 0) {
+            return this.generateEmptyChartData(granularity);
+        }
+
+        return chartData.map(item => ({
+            ...item,
+            ingresos: parseFloat(item.ingresos || 0)
+        }));
+    }
+
+    /**
+     * Genera datos vacíos para el gráfico según la granularidad
+     * @param {string} granularity - Granularidad
+     * @returns {Array} Datos vacíos del gráfico
+     */
+    generateEmptyChartData(granularity) {
+        const currentDate = new Date();
+        const data = [];
+
+        switch (granularity) {
+            case 'hora':
+                for (let i = 0; i < 24; i++) {
+                    data.push({ hora: i, ingresos: 0 });
+                }
+                break;
+            case 'dia':
+                const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+                for (let i = 1; i <= daysInMonth; i++) {
+                    data.push({ dia: i, ingresos: 0 });
+                }
+                break;
+            case 'mes':
+                for (let i = 1; i <= 12; i++) {
+                    data.push({ mes: i, ingresos: 0 });
+                }
+                break;
+            case 'ano':
+                const currentYear = currentDate.getFullYear();
+                for (let i = 0; i < 7; i++) {
+                    data.push({ ano: currentYear + i, ingresos: 0 });
+                }
+                break;
+            default:
+                break;
+        }
+
+        return data;
+    }
+
+    /**
+     * Retorna estructura de datos vacía para el dashboard
+     * @param {string} granularity - Granularidad
+     * @returns {Object} Datos vacíos del dashboard
+     */
+    getEmptyDashboardData(granularity) {
+        return {
+            metricas: {
+                ventasTotales: 0,
+                ordenesActivas: 0,
+                pedidos: 0,
+                ticketPromedio: 0
+            },
+            grafico: this.generateEmptyChartData(granularity),
+            filtros_aplicados: {},
+            success: true
+        };
+    }
+
+    /**
+     * Obtiene lista de restaurantes disponibles para el usuario
+     * @param {string} clerkUserId - ID del usuario de Clerk
+     * @returns {Promise<Array>} Lista de restaurantes
+     */
+    async getUserRestaurants(clerkUserId) {
+        try {
+            // Primero obtenemos el ID interno del usuario
+            const { data: userData, error: userError } = await supabase
+                .from('user_admin_portal')
+                .select('id')
+                .eq('clerk_user_id', clerkUserId)
+                .eq('is_active', true)
+                .single();
+
+            if (userError) {
+                console.error('Error getting user by clerk_user_id:', userError);
+                throw userError;
+            }
+
+            if (!userData) {
+                return [];
+            }
+
+            // Ahora obtenemos los restaurantes del usuario
+            const { data: restaurants, error: restaurantsError } = await supabase
+                .from('restaurants')
+                .select('id, name, is_active')
+                .eq('user_id', userData.id)
+                .eq('is_active', true);
+
+            if (restaurantsError) {
+                console.error('Error getting user restaurants:', restaurantsError);
+                throw restaurantsError;
+            }
+
+            return restaurants || [];
+
+        } catch (error) {
+            console.error('Error fetching user restaurants:', error);
+            throw new Error(`Error fetching user restaurants: ${error.message}`);
+        }
+    }
+}
+
+module.exports = new AnalyticsService();
