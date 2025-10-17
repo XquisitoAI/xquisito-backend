@@ -28,22 +28,24 @@ const router = express.Router();
 // NUEVAS RUTAS CON STORED PROCEDURES
 // ===============================================
 
-// Rutas para mesas
-router.get("/tables/:tableNumber/summary", tableController.getTableSummary);
-router.get("/tables/:tableNumber/orders", tableController.getTableOrders);
+// Rutas para mesas (ahora incluyen restaurantId)
+router.get("/restaurants/:restaurantId/tables", tableController.getAllTables);
+router.get("/restaurants/:restaurantId/tables/:tableNumber/summary", tableController.getTableSummary);
+router.get("/restaurants/:restaurantId/tables/:tableNumber/orders", tableController.getTableOrders);
+router.get("/restaurants/:restaurantId/tables/:tableNumber/availability", tableController.checkTableAvailability);
 
 // Rutas para crear órdenes
-router.post("/tables/:tableNumber/dishes", tableController.createDishOrder);
+router.post("/restaurants/:restaurantId/tables/:tableNumber/dishes", tableController.createDishOrder);
 
 // Rutas para pagos
 router.post("/dishes/:dishId/pay", tableController.payDishOrder);
-router.post("/tables/:tableNumber/pay", tableController.payTableAmount);
+router.post("/restaurants/:restaurantId/tables/:tableNumber/pay", tableController.payTableAmount);
 
 // Rutas para división de cuenta (split bill)
-router.post("/tables/:tableNumber/split-bill", tableController.initializeSplitBill);
-router.post("/tables/:tableNumber/pay-split", tableController.paySplitAmount);
-router.get("/tables/:tableNumber/split-status", tableController.getSplitPaymentStatus);
-router.get("/tables/:tableNumber/active-users", tableController.getActiveUsers);
+router.post("/restaurants/:restaurantId/tables/:tableNumber/split-bill", tableController.initializeSplitBill);
+router.post("/restaurants/:restaurantId/tables/:tableNumber/pay-split", tableController.paySplitAmount);
+router.get("/restaurants/:restaurantId/tables/:tableNumber/split-status", tableController.getSplitPaymentStatus);
+router.get("/restaurants/:restaurantId/tables/:tableNumber/active-users", tableController.getActiveUsers);
 
 // Rutas para cocina
 router.put("/dishes/:dishId/status", tableController.updateDishStatus);

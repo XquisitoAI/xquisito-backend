@@ -4,13 +4,16 @@ class TableController {
   // Obtener resumen de cuenta de mesa
   async getTableSummary(req, res) {
     try {
-      const { tableNumber } = req.params;
-      const summary = await tableService.getTableSummary(parseInt(tableNumber));
+      const { restaurantId, tableNumber } = req.params;
+      const summary = await tableService.getTableSummary(
+        parseInt(restaurantId),
+        parseInt(tableNumber)
+      );
 
       if (!summary) {
         return res.status(404).json({
           success: false,
-          message: `No hay cuenta activa para la mesa ${tableNumber}`,
+          message: `No hay cuenta activa para la mesa ${tableNumber} del restaurante ${restaurantId}`,
         });
       }
 
@@ -30,8 +33,11 @@ class TableController {
   // Obtener todas las órdenes de una mesa
   async getTableOrders(req, res) {
     try {
-      const { tableNumber } = req.params;
-      const orders = await tableService.getTableOrders(parseInt(tableNumber));
+      const { restaurantId, tableNumber } = req.params;
+      const orders = await tableService.getTableOrders(
+        parseInt(restaurantId),
+        parseInt(tableNumber)
+      );
 
       res.json({
         success: true,
@@ -49,7 +55,7 @@ class TableController {
   // Crear nueva orden de platillo
   async createDishOrder(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const {
         userId,
         guestName,
@@ -60,7 +66,6 @@ class TableController {
         images = [],
         customFields = null,
         extraPrice = 0,
-        restaurantId = null,
       } = req.body;
 
       // Validar campos requeridos
@@ -79,6 +84,7 @@ class TableController {
       }
 
       const result = await tableService.createDishOrder(
+        parseInt(restaurantId),
         parseInt(tableNumber),
         userId,
         guestName,
@@ -88,8 +94,7 @@ class TableController {
         guestId,
         images,
         customFields,
-        parseFloat(extraPrice),
-        restaurantId ? parseInt(restaurantId) : null
+        parseFloat(extraPrice)
       );
 
       res.status(201).json({
@@ -139,7 +144,7 @@ class TableController {
   // Pagar monto específico a la mesa
   async payTableAmount(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const { amount, userId, guestName, paymentMethodId } = req.body;
 
       if (!amount || amount <= 0) {
@@ -150,6 +155,7 @@ class TableController {
       }
 
       const success = await tableService.payTableAmount(
+        parseInt(restaurantId),
         parseInt(tableNumber),
         parseFloat(amount),
         userId || null,
@@ -215,7 +221,8 @@ class TableController {
   // Obtener todas las mesas con su estado
   async getAllTables(req, res) {
     try {
-      const tables = await tableService.getAllTables();
+      const { restaurantId } = req.params;
+      const tables = await tableService.getAllTables(parseInt(restaurantId));
 
       res.json({
         success: true,
@@ -233,21 +240,23 @@ class TableController {
   // Verificar disponibilidad de mesa
   async checkTableAvailability(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const table = await tableService.checkTableAvailability(
+        parseInt(restaurantId),
         parseInt(tableNumber)
       );
 
       if (!table) {
         return res.status(404).json({
           success: false,
-          message: `Mesa ${tableNumber} no existe`,
+          message: `Mesa ${tableNumber} no existe en el restaurante ${restaurantId}`,
         });
       }
 
       res.json({
         success: true,
         data: {
+          restaurant_id: parseInt(restaurantId),
           table_number: parseInt(tableNumber),
           status: table.status,
           available: table.status === "available",
@@ -269,7 +278,7 @@ class TableController {
   // Inicializar división de cuenta
   async initializeSplitBill(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const { numberOfPeople, userIds, guestNames } = req.body;
 
       if (!numberOfPeople || numberOfPeople <= 0) {
@@ -280,6 +289,7 @@ class TableController {
       }
 
       const result = await tableService.initializeSplitBill(
+        parseInt(restaurantId),
         parseInt(tableNumber),
         numberOfPeople,
         userIds,
@@ -302,7 +312,7 @@ class TableController {
   // Pagar parte individual de la cuenta dividida
   async paySplitAmount(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const { userId, guestName, paymentMethodId } = req.body;
 
       if (!userId && !guestName) {
@@ -313,6 +323,7 @@ class TableController {
       }
 
       const success = await tableService.paySplitAmount(
+        parseInt(restaurantId),
         parseInt(tableNumber),
         userId,
         guestName,
@@ -342,8 +353,9 @@ class TableController {
   // Obtener estado de pagos divididos
   async getSplitPaymentStatus(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const splitStatus = await tableService.getSplitPaymentStatus(
+        parseInt(restaurantId),
         parseInt(tableNumber)
       );
 
@@ -365,6 +377,7 @@ class TableController {
       res.json({
         success: true,
         data: {
+          restaurant_id: parseInt(restaurantId),
           table_number: parseInt(tableNumber),
           split_payments: splitStatus,
           summary,
@@ -382,8 +395,9 @@ class TableController {
   // Obtener usuarios activos en la mesa
   async getActiveUsers(req, res) {
     try {
-      const { tableNumber } = req.params;
+      const { restaurantId, tableNumber } = req.params;
       const activeUsers = await tableService.getActiveUsers(
+        parseInt(restaurantId),
         parseInt(tableNumber)
       );
 
@@ -403,7 +417,7 @@ class TableController {
   // Vincular órdenes de invitado con userId
   async linkGuestOrdersToUser(req, res) {
     try {
-      const { guestId, userId, tableNumber } = req.body;
+      const { guestId, userId, tableNumber, restaurantId } = req.body;
 
       if (!guestId || !userId) {
         return res.status(400).json({
@@ -415,7 +429,8 @@ class TableController {
       const result = await tableService.linkGuestOrdersToUser(
         guestId,
         userId,
-        tableNumber ? parseInt(tableNumber) : null
+        tableNumber ? parseInt(tableNumber) : null,
+        restaurantId ? parseInt(restaurantId) : null
       );
 
       res.json({
