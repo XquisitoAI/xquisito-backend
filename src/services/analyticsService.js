@@ -139,7 +139,7 @@ class AnalyticsService {
             return this.getEmptyDashboardData(granularity);
         }
 
-        const { metricas, grafico, filtros_aplicados } = rawData;
+        const { metricas, grafico, filtros_aplicados, tiempo_promedio_mesa } = rawData;
 
         // Formatear métricas
         const formattedMetrics = {
@@ -155,6 +155,7 @@ class AnalyticsService {
         return {
             metricas: formattedMetrics,
             grafico: formattedChart,
+            tiempo_promedio_mesa: tiempo_promedio_mesa || null,
             filtros_aplicados: filtros_aplicados || {},
             success: true
         };

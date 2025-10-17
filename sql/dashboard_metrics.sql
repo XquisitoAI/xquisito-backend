@@ -16,6 +16,8 @@ DECLARE
     result JSONB;
     chart_data JSONB;
     metrics JSONB;
+    top_item JSONB;
+    avg_time JSONB;
     age_min INTEGER;
     age_max INTEGER;
 BEGIN
@@ -69,6 +71,9 @@ BEGIN
     ) INTO metrics
     FROM filtered_orders;
 
+    -- Obtener tiempo promedio por mesa
+    SELECT get_average_table_time(p_restaurant_id, p_start_date, p_end_date, p_gender, p_age_range) INTO avg_time;
+
     -- Calcular datos del gráfico según granularidad usando esquema real
     WITH time_series AS (
         SELECT
@@ -107,10 +112,15 @@ BEGIN
     ) INTO chart_data
     FROM time_series;
 
+    -- Obtener artículo más vendido
+    SELECT get_top_selling_item(p_restaurant_id, p_start_date, p_end_date) INTO top_item;
+
     -- Combinar resultados
     result := jsonb_build_object(
         'metricas', metrics,
         'grafico', COALESCE(chart_data, '[]'::jsonb),
+        'articulo_mas_vendido', top_item,
+        'tiempo_promedio_mesa', avg_time,
         'filtros_aplicados', jsonb_build_object(
             'restaurant_id', p_restaurant_id,
             'start_date', p_start_date,
@@ -195,7 +205,7 @@ BEGIN
         JOIN table_order to1 ON uo.table_order_id = to1.id
         JOIN tables t ON to1.table_id = t.id
         WHERE
-            do1.payment_status = 'paid'
+            (do1.payment_status = 'paid' OR to1.status = 'paid')
             AND (p_restaurant_id IS NULL OR t.restaurant_id = p_restaurant_id)
             AND (p_start_date IS NULL OR to1.created_at >= p_start_date)
             AND (p_end_date IS NULL OR to1.created_at <= p_end_date)
@@ -210,5 +220,90 @@ BEGIN
     FROM top_item;
 
     RETURN COALESCE(result, jsonb_build_object('nombre', 'Sin datos', 'unidades_vendidas', 0));
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función para calcular tiempo promedio por mesa
+-- Calcula el tiempo promedio entre created_at y closed_at para mesas cerradas
+CREATE OR REPLACE FUNCTION get_average_table_time(
+    p_restaurant_id INTEGER DEFAULT NULL,
+    p_start_date TIMESTAMP DEFAULT NULL,
+    p_end_date TIMESTAMP DEFAULT NULL,
+    p_gender VARCHAR DEFAULT NULL,
+    p_age_range VARCHAR DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    result JSONB;
+    avg_minutes DECIMAL(10,2);
+    table_count INTEGER;
+    age_min INTEGER;
+    age_max INTEGER;
+BEGIN
+    -- Parsear rango de edad
+    IF p_age_range IS NOT NULL AND p_age_range != 'todos' THEN
+        CASE p_age_range
+            WHEN '14-17' THEN
+                age_min := 14; age_max := 17;
+            WHEN '18-25' THEN
+                age_min := 18; age_max := 25;
+            WHEN '26-35' THEN
+                age_min := 26; age_max := 35;
+            WHEN '36-45' THEN
+                age_min := 36; age_max := 45;
+            WHEN '46+' THEN
+                age_min := 46; age_max := 999;
+            ELSE
+                age_min := NULL; age_max := NULL;
+        END CASE;
+    ELSE
+        age_min := NULL; age_max := NULL;
+    END IF;
+
+    -- Calcular tiempo promedio para mesas cerradas
+    WITH closed_tables AS (
+        SELECT
+            to1.id,
+            to1.created_at,
+            to1.closed_at,
+            EXTRACT(EPOCH FROM (to1.closed_at - to1.created_at)) / 60 as minutes_duration
+        FROM table_order to1
+        LEFT JOIN tables t ON to1.table_id = t.id
+        LEFT JOIN user_order uo ON to1.id = uo.table_order_id
+        LEFT JOIN users u ON uo.user_id = u.clerk_user_id
+        WHERE
+            to1.closed_at IS NOT NULL  -- Solo mesas cerradas
+            AND to1.status = 'paid'    -- Solo mesas completamente pagadas
+            AND (p_restaurant_id IS NULL OR t.restaurant_id = p_restaurant_id)
+            AND (p_start_date IS NULL OR to1.created_at >= p_start_date)
+            AND (p_end_date IS NULL OR to1.created_at <= p_end_date)
+            AND (p_gender IS NULL OR p_gender = 'todos' OR u.gender = p_gender)
+            AND (age_min IS NULL OR u.age >= age_min)
+            AND (age_max IS NULL OR u.age <= age_max)
+            -- Excluir casos extremos (mesas abiertas por más de 24 horas)
+            AND EXTRACT(EPOCH FROM (to1.closed_at - to1.created_at)) / 3600 <= 24
+    )
+    SELECT
+        ROUND(AVG(minutes_duration)::numeric, 2),
+        COUNT(*)
+    INTO avg_minutes, table_count
+    FROM closed_tables;
+
+    -- Construir resultado
+    result := jsonb_build_object(
+        'tiempo_promedio_minutos', COALESCE(avg_minutes, 0),
+        'mesas_cerradas_analizadas', COALESCE(table_count, 0),
+        'tiempo_promedio_formateado',
+        CASE
+            WHEN avg_minutes IS NULL OR avg_minutes = 0 THEN 'Sin datos'
+            WHEN avg_minutes < 60 THEN CONCAT(ROUND(avg_minutes::numeric, 0), ' min')
+            ELSE CONCAT(
+                FLOOR(avg_minutes / 60), 'h ',
+                ROUND((avg_minutes % 60)::numeric, 0), 'min'
+            )
+        END
+    );
+
+    RETURN result;
 END;
 $$ LANGUAGE plpgsql;
