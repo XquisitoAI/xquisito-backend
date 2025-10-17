@@ -1,6 +1,7 @@
 const express = require("express");
 const restaurantController = require("../controllers/restaurantController");
 const reviewController = require("../controllers/reviewController");
+const restaurantReviewController = require("../controllers/restaurantReviewController");
 
 const router = express.Router();
 
@@ -43,5 +44,27 @@ router.get(
 
 // PATCH /api/restaurants/reviews/:reviewId - Actualizar una review
 router.patch("/reviews/:reviewId", reviewController.updateReview);
+
+// ===============================================
+// RUTAS DE REVIEWS DE RESTAURANTES
+// ===============================================
+
+// POST /api/restaurants/restaurant-reviews - Crear una review de restaurante
+router.post(
+  "/restaurant-reviews",
+  restaurantReviewController.createRestaurantReview
+);
+
+// GET /api/restaurants/:restaurantId/restaurant-reviews - Obtener reviews de un restaurante
+router.get(
+  "/:restaurantId/restaurant-reviews",
+  restaurantReviewController.getReviewsByRestaurant
+);
+
+// GET /api/restaurants/:restaurantId/restaurant-reviews/stats - Obtener estadísticas de un restaurante
+router.get(
+  "/:restaurantId/restaurant-reviews/stats",
+  restaurantReviewController.getRestaurantStats
+);
 
 module.exports = router;
