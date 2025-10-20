@@ -52,10 +52,24 @@ class AnalyticsService {
      * @param {number} restaurant_id - ID del restaurante
      * @returns {Promise<Array>} Lista de órdenes activas
      */
-    async getActiveOrders(restaurant_id) {
+    /**
+     * Obtiene órdenes del restaurante con paginación, filtros y detalles de items
+     * @param {number} restaurant_id - ID del restaurante
+     * @param {number} limit - Límite de órdenes a retornar (default: 5)
+     * @param {number} offset - Offset para paginación (default: 0)
+     * @param {string} status - Estado de las órdenes ('todos', 'not_paid', 'partial', 'paid')
+     * @returns {Promise<Object>} Órdenes con paginación y detalles
+     */
+    async getActiveOrders(restaurant_id, limit = 5, offset = 0, status = 'todos', dateFilter = 'hoy') {
         try {
-            const { data, error } = await supabase.rpc('get_active_orders', {
-                p_restaurant_id: restaurant_id || null
+            const { data, error } = await supabase.rpc('get_orders_with_pagination', {
+                p_restaurant_id: restaurant_id || null,
+                p_limit: limit,
+                p_offset: offset,
+                p_status: status,
+                p_date_filter: dateFilter,
+                p_start_date: null,
+                p_end_date: null
             });
 
             if (error) {
@@ -63,7 +77,21 @@ class AnalyticsService {
                 throw error;
             }
 
-            return data || [];
+            // Si la función SQL devuelve un objeto con orders, total_count, etc.
+            if (data && typeof data === 'object' && 'orders' in data) {
+                return {
+                    orders: data.orders || [],
+                    total_count: data.total_count || 0,
+                    has_more: data.has_more || false
+                };
+            }
+
+            // Si devuelve directamente un array (fallback para compatibilidad)
+            return {
+                orders: data || [],
+                total_count: Array.isArray(data) ? data.length : 0,
+                has_more: false
+            };
 
         } catch (error) {
             console.error('Error fetching active orders:', error);

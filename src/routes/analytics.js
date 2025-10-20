@@ -52,11 +52,23 @@ router.get('/dashboard/complete', adminPortalAuth, analyticsController.getComple
 
 /**
  * @route GET /api/analytics/dashboard/active-orders/:restaurant_id
- * @desc Get active orders for a restaurant
+ * @desc Get active orders for a restaurant (legacy endpoint)
  * @access Private
  * @param {number} restaurant_id - Restaurant ID
  */
 router.get('/dashboard/active-orders/:restaurant_id', adminPortalAuth, analyticsController.getActiveOrders);
+
+/**
+ * @route GET /api/analytics/dashboard/orders/:restaurant_id
+ * @desc Get orders for a restaurant with date filtering
+ * @access Private
+ * @param {number} restaurant_id - Restaurant ID
+ * @query {number} limit - Limit for pagination (default: 5)
+ * @query {number} offset - Offset for pagination (default: 0)
+ * @query {string} status - Order status filter (todos, not_paid, partial, paid)
+ * @query {string} dateFilter - Date filter (hoy, ayer, semana, mes, todos)
+ */
+router.get('/dashboard/orders/:restaurant_id', adminPortalAuth, analyticsController.getActiveOrders);
 
 /**
  * @route GET /api/analytics/dashboard/top-selling-item

@@ -68,7 +68,6 @@ class AnalyticsController {
      * Query params: restaurant_id, start_date, end_date, gender, age_range, granularity
      */
     async getCompleteDashboardData(req, res) {
-        console.log('req.query',req.query);
         
         try {
             const filters = {
@@ -80,10 +79,9 @@ class AnalyticsController {
                 granularity: req.query.granularity || 'dia'
             };
 
-            const data = await analyticsService.getCompleteDashboardData(filters);
+            const data = await analyticsService.getCompleteDashboardData(filters);            
 
-            console.log('datos completos de dashboard', data);
-            
+            console.log('datos para el dashboard',data)
 
             res.json({
                 success: true,
@@ -102,12 +100,17 @@ class AnalyticsController {
     }
 
     /**
-     * Obtiene órdenes activas del restaurante
-     * GET /api/analytics/dashboard/active-orders/:restaurant_id
+     * Obtiene órdenes del restaurante con paginación y detalles de items
+     * GET /api/analytics/dashboard/orders/:restaurant_id
+     * Query params: limit (default: 5), offset (default: 0), status (default: 'todos'), dateFilter (default: 'hoy')
      */
     async getActiveOrders(req, res) {
         try {
             const { restaurant_id } = req.params;
+            const limit = parseInt(req.query.limit) || 5;
+            const offset = parseInt(req.query.offset) || 0;
+            const status = req.query.status || 'todos'; // 'todos', 'not_paid', 'partial', 'paid'
+            const dateFilter = req.query.dateFilter || 'hoy'; // 'hoy', 'ayer', 'semana', 'mes', 'todos'
 
             if (!restaurant_id || isNaN(parseInt(restaurant_id))) {
                 return res.status(400).json({
@@ -116,12 +119,47 @@ class AnalyticsController {
                 });
             }
 
-            const data = await analyticsService.getActiveOrders(parseInt(restaurant_id));
+            // Validar parámetros de paginación
+            if (limit < 1 || limit > 50) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El límite debe estar entre 1 y 50'
+                });
+            }
+
+            if (offset < 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El offset debe ser mayor o igual a 0'
+                });
+            }
+
+            const data = await analyticsService.getActiveOrders(
+                parseInt(restaurant_id),
+                limit,
+                offset,
+                status,
+                dateFilter
+            );
+
 
             res.json({
                 success: true,
-                data: data,
-                count: Array.isArray(data) ? data.length : 0,
+                data: {
+                    orders: data.orders || [],
+                    pagination: {
+                        limit: limit,
+                        offset: offset,
+                        returned_count: Array.isArray(data.orders) ? data.orders.length : 0,
+                        total_count: data.total_count || 0,
+                        has_more: data.has_more || false
+                    },
+                    filters: {
+                        restaurant_id: parseInt(restaurant_id),
+                        status: status,
+                        dateFilter: dateFilter
+                    }
+                },
                 timestamp: new Date().toISOString()
             });
 
