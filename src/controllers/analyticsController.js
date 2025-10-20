@@ -81,8 +81,6 @@ class AnalyticsController {
 
             const data = await analyticsService.getCompleteDashboardData(filters);            
 
-            console.log('datos para el dashboard',data)
-
             res.json({
                 success: true,
                 data: data,

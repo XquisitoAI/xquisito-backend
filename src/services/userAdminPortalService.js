@@ -131,7 +131,6 @@ class UserAdminPortalService {
         return null;
       }
 
-      console.log('✅ Admin portal user with restaurant found:', data);
       return data;
     } catch (error) {
       console.error('❌ Error getting admin portal user with restaurant:', error);
