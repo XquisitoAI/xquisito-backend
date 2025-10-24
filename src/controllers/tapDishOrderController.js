@@ -1,5 +1,24 @@
 const tapDishOrderService = require('../services/tapDishOrderService');
 
+// Helper function para calcular extra_price desde custom_fields
+// customFields estructura: Array<{ fieldId: string, fieldName: string, selectedOptions: Array<{ optionId: string, optionName: string, price: number }> }>
+function calculateExtraPriceFromCustomFields(customFields) {
+  if (!Array.isArray(customFields)) return 0;
+
+  return customFields.reduce((total, field) => {
+    // Validar que el field tiene la estructura correcta
+    if (!field || !Array.isArray(field.selectedOptions)) return total;
+
+    const fieldTotal = field.selectedOptions.reduce((fieldSum, option) => {
+      // Validar que option tiene price válido
+      if (!option || typeof option.price !== 'number') return fieldSum;
+      return fieldSum + option.price;
+    }, 0);
+
+    return total + fieldTotal;
+  }, 0);
+}
+
 class TapDishOrderController {
   // POST /api/tap-orders/restaurant/:restaurantId/table/:tableNumber/dishes - Crear orden y primer dish
   async createOrderWithFirstDish(req, res) {
@@ -21,6 +40,42 @@ class TapDishOrderController {
           message: 'Item and price are required'
         });
       }
+
+      // Validar y procesar campos opcionales
+      if (dishData.images && !Array.isArray(dishData.images)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Images must be an array'
+        });
+      }
+
+      // Validar estructura de custom_fields
+      if (dishData.custom_fields && !Array.isArray(dishData.custom_fields)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Custom fields must be an array'
+        });
+      }
+
+      // Calcular extra_price desde custom_fields si no se proporciona explícitamente
+      let extraPrice = 0;
+      if (dishData.custom_fields) {
+        extraPrice = calculateExtraPriceFromCustomFields(dishData.custom_fields);
+      }
+
+      // Si se proporciona extra_price explícito, usarlo en su lugar
+      if (dishData.extra_price !== undefined) {
+        if (isNaN(parseFloat(dishData.extra_price))) {
+          return res.status(400).json({
+            success: false,
+            message: 'Extra price must be a valid number'
+          });
+        }
+        extraPrice = parseFloat(dishData.extra_price);
+      }
+
+      // Agregar el extra_price calculado a dishData
+      dishData.extra_price = extraPrice;
 
       // Obtener datos del cliente si está autenticado
       const customerData = {
@@ -72,6 +127,42 @@ class TapDishOrderController {
           message: 'Item and price are required'
         });
       }
+
+      // Validar y procesar campos opcionales
+      if (dishData.images && !Array.isArray(dishData.images)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Images must be an array'
+        });
+      }
+
+      // Validar estructura de custom_fields
+      if (dishData.custom_fields && !Array.isArray(dishData.custom_fields)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Custom fields must be an array'
+        });
+      }
+
+      // Calcular extra_price desde custom_fields si no se proporciona explícitamente
+      let extraPrice = 0;
+      if (dishData.custom_fields) {
+        extraPrice = calculateExtraPriceFromCustomFields(dishData.custom_fields);
+      }
+
+      // Si se proporciona extra_price explícito, usarlo en su lugar
+      if (dishData.extra_price !== undefined) {
+        if (isNaN(parseFloat(dishData.extra_price))) {
+          return res.status(400).json({
+            success: false,
+            message: 'Extra price must be a valid number'
+          });
+        }
+        extraPrice = parseFloat(dishData.extra_price);
+      }
+
+      // Agregar el extra_price calculado a dishData
+      dishData.extra_price = extraPrice;
 
       const result = await tapDishOrderService.createDishOrder(tapOrderId, dishData);
 

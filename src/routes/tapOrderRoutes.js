@@ -28,13 +28,13 @@ router.patch('/tap-orders/:id/status', tapOrderController.updateOrderStatus);
 router.patch('/tap-orders/:id/payment-status', tapOrderController.updatePaymentStatus);
 
 // Recalcular total de la orden
-//router.post('/tap-orders/:id/calculate-total', tapOrderController.calculateTotal);
+router.post('/tap-orders/:id/calculate-total', tapOrderController.calculateTotal);
 
 // Obtener historial de órdenes de una mesa
 router.get('/tap-orders/table/:tableId/history', tapOrderController.getTableOrderHistory);
 
 // Abandonar orden
-//router.delete('/tap-orders/:id', tapOrderController.abandonOrder);
+router.delete('/tap-orders/:id', tapOrderController.abandonOrder);
 
 // ===============================================
 // RUTAS PARA DISH ORDERS EN TAP ORDER AND PAY

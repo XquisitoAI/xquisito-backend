@@ -87,7 +87,10 @@ class TapOrderService {
       const {
         item,
         price,
-        quantity = 1
+        quantity = 1,
+        images = [],
+        custom_fields = null,
+        extra_price = 0
       } = dishData;
 
       // Usar función SQL para crear orden completa con primer platillo
@@ -101,7 +104,10 @@ class TapOrderService {
           p_customer_name: customerData.customer_name || null,
           p_customer_phone: customerData.customer_phone || null,
           p_customer_email: customerData.customer_email || null,
-          p_clerk_user_id: customerData.clerk_user_id || null
+          p_clerk_user_id: customerData.clerk_user_id || null,
+          p_images: images,
+          p_custom_fields: custom_fields,
+          p_extra_price: extra_price
         });
 
       if (error) throw error;

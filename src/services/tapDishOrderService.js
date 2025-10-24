@@ -8,7 +8,10 @@ class TapDishOrderService {
       const {
         item,
         quantity = 1,
-        price
+        price,
+        images = [],
+        custom_fields = null,
+        extra_price = 0
       } = dishData;
 
       // Usar función SQL para agregar platillo a tap order existente
@@ -17,7 +20,10 @@ class TapDishOrderService {
           p_tap_order_id: tap_order_id,
           p_item: item,
           p_price: price,
-          p_quantity: quantity
+          p_quantity: quantity,
+          p_images: images,
+          p_custom_fields: custom_fields,
+          p_extra_price: extra_price
         });
 
       if (error) throw error;
