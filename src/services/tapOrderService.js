@@ -119,6 +119,7 @@ class TapOrderService {
         success: true,
         data: {
           ...orderSummary.data,
+          tap_order_id: data.tap_order_id,
           action: data.action,
           dish_order_id: data.dish_order_id
         },
