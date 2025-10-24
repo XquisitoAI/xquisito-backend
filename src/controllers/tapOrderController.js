@@ -167,6 +167,8 @@ class TapOrderController {
 
   // PATCH /api/tap-orders/:id/status - Actualizar estado de la orden
   async updateOrderStatus(req, res) {
+    console.log(req.params);
+    
     try {
       const { id } = req.params;
       const { status } = req.body;
