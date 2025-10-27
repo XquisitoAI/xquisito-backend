@@ -75,8 +75,7 @@ class TapDishOrderService {
       const { data, error } = await supabase
         .from('dish_order')
         .select('*')
-        .eq('tap_order_id', tap_order_id)
-        .order('created_at', { ascending: true });
+        .eq('tap_order_id', tap_order_id);
 
       if (error) throw error;
       return { success: true, data };
