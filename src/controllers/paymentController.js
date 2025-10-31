@@ -2,6 +2,7 @@ const paymentService = require("../services/paymentService");
 const ecartPayService = require("../services/ecartpayService");
 const tableService = require("../services/tableService");
 const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
+const paymentTransactionService = require("../services/paymentTransactionService");
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -846,6 +847,189 @@ class PaymentController {
       }
     } catch (error) {
       console.error("❌ Error in handlePaymentSuccess:", error);
+    }
+  }
+
+  /**
+   * Crea una nueva transacción de pago en la base de datos
+   * Este endpoint es llamado desde el frontend después de un pago exitoso
+   */
+  async createPaymentTransaction(req, res) {
+    try {
+      const userId = req.user?.id;
+      const isGuest = req.isGuest || req.user?.isGuest;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            type: "authentication_error",
+            message: "User not authenticated",
+          },
+        });
+      }
+
+      console.log(
+        `📊 Creating payment transaction for ${isGuest ? "guest" : "user"}: ${userId}`
+      );
+
+      const transactionData = req.body;
+
+      // Validar datos requeridos
+      const requiredFields = [
+        "payment_method_id",
+        "restaurant_id",
+        "base_amount",
+        "total_amount_charged",
+      ];
+
+      const missingFields = requiredFields.filter(
+        (field) => !transactionData[field]
+      );
+
+      if (missingFields.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: `Missing required fields: ${missingFields.join(", ")}`,
+          },
+        });
+      }
+
+      // Validar que exista al menos un tipo de orden
+      if (
+        !transactionData.id_table_order &&
+        !transactionData.id_tap_orders_and_pay
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message:
+              "Either id_table_order or id_tap_orders_and_pay is required",
+          },
+        });
+      }
+
+      // Crear transacción
+      const result = await paymentTransactionService.createTransaction(
+        transactionData,
+        isGuest
+      );
+
+      if (!result.success) {
+        console.error("❌ Failed to create transaction:", result.error);
+        return res.status(400).json(result);
+      }
+
+      console.log(
+        "✅ Transaction created successfully:",
+        result.transaction.id
+      );
+
+      res.status(201).json({
+        success: true,
+        message: "Payment transaction created successfully",
+        transaction: result.transaction,
+      });
+    } catch (error) {
+      console.error("Error in createPaymentTransaction controller:", error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: "internal_error",
+          message: "Internal server error",
+        },
+      });
+    }
+  }
+
+  // Obtiene el historial de transacciones del usuario
+  async getTransactionHistory(req, res) {
+    try {
+      const userId = req.user?.id;
+      const isGuest = req.isGuest || req.user?.isGuest;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            type: "authentication_error",
+            message: "User not authenticated",
+          },
+        });
+      }
+
+      const { limit, offset, restaurantId } = req.query;
+
+      const result = await paymentTransactionService.getUserTransactions(
+        userId,
+        isGuest,
+        {
+          limit: limit ? parseInt(limit) : 50,
+          offset: offset ? parseInt(offset) : 0,
+          restaurantId: restaurantId || null,
+        }
+      );
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        transactions: result.transactions,
+        total: result.total,
+      });
+    } catch (error) {
+      console.error("Error in getTransactionHistory controller:", error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: "internal_error",
+          message: "Internal server error",
+        },
+      });
+    }
+  }
+
+  // Obtiene una transacción específica por ID
+  async getTransactionById(req, res) {
+    try {
+      const { transactionId } = req.params;
+
+      if (!transactionId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: "Transaction ID is required",
+          },
+        });
+      }
+
+      const result =
+        await paymentTransactionService.getTransactionById(transactionId);
+
+      if (!result.success) {
+        const statusCode = result.error.type === "not_found" ? 404 : 400;
+        return res.status(statusCode).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        transaction: result.transaction,
+      });
+    } catch (error) {
+      console.error("Error in getTransactionById controller:", error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: "internal_error",
+          message: "Internal server error",
+        },
+      });
     }
   }
 }

@@ -11,3 +11,5 @@ yarn-error.log*
 .vscode/
 coverage/
 .nyc_output/
+.claude/
+testsprite_tests/
