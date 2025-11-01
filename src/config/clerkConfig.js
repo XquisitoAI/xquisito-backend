@@ -17,6 +17,13 @@ const clerkConfigs = {
     secretKey: process.env.CLERK_SECRET_KEY_ADMIN_PORTAL,
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY_ADMIN_PORTAL,
     project: 'admin-portal'
+  },
+
+  // Configuración para el proyecto main-portal (super administradores)
+  mainPortal: {
+    secretKey: process.env.CLERK_SECRET_KEY_MAIN_PORTAL,
+    publishableKey: process.env.CLERK_PUBLISHABLE_KEY_MAIN_PORTAL,
+    project: 'main-portal'
   }
 };
 

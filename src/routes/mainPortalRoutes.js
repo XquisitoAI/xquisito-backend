@@ -1,5 +1,6 @@
 const express = require('express');
 const mainPortalController = require('../controllers/mainPortalController');
+const { mainPortalAuth, optionalMainPortalAuth } = require('../middleware/clerkMainPortalAuth');
 
 const router = express.Router();
 
@@ -8,19 +9,19 @@ const router = express.Router();
 // ===============================================
 
 // GET /api/main-portal/clients - Obtener todos los clientes
-router.get('/clients', mainPortalController.getAllClients);
+router.get('/clients', mainPortalAuth, mainPortalController.getAllClients);
 
 // GET /api/main-portal/clients/:id - Obtener cliente por ID
-router.get('/clients/:id', mainPortalController.getClientById);
+router.get('/clients/:id', mainPortalAuth, mainPortalController.getClientById);
 
 // POST /api/main-portal/clients - Crear nuevo cliente
-router.post('/clients', mainPortalController.createClient);
+router.post('/clients', mainPortalAuth, mainPortalController.createClient);
 
 // PUT /api/main-portal/clients/:id - Actualizar cliente
-router.put('/clients/:id', mainPortalController.updateClient);
+router.put('/clients/:id', mainPortalAuth, mainPortalController.updateClient);
 
 // DELETE /api/main-portal/clients/:id - Eliminar cliente
-router.delete('/clients/:id', mainPortalController.deleteClient);
+router.delete('/clients/:id', mainPortalAuth, mainPortalController.deleteClient);
 
 // ===============================================
 // RUTAS PARA SUCURSALES
@@ -28,33 +29,33 @@ router.delete('/clients/:id', mainPortalController.deleteClient);
 
 // GET /api/main-portal/branches - Obtener todas las sucursales o filtrar por cliente
 // Query params: ?client_id=uuid (opcional)
-router.get('/branches', mainPortalController.getAllBranches);
+router.get('/branches', mainPortalAuth, mainPortalController.getAllBranches);
 
 // GET /api/main-portal/branches/:id - Obtener sucursal por ID
-router.get('/branches/:id', mainPortalController.getBranchById);
+router.get('/branches/:id', mainPortalAuth, mainPortalController.getBranchById);
 
 // POST /api/main-portal/branches - Crear nueva sucursal
-router.post('/branches', mainPortalController.createBranch);
+router.post('/branches', mainPortalAuth, mainPortalController.createBranch);
 
 // PUT /api/main-portal/branches/:id - Actualizar sucursal
-router.put('/branches/:id', mainPortalController.updateBranch);
+router.put('/branches/:id', mainPortalAuth, mainPortalController.updateBranch);
 
 // DELETE /api/main-portal/branches/:id - Eliminar sucursal
-router.delete('/branches/:id', mainPortalController.deleteBranch);
+router.delete('/branches/:id', mainPortalAuth, mainPortalController.deleteBranch);
 
 // ===============================================
 // RUTAS DE ESTADÍSTICAS Y UTILIDADES
 // ===============================================
 
 // GET /api/main-portal/stats - Obtener estadísticas generales
-router.get('/stats', mainPortalController.getMainPortalStats);
+router.get('/stats', mainPortalAuth, mainPortalController.getMainPortalStats);
 
 // ===============================================
 // DOCUMENTACIÓN DE LA API
 // ===============================================
 
-// GET /api/main-portal/info - Información de la API
-router.get('/info', (req, res) => {
+// GET /api/main-portal/info - Información de la API (pública)
+router.get('/info', optionalMainPortalAuth, (req, res) => {
   res.json({
     success: true,
     data: {
