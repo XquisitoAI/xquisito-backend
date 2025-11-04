@@ -1,4 +1,7 @@
 const mainPortalService = require('../services/mainPortalService');
+const { createClerkClient } = require('@clerk/clerk-sdk-node');
+const { getClerkConfig } = require('../config/clerkConfig');
+const supabase = require('../config/supabase');
 
 // ===============================================
 // CONTROLADORES PARA CLIENTES
@@ -11,7 +14,6 @@ const getAllClients = async (req, res) => {
 
     const clients = await mainPortalService.getAllClients();
 
-    console.log(`✅ Found ${clients.length} clients`);
     res.json({
       success: true,
       data: clients,
@@ -31,11 +33,9 @@ const getAllClients = async (req, res) => {
 const getClientById = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('🔍 Getting client by ID:', id);
 
     const client = await mainPortalService.getClientById(id);
 
-    console.log('✅ Client found:', client.name);
     res.json({
       success: true,
       data: client
@@ -62,8 +62,7 @@ const getClientById = async (req, res) => {
 // POST /api/main-portal/clients
 const createClient = async (req, res) => {
   try {
-    const clientData = req.body;
-    console.log('🆕 Creating new client:', clientData.name);
+    const { sendInvitation = true, ...clientData } = req.body;
 
     // Validaciones básicas
     if (!clientData.name || !clientData.owner_name || !clientData.email || !clientData.phone) {
@@ -74,13 +73,71 @@ const createClient = async (req, res) => {
       });
     }
 
+    // 1. Crear cliente normal
     const client = await mainPortalService.createClient(clientData);
-
     console.log('✅ Client created successfully:', client.id);
+
+    let invitationSent = false;
+
+    // 2. Solo procesar invitación si está habilitada
+    if (sendInvitation) {
+      // 2a. Agregar email a whitelist de invitaciones
+      try {
+        await supabase.from('pending_invitations').insert({
+          client_id: client.id,
+          email: client.email,
+          client_name: client.name,
+          invited_by: req.auth.userId // del token de Clerk del super admin
+        });
+      } catch (invitationError) {
+        console.error('⚠️ Error adding to invitation whitelist:', invitationError.message);
+        // No fallar si no se puede agregar a la whitelist
+      }
+
+      // 2b. Enviar invitación por email usando Clerk
+      try {
+        // Obtener configuración específica del admin portal para enviar invitaciones
+        const adminPortalConfig = getClerkConfig('adminPortal');
+
+        const adminPortalClerk = createClerkClient({
+          secretKey: adminPortalConfig.secretKey
+        });
+
+        const invitationUrl = `${process.env.ADMIN_PORTAL_URL}/sign-up?invited=true&email=${encodeURIComponent(client.email)}`;
+        console.log('🔗 Invitation URL:', invitationUrl);
+
+        const invitationData = {
+          emailAddress: client.email,
+          redirectUrl: invitationUrl,
+          publicMetadata: {
+            client_id: client.id,
+            client_name: client.name,
+            source: 'main-portal'
+          }
+        };
+
+        const invitation = await adminPortalClerk.invitations.createInvitation(invitationData);
+
+        console.log(`📧 Invitation sent successfully to ${client.email}`);
+        console.log('✅ Clerk invitation response:', invitation.id);
+        invitationSent = true;
+      } catch (clerkError) {
+        console.error('⚠️ Error sending Clerk invitation:');
+        console.error('   Message:', clerkError.message);
+        console.error('   Status:', clerkError.status);
+        console.error('   Error details:', JSON.stringify(clerkError, null, 2));
+        // No fallar si no se puede enviar la invitación por email
+      }
+    } else {
+      console.log('⏭️ Skipping invitation process - sendInvitation = false');
+    }
+
     res.status(201).json({
       success: true,
       data: client,
-      message: 'Client created successfully'
+      message: invitationSent
+        ? 'Client created successfully and invitation sent'
+        : 'Client created successfully'
     });
   } catch (error) {
     console.error('❌ Error creating client:', error.message);
@@ -381,6 +438,45 @@ const getMainPortalStats = async (req, res) => {
   }
 };
 
+// GET /api/main-portal/invitations/status
+const getInvitationStatuses = async (req, res) => {
+  try {
+    console.log('📧 Getting invitation statuses');
+
+    const { data, error } = await supabase
+      .from('pending_invitations')
+      .select('client_id, email, status, invited_at, used_at');
+
+    if (error) {
+      throw new Error(`Error getting invitation statuses: ${error.message}`);
+    }
+
+    // Crear un mapa de client_id -> status de invitación
+    const invitationMap = {};
+    data.forEach(invitation => {
+      invitationMap[invitation.client_id] = {
+        status: invitation.status,
+        email: invitation.email,
+        invitedAt: invitation.invited_at,
+        usedAt: invitation.used_at
+      };
+    });
+
+    console.log(`✅ Found invitation statuses for ${data.length} clients`);
+    res.json({
+      success: true,
+      data: invitationMap
+    });
+  } catch (error) {
+    console.error('❌ Error getting invitation statuses:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'server_error',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   // Clientes
   getAllClients,
@@ -395,5 +491,6 @@ module.exports = {
   updateBranch,
   deleteBranch,
   // Estadísticas
-  getMainPortalStats
+  getMainPortalStats,
+  getInvitationStatuses
 };

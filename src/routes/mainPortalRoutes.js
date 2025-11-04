@@ -50,6 +50,9 @@ router.delete('/branches/:id', mainPortalAuth, mainPortalController.deleteBranch
 // GET /api/main-portal/stats - Obtener estadísticas generales
 router.get('/stats', mainPortalAuth, mainPortalController.getMainPortalStats);
 
+// GET /api/main-portal/invitations/status - Obtener estados de invitaciones
+router.get('/invitations/status', mainPortalAuth, mainPortalController.getInvitationStatuses);
+
 // ===============================================
 // DOCUMENTACIÓN DE LA API
 // ===============================================

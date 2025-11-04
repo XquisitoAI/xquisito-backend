@@ -1,6 +1,92 @@
 const userAdminPortalService = require('../services/userAdminPortalService');
+const supabase = require('../config/supabase');
 
 class UserAdminPortalController {
+  // ===============================================
+  // ENDPOINTS DE INVITACIONES
+  // ===============================================
+
+  /**
+   * Validar si un email está autorizado para registrarse
+   * GET /api/admin-portal/validate-email/:email
+   */
+  async validateEmailInvitation(req, res) {
+    try {
+      const { email } = req.params;
+
+      if (!email) {
+        return res.status(400).json({
+          allowed: false,
+          message: 'Email parameter is required'
+        });
+      }
+
+      const { data, error } = await supabase
+        .from('pending_invitations')
+        .select('*')
+        .eq('email', email)
+        .eq('status', 'pending')
+        .single();
+
+      if (error || !data) {
+        console.log('❌ Email not found in invitation whitelist:', email);
+        return res.json({
+          allowed: false,
+          message: 'Email no autorizado para registro'
+        });
+      }
+
+      res.json({
+        allowed: true,
+        client_name: data.client_name,
+        client_id: data.client_id
+      });
+    } catch (error) {
+      console.error('❌ Error validating email invitation:', error);
+      res.status(500).json({
+        allowed: false,
+        message: 'Error validando acceso'
+      });
+    }
+  }
+
+  /**
+   * Marcar invitación como usada después del registro
+   * POST /api/admin-portal/complete-registration
+   */
+  async completeRegistration(req, res) {
+    try {
+      const { email, user_id } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required'
+        });
+      }
+
+      await supabase
+        .from('pending_invitations')
+        .update({
+          status: 'registered',
+          used_at: new Date().toISOString()
+        })
+        .eq('email', email)
+        .eq('status', 'pending');
+
+      res.json({
+        success: true,
+        message: 'Registration completed successfully'
+      });
+    } catch (error) {
+      console.error('❌ Error completing registration:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error completando registro'
+      });
+    }
+  }
+
   // ===============================================
   // ENDPOINTS DE AUTENTICACIÓN Y USUARIOS
   // ===============================================

@@ -5,6 +5,24 @@ const { adminPortalAuth, optionalAdminPortalAuth } = require('../middleware/cler
 const router = express.Router();
 
 // ===============================================
+// RUTAS DE INVITACIONES (PÚBLICAS)
+// ===============================================
+
+/**
+ * @route   GET /api/admin-portal/validate-email/:email
+ * @desc    Validar si un email está autorizado para registrarse
+ * @access  Public
+ */
+router.get('/validate-email/:email', userAdminPortalController.validateEmailInvitation);
+
+/**
+ * @route   POST /api/admin-portal/complete-registration
+ * @desc    Marcar invitación como usada después del registro
+ * @access  Public
+ */
+router.post('/complete-registration', userAdminPortalController.completeRegistration);
+
+// ===============================================
 // RUTAS DE AUTENTICACIÓN Y USUARIOS
 // ===============================================
 
