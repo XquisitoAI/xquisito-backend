@@ -13,6 +13,9 @@ router.get('/sections', adminPortalAuth, menuAdminPortalController.getAllSection
 // Crear nueva sección
 router.post('/sections', adminPortalAuth, menuAdminPortalController.createSection);
 
+// Reordenar secciones
+router.put('/sections/reorder', adminPortalAuth, menuAdminPortalController.reorderSections);
+
 // Actualizar sección
 router.put('/sections/:id', adminPortalAuth, menuAdminPortalController.updateSection);
 

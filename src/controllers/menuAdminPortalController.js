@@ -146,6 +146,63 @@ class MenuAdminPortalController {
     }
   }
 
+  /**
+   * Reordenar secciones
+   * PUT /api/admin-portal/menu/sections/reorder
+   */
+  async reorderSections(req, res) {
+    try {
+      const clerkUserId = req.auth?.userId;
+      const { sections } = req.body;
+
+      if (!clerkUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      if (!sections || !Array.isArray(sections)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid sections data'
+        });
+      }
+
+      // Validar que cada sección tenga id y display_order
+      for (const section of sections) {
+        if (!section.id || section.display_order === undefined) {
+          return res.status(400).json({
+            success: false,
+            message: 'Each section must have id and display_order'
+          });
+        }
+
+        const id = parseInt(section.id);
+        if (isNaN(id)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid section ID'
+          });
+        }
+      }
+
+      await menuAdminPortalService.reorderSections(clerkUserId, sections);
+
+      res.status(200).json({
+        success: true,
+        message: 'Sections reordered successfully',
+        data: true
+      });
+    } catch (error) {
+      console.error('❌ Error reordering sections:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
   // ===============================================
   // CONTROLADORES DE ITEMS
   // ===============================================

@@ -132,6 +132,49 @@ class MenuAdminPortalService {
     }
   }
 
+  /**
+   * Reordenar secciones (solo secciones que pertenezcan al usuario)
+   */
+  async reorderSections(clerkUserId, sections) {
+    try {
+      // Obtener restaurant_id del usuario
+      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found for user');
+      }
+
+      // Validar que todas las secciones pertenezcan al usuario
+      for (const section of sections) {
+        const isOwner = await this.verifySectionOwnership(clerkUserId, section.id);
+        if (!isOwner) {
+          throw new Error(`Section ${section.id} not found or access denied`);
+        }
+      }
+
+      // Actualizar display_order de cada sección
+      const updatePromises = sections.map(section => {
+        return supabase
+          .from("menu_sections")
+          .update({ display_order: section.display_order })
+          .eq("id", section.id)
+          .eq("restaurant_id", restaurant.id); // Double check para seguridad
+      });
+
+      const results = await Promise.all(updatePromises);
+
+      // Verificar si alguna actualización falló
+      for (const result of results) {
+        if (result.error) {
+          throw result.error;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      throw new Error(`Error reordering menu sections: ${error.message}`);
+    }
+  }
+
   // ===============================================
   // OPERACIONES DE PLATILLOS CON RESTAURANT_ID
   // ===============================================
