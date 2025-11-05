@@ -60,8 +60,9 @@ BEGIN
             'active'
         ) RETURNING id INTO v_tap_order_id;
 
-        -- Marcar mesa como ocupada
-        UPDATE tables SET status = 'occupied' WHERE id = v_table_id;
+        -- NO marcar mesa como ocupada en tap-order-and-pay
+        -- Las mesas permanecen 'available' para múltiples usuarios
+        -- UPDATE tables SET status = 'occupied' WHERE id = v_table_id; -- REMOVIDO
     END IF;
 
     -- Crear dish_order (sin table_id, se obtiene por JOIN)

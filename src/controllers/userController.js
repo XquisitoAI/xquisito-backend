@@ -384,79 +384,160 @@ class UserController {
     }
   }
 
-  // Get user order history
+  // Get user order history (from payment_transactions)
   async getUserOrderHistory(req, res) {
     try {
       const { clerkUserId } = req.params;
 
-      console.log("📝 Getting order history for clerkUserId:", clerkUserId);
+      console.log("📝 Getting order history (from payment_transactions) for:", clerkUserId);
 
       if (!clerkUserId) {
         return res.status(400).json({
           success: false,
-          error: {
-            type: "validation_error",
-            message: "clerkUserId is required",
-          },
+          error: { type: "validation_error", message: "clerkUserId is required" },
         });
       }
 
-      // First, get the user's internal ID
-      const { data: user, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("clerk_user_id", clerkUserId)
-        .single();
-
-      if (userError) {
-        console.error("❌ Error finding user:", userError);
-        return res.status(404).json({
-          success: false,
-          error: {
-            type: "not_found",
-            message: "User not found",
-            details: userError,
-          },
-        });
-      }
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            type: "not_found",
-            message: "User not found",
-          },
-        });
-      }
-
-      // Get all user_orders for this user with their dishes and restaurant info
-      const { data: userOrders, error: ordersError } = await supabase
-        .from("user_order")
-        .select(
-          `
+      // ========================================
+      // 1. Consultar transacciones del usuario
+      // ========================================
+      const { data: transactions, error: txError } = await supabase
+        .from("payment_transactions")
+        .select(`
           id,
           user_id,
-          guest_name,
           payment_method_id,
-          payment_card_last_four,
-          payment_card_type,
-          table_order!inner(
+          restaurant_id,
+          id_table_order,
+          id_tap_orders_and_pay,
+          base_amount,
+          tip_amount,
+          total_amount_charged,
+          created_at,
+          currency
+        `)
+        .eq("user_id", clerkUserId)
+        .order("created_at", { ascending: false });
+
+      if (txError) {
+        console.error("❌ Error getting transactions:", txError);
+        return res.status(500).json({
+          success: false,
+          error: { type: "database_error", message: "Error retrieving history", details: txError },
+        });
+      }
+
+      console.log(`✅ Found ${transactions?.length || 0} transactions`);
+
+      if (!transactions || transactions.length === 0) {
+        return res.json({ success: true, data: [] });
+      }
+
+      // ========================================
+      // 2. Obtener IDs únicos
+      // ========================================
+      const tableOrderIds = [...new Set(transactions.map(tx => tx.id_table_order).filter(Boolean))];
+      const tapOrderIds = [...new Set(transactions.map(tx => tx.id_tap_orders_and_pay).filter(Boolean))];
+      const restaurantIds = [...new Set(transactions.map(tx => tx.restaurant_id).filter(Boolean))];
+      const paymentMethodIds = [...new Set(transactions.map(tx => tx.payment_method_id).filter(Boolean))];
+
+      console.log(`📊 IDs to fetch: ${tableOrderIds.length} table_orders, ${tapOrderIds.length} tap_orders`);
+
+      // ========================================
+      // 3. Consultar Table Orders (Flex Bill)
+      // ========================================
+      let tableOrdersMap = {};
+      if (tableOrderIds.length > 0) {
+        const { data: tableOrders } = await supabase
+          .from("table_order")
+          .select(`
             id,
             status,
             created_at,
+            total_amount,
             tables!inner(
               table_number,
-              restaurant_id,
-              restaurants(
-                id,
-                name,
-                logo_url
-              )
+              restaurant_id
             )
-          ),
-          dish_order(
+          `)
+          .in("id", tableOrderIds);
+
+        if (tableOrders) {
+          console.log(`✅ Fetched ${tableOrders.length} table_orders (Flex Bill)`);
+          tableOrders.forEach(order => {
+            tableOrdersMap[order.id] = order;
+          });
+        }
+
+        // Obtener dish_orders de estas table_orders
+        const { data: userOrders } = await supabase
+          .from("user_order")
+          .select(`
             id,
+            table_order_id,
+            user_id,
+            dish_order(
+              id,
+              item,
+              quantity,
+              price,
+              status,
+              payment_status,
+              images,
+              custom_fields,
+              extra_price
+            )
+          `)
+          .in("table_order_id", tableOrderIds)
+          .eq("user_id", clerkUserId);
+
+        if (userOrders) {
+          // Agregar dishes a cada table_order
+          userOrders.forEach(userOrder => {
+            const tableOrderId = userOrder.table_order_id;
+            if (tableOrdersMap[tableOrderId]) {
+              if (!tableOrdersMap[tableOrderId].dishes) {
+                tableOrdersMap[tableOrderId].dishes = [];
+              }
+              tableOrdersMap[tableOrderId].dishes.push(...(userOrder.dish_order || []));
+            }
+          });
+        }
+      }
+
+      // ========================================
+      // 4. Consultar Tap Orders (Tap Order & Pay)
+      // ========================================
+      let tapOrdersMap = {};
+      if (tapOrderIds.length > 0) {
+        const { data: tapOrders } = await supabase
+          .from("tap_orders_and_pay")
+          .select(`
+            id,
+            order_status,
+            payment_status,
+            created_at,
+            total_amount,
+            tables!inner(
+              table_number,
+              restaurant_id
+            )
+          `)
+          .in("id", tapOrderIds);
+
+        if (tapOrders) {
+          console.log(`✅ Fetched ${tapOrders.length} tap_orders (Tap Order & Pay)`);
+          tapOrders.forEach(order => {
+            tapOrdersMap[order.id] = order;
+          });
+        }
+
+        // Obtener dish_orders de estos tap_orders
+        const { data: tapDishes } = await supabase
+          .from("dish_order")
+          .select(`
+            id,
+            tap_order_id,
             item,
             quantity,
             price,
@@ -465,60 +546,151 @@ class UserController {
             images,
             custom_fields,
             extra_price
-          )
-        `
-        )
-        .eq("user_id", clerkUserId);
+          `)
+          .in("tap_order_id", tapOrderIds)
+          .not("tap_order_id", "is", null);
 
-      if (ordersError) {
-        console.error("❌ Error getting user orders:", ordersError);
-        return res.status(500).json({
-          success: false,
-          error: {
-            type: "database_error",
-            message: "Error retrieving order history",
-            details: ordersError,
-          },
-        });
-      }
-
-      console.log(`✅ Found ${userOrders?.length || 0} user orders`);
-
-      // Transform and flatten the data
-      const orderHistory = [];
-      (userOrders || []).forEach((userOrder) => {
-        if (userOrder.dish_order && userOrder.dish_order.length > 0) {
-          userOrder.dish_order.forEach((dish) => {
-            const restaurant = userOrder.table_order.tables.restaurants;
-            orderHistory.push({
-              dishOrderId: dish.id,
-              item: dish.item,
-              quantity: dish.quantity,
-              price: dish.price,
-              totalPrice:
-                dish.quantity * (dish.price + (dish.extra_price || 0)),
-              status: dish.status,
-              paymentStatus: dish.payment_status,
-              images: dish.images || [],
-              customFields: dish.custom_fields,
-              extraPrice: dish.extra_price || 0,
-              createdAt: userOrder.created_at,
-              tableNumber: userOrder.table_order.tables.table_number,
-              tableOrderId: userOrder.table_order.id,
-              tableOrderStatus: userOrder.table_order.status,
-              tableOrderDate: userOrder.table_order.created_at,
-              // Restaurant information
-              restaurantId: restaurant?.id || null,
-              restaurantName: restaurant?.name || "Restaurant Name",
-              restaurantLogo: restaurant?.logo_url || null,
-              // Payment method information
-              paymentMethodId: userOrder.payment_method_id,
-              paymentCardLastFour: userOrder.payment_card_last_four,
-              paymentCardType: userOrder.payment_card_type,
-            });
+        if (tapDishes) {
+          // Agregar dishes a cada tap_order
+          tapDishes.forEach(dish => {
+            const tapOrderId = dish.tap_order_id;
+            if (tapOrdersMap[tapOrderId]) {
+              if (!tapOrdersMap[tapOrderId].dishes) {
+                tapOrdersMap[tapOrderId].dishes = [];
+              }
+              tapOrdersMap[tapOrderId].dishes.push(dish);
+            }
           });
         }
+      }
+
+      // ========================================
+      // 5. Consultar Restaurants
+      // ========================================
+      let restaurantsMap = {};
+      if (restaurantIds.length > 0) {
+        const { data: restaurants } = await supabase
+          .from("restaurants")
+          .select("id, name, logo_url")
+          .in("id", restaurantIds);
+
+        if (restaurants) {
+          restaurants.forEach(r => {
+            restaurantsMap[r.id] = r;
+          });
+        }
+      }
+
+      // ========================================
+      // 6. Consultar Payment Methods
+      // ========================================
+      let paymentMethodsMap = {};
+      console.log("💳 Payment Method IDs to fetch:", paymentMethodIds);
+      if (paymentMethodIds.length > 0) {
+        const { data: paymentMethods, error: pmError } = await supabase
+          .from("user_payment_methods")
+          .select("id, card_brand, last_four_digits, card_type")
+          .in("id", paymentMethodIds);
+
+        console.log("💳 Payment Methods fetched:", paymentMethods);
+        console.log("💳 Payment Methods error:", pmError);
+
+        if (paymentMethods) {
+          paymentMethods.forEach(pm => {
+            paymentMethodsMap[pm.id] = pm;
+          });
+        }
+      }
+
+      // ========================================
+      // 7. Construir historial agrupado por transacción
+      // ========================================
+      const orderHistory = transactions.map(tx => {
+        const isFlexBill = tx.id_table_order != null;
+        const isTapOrder = tx.id_tap_orders_and_pay != null;
+
+        let orderData = null;
+        let tableNumber = null;
+        let orderStatus = null;
+        let orderType = null;
+        let dishes = [];
+
+        if (isFlexBill) {
+          orderData = tableOrdersMap[tx.id_table_order];
+          orderType = "flex-bill";
+          tableNumber = orderData?.tables?.table_number;
+          orderStatus = orderData?.status;
+          dishes = orderData?.dishes || [];
+        } else if (isTapOrder) {
+          orderData = tapOrdersMap[tx.id_tap_orders_and_pay];
+          orderType = "tap-order-and-pay";
+          tableNumber = orderData?.tables?.table_number;
+          orderStatus = orderData?.order_status;
+          dishes = orderData?.dishes || [];
+        }
+
+        const restaurant = restaurantsMap[tx.restaurant_id];
+        const paymentMethod = paymentMethodsMap[tx.payment_method_id];
+
+        console.log(`💳 Transaction ${tx.id} - payment_method_id: ${tx.payment_method_id}, paymentMethod found:`, paymentMethod);
+
+        // Calcular totales de los platos
+        const totalQuantity = dishes.reduce((sum, d) => sum + (d.quantity || 0), 0);
+        const dishesTotal = dishes.reduce((sum, d) =>
+          sum + (d.quantity * (d.price + (d.extra_price || 0))), 0
+        );
+
+        return {
+          // Transaction info
+          transactionId: tx.id,
+          orderType,
+
+          // Order info
+          tableOrderId: tx.id_table_order || tx.id_tap_orders_and_pay,
+          tableNumber,
+          tableOrderStatus: orderStatus,
+          tableOrderDate: orderData?.created_at || tx.created_at,
+
+          // Restaurant info
+          restaurantId: tx.restaurant_id,
+          restaurantName: restaurant?.name || "Restaurant Name",
+          restaurantLogo: restaurant?.logo_url || null,
+
+          // Payment info
+          baseAmount: parseFloat(tx.base_amount),
+          tipAmount: parseFloat(tx.tip_amount || 0),
+          totalAmount: parseFloat(tx.total_amount_charged),
+          currency: tx.currency || "MXN",
+          paymentStatus: "paid",
+
+          // Payment method info
+          paymentMethodId: tx.payment_method_id,
+          paymentCardLastFour: paymentMethod?.last_four_digits || null,
+          paymentCardType: paymentMethod?.card_type || null,
+          paymentCardBrand: paymentMethod?.card_brand || null,
+
+          // Dishes info (para mostrar en el detalle)
+          totalQuantity,
+          dishesTotal: parseFloat(dishesTotal.toFixed(2)),
+          dishes: dishes.map(d => ({
+            dishOrderId: d.id,
+            item: d.item,
+            quantity: d.quantity,
+            price: d.price,
+            totalPrice: d.quantity * (d.price + (d.extra_price || 0)),
+            status: d.status,
+            paymentStatus: d.payment_status,
+            images: d.images || [],
+            customFields: d.custom_fields,
+            extraPrice: d.extra_price || 0,
+          })),
+
+          // Timestamp
+          createdAt: tx.created_at,
+        };
       });
+
+      console.log(`✅ Processed ${orderHistory.length} transactions into history`);
 
       res.json({
         success: true,

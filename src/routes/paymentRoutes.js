@@ -18,6 +18,9 @@ router.put('/payment-methods/:paymentMethodId/default', paymentController.setDef
 router.post('/payments', paymentController.processPayment);
 router.get('/payments/history', paymentController.getPaymentHistory);
 
+// Payment Transactions (maximum traceability system)
+router.post('/payment-transactions', paymentController.createPaymentTransaction);
+
 // Guest Data Cleanup
 router.post('/payments/cleanup-guest', paymentController.cleanupGuestData);
 
