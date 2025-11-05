@@ -72,7 +72,7 @@ class PaymentTransactionService {
   }
 
   // Crea una nueva transacción de pago
-  async createTransaction(transactionData, isGuest) {
+  async createTransaction(transactionData, isGuest, userId = null) {
     try {
       const {
         // Identificación
@@ -177,6 +177,7 @@ class PaymentTransactionService {
         restaurant_id,
         id_table_order,
         id_tap_orders_and_pay,
+        user_id: userId, // Clerk user ID (puede ser null para invitados)
 
         // Montos base
         base_amount: baseAmountNum,

@@ -915,7 +915,8 @@ class PaymentController {
       // Crear transacción
       const result = await paymentTransactionService.createTransaction(
         transactionData,
-        isGuest
+        isGuest,
+        userId
       );
 
       if (!result.success) {
