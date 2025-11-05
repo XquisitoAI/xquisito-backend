@@ -105,7 +105,7 @@ class PaymentTransactionService {
       } = transactionData;
 
       // Validar datos requeridos
-      if (!payment_method_id) {
+      if (!payment_method_id == undefined) {
         throw new Error("payment_method_id es requerido");
       }
 

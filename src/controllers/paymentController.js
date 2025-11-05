@@ -877,14 +877,14 @@ class PaymentController {
 
       // Validar datos requeridos
       const requiredFields = [
-        "payment_method_id",
+        "payment_method_id", // Can be null for system card payments
         "restaurant_id",
         "base_amount",
         "total_amount_charged",
       ];
 
       const missingFields = requiredFields.filter(
-        (field) => !transactionData[field]
+        (field) => transactionData[field] === undefined
       );
 
       if (missingFields.length > 0) {
