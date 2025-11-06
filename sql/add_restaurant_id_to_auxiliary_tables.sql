@@ -161,6 +161,14 @@ BEGIN
     WHERE tord.id = p_table_order_id;
 
     IF v_remaining_amount <= 0 THEN
+        -- Marcar todos los platillos como pagados
+        UPDATE dish_order
+        SET payment_status = 'paid'
+        WHERE user_order_id IN (
+            SELECT id FROM user_order WHERE table_order_id = p_table_order_id
+        )
+        AND payment_status != 'paid';
+
         -- Cerrar la orden
         UPDATE table_order
         SET

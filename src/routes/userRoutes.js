@@ -11,6 +11,9 @@ router.post("/info", userController.getUsersInfo);
 // GET /api/users/:clerkUserId/order-history - Get user order history
 router.get("/:clerkUserId/order-history", userController.getUserOrderHistory);
 
+// GET /api/users/order-history - Get order history
+router.get("/order-history", userController.getOrderHistory);
+
 // GET /api/users/:clerkUserId - Get user by Clerk ID
 router.get("/:clerkUserId", userController.getUserByClerkId);
 
