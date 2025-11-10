@@ -492,6 +492,90 @@ class UserAdminPortalController {
       });
     }
   }
+
+  // ===============================================
+  // ENDPOINTS DE SERVICIOS
+  // ===============================================
+
+  /**
+   * Obtener servicios habilitados para el cliente actual
+   * GET /api/admin-portal/services/enabled
+   */
+  async getEnabledServices(req, res) {
+    try {
+      const clerkUserId = req.auth?.userId;
+
+      if (!clerkUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      // Obtener el usuario del admin portal
+      const { data: adminUser, error: userError } = await supabase
+        .from('user_admin_portal')
+        .select('email')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (userError || !adminUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found in system'
+        });
+      }
+
+      const userEmail = adminUser.email;
+
+      // Buscar client_id en pending_invitations usando el email
+      const { data: userInvitation, error: invitationError } = await supabase
+        .from('pending_invitations')
+        .select('client_id, status')
+        .eq('email', userEmail)
+        .eq('status', 'registered')
+        .single();
+
+      if (invitationError || !userInvitation) {
+        return res.status(404).json({
+          success: false,
+          message: 'No client association found for this user'
+        });
+      }
+
+      const clientId = userInvitation.client_id;
+      // Obtener servicios del cliente desde la tabla clients
+      const { data: client, error } = await supabase
+        .from('clients')
+        .select('services')
+        .eq('id', clientId)
+        .single();
+
+      if (error || !client) {
+        return res.status(404).json({
+          success: false,
+          message: 'Client not found'
+        });
+      }
+
+      const enabledServices = client.services || [];
+
+      res.json({
+        success: true,
+        data: {
+          enabled_services: enabledServices,
+          client_id: clientId
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting enabled services:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo servicios habilitados'
+      });
+    }
+  }
 }
 
 module.exports = new UserAdminPortalController();

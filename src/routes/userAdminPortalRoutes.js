@@ -117,4 +117,15 @@ router.post('/setup', userAdminPortalController.setupUserAndRestaurant);
  */
 router.get('/setup/status', userAdminPortalController.getSetupStatus);
 
+// ===============================================
+// RUTAS DE SERVICIOS
+// ===============================================
+
+/**
+ * @route   GET /api/admin-portal/services/enabled
+ * @desc    Obtener servicios habilitados para el cliente actual
+ * @access  Private
+ */
+router.get('/services/enabled', userAdminPortalController.getEnabledServices);
+
 module.exports = router;
