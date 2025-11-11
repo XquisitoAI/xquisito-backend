@@ -10,6 +10,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const userRoutes = require("./routes/userRoutes");
 const menuRoutes = require("./routes/menuRoutes");
 const restaurantRoutes = require("./routes/restaurantRoutes");
+const cartRoutes = require("./routes/cartRoutes");
 
 const userAdminPortalRoutes = require("./routes/userAdminPortalRoutes");
 const menuAdminPortalRoutes = require("./routes/menuAdminPortalRoutes");
@@ -50,6 +51,7 @@ app.use("/api", paymentRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/restaurants", restaurantRoutes);
+app.use("/api/cart", cartRoutes);
 
 app.use("/api/admin-portal", userAdminPortalRoutes);
 app.use("/api/admin-portal/menu", menuAdminPortalRoutes);
