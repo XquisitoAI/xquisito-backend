@@ -19,6 +19,7 @@ const analyticsRoutes = require("./routes/analytics");
 const tapOrderRoutes = require("./routes/tapOrderRoutes");
 const mainPortalRoutes = require("./routes/mainPortalRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
+const aiAgentRoutes = require("./routes/aiAgentRoutes");
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use("/api", tapOrderRoutes);
 app.use("/api/main-portal", mainPortalRoutes);
 
 app.use("/api/super-admin", superAdminRoutes);
+app.use("/api/ai-agent", aiAgentRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
