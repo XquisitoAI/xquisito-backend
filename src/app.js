@@ -10,6 +10,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const userRoutes = require("./routes/userRoutes");
 const menuRoutes = require("./routes/menuRoutes");
 const restaurantRoutes = require("./routes/restaurantRoutes");
+const cartRoutes = require("./routes/cartRoutes");
 
 const userAdminPortalRoutes = require("./routes/userAdminPortalRoutes");
 const menuAdminPortalRoutes = require("./routes/menuAdminPortalRoutes");
@@ -18,6 +19,7 @@ const analyticsRoutes = require("./routes/analytics");
 const tapOrderRoutes = require("./routes/tapOrderRoutes");
 const mainPortalRoutes = require("./routes/mainPortalRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
+const aiAgentRoutes = require("./routes/aiAgentRoutes");
 
 const app = express();
 
@@ -50,6 +52,7 @@ app.use("/api", paymentRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/restaurants", restaurantRoutes);
+app.use("/api/cart", cartRoutes);
 
 app.use("/api/admin-portal", userAdminPortalRoutes);
 app.use("/api/admin-portal/menu", menuAdminPortalRoutes);
@@ -63,6 +66,7 @@ app.use("/api", tapOrderRoutes);
 app.use("/api/main-portal", mainPortalRoutes);
 
 app.use("/api/super-admin", superAdminRoutes);
+app.use("/api/ai-agent", aiAgentRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
