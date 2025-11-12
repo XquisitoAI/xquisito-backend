@@ -1,4 +1,42 @@
 const supabase = require('../config/supabase');
+const { createClerkClient } = require('@clerk/clerk-sdk-node');
+const { getClerkConfig } = require('../config/clerkConfig');
+
+const findClerkUserIdByEmail = async (email) => {
+  try {
+    const { data: user, error } = await supabase
+      .from('user_admin_portal')
+      .select('clerk_user_id')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) {
+      return null;
+    }
+
+    return user.clerk_user_id;
+  } catch (error) {
+    console.error('❌ Error finding clerk_user_id:', error.message);
+    return null;
+  }
+};
+
+const deleteUserFromClerk = async (clerkUserId) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    await adminPortalClerk.users.deleteUser(clerkUserId);
+    console.log(`✅ Usuario eliminado de Clerk: ${clerkUserId}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error eliminando usuario de Clerk:', error.message);
+    return false;
+  }
+};
 
 // ===============================================
 // SERVICIOS PARA CLIENTES
@@ -124,9 +162,42 @@ const updateClient = async (id, clientData) => {
   }
 };
 
-// Eliminar cliente (y todas sus sucursales por CASCADE)
 const deleteClient = async (id) => {
   try {
+    console.log(`🗑️ Iniciando eliminación del cliente: ${id}`);
+
+    // 1. Primero obtener datos del cliente antes de eliminarlo
+    const { data: clientToDelete, error: getError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (getError) {
+      if (getError.code === 'PGRST116') {
+        throw new Error('Client not found');
+      }
+      throw new Error(`Error finding client: ${getError.message}`);
+    }
+
+    console.log(`📧 Cliente a eliminar: ${clientToDelete.name} (${clientToDelete.email})`);
+
+    const clerkUserId = await findClerkUserIdByEmail(clientToDelete.email);
+
+    if (clerkUserId) {
+      console.log(`🔍 Usuario de Clerk encontrado: ${clerkUserId}`);
+
+      const clerkDeleteSuccess = await deleteUserFromClerk(clerkUserId);
+
+      if (clerkDeleteSuccess) {
+        console.log(`✅ Usuario eliminado exitosamente de Clerk`);
+      } else {
+        console.warn(`⚠️ No se pudo eliminar de Clerk, continuando con Supabase`);
+      }
+    } else {
+      console.log(`ℹ️ No se encontró usuario registrado en admin-portal para: ${clientToDelete.email}`);
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .delete()
@@ -135,12 +206,10 @@ const deleteClient = async (id) => {
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        throw new Error('Client not found');
-      }
-      throw new Error(`Error deleting client: ${error.message}`);
+      throw new Error(`Error deleting client from database: ${error.message}`);
     }
 
+    console.log(`✅ Cliente eliminado completamente: ${data.name}`);
     return data;
   } catch (error) {
     console.error('❌ Error in deleteClient:', error.message);
