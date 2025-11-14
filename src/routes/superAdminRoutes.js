@@ -32,4 +32,10 @@ router.get(
   superAdminController.getTransactionsTimeline
 );
 
+router.get(
+  "/timeline/payment-methods",
+  mainPortalAuth,
+  superAdminController.getPaymentMethodsTimeline
+);
+
 module.exports = router;

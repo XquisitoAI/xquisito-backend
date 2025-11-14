@@ -2,16 +2,15 @@ const superAdminService = require("../services/superAdminService");
 
 class SuperAdminController {
   // Obtiene todas las estadísticas del super admin
-  // GET /api/super-admin/stats
   // Query params: start_date, end_date, restaurant_id, service, gender, age_range
   async getSuperAdminStats(req, res) {
     try {
-      // Configurar fechas por defecto (últimos 30 días)
+      // Fecha por defecto (últimos 30 días)
       const defaultEndDate = new Date();
       const defaultStartDate = new Date();
       defaultStartDate.setDate(defaultStartDate.getDate() - 30);
 
-      // Procesar restaurant_id: puede ser un número único, un array de números, o 'todos'
+      // restaurant_id: puede ser un número único, un array de números, o 'todos'
       let restaurantId = "todos";
       if (req.query.restaurant_id) {
         if (Array.isArray(req.query.restaurant_id)) {
@@ -113,7 +112,6 @@ class SuperAdminController {
   }
 
   // Obtiene todos los restaurantes del sistema
-  // GET /api/super-admin/restaurants
   async getAllRestaurants(req, res) {
     try {
       const result = await superAdminService.getAllRestaurants();
@@ -134,11 +132,9 @@ class SuperAdminController {
   }
 
   // Obtiene datos temporales de volumen por servicio
-  // GET /api/super-admin/timeline/volume
-  // Query params: view_type, start_date, end_date, restaurant_id, service
   async getVolumeTimeline(req, res) {
     try {
-      // Procesar restaurant_id: puede ser un número único, un array de números, o 'todos'
+      // restaurant_id: puede ser un número único, un array de números, o 'todos'
       let restaurantId = "todos";
       if (req.query.restaurant_id) {
         if (Array.isArray(req.query.restaurant_id)) {
@@ -163,9 +159,6 @@ class SuperAdminController {
         service: req.query.service || "todos",
       };
 
-      console.log("=== VOLUME TIMELINE REQUEST ===");
-      console.log("Filters applied:", JSON.stringify(filters, null, 2));
-
       const result = await superAdminService.getVolumeTimeline(filters);
 
       res.json({
@@ -185,7 +178,6 @@ class SuperAdminController {
   }
 
   // Obtiene datos temporales de órdenes por servicio
-  // GET /api/super-admin/timeline/orders
   async getOrdersTimeline(req, res) {
     try {
       let restaurantId = "todos";
@@ -212,9 +204,6 @@ class SuperAdminController {
         service: req.query.service || "todos",
       };
 
-      console.log("=== ORDERS TIMELINE REQUEST ===");
-      console.log("Filters applied:", JSON.stringify(filters, null, 2));
-
       const result = await superAdminService.getOrdersTimeline(filters);
 
       res.json({
@@ -234,7 +223,6 @@ class SuperAdminController {
   }
 
   // Obtiene datos temporales de transacciones por servicio
-  // GET /api/super-admin/timeline/transactions
   async getTransactionsTimeline(req, res) {
     try {
       let restaurantId = "todos";
@@ -261,9 +249,6 @@ class SuperAdminController {
         service: req.query.service || "todos",
       };
 
-      console.log("=== TRANSACTIONS TIMELINE REQUEST ===");
-      console.log("Filters applied:", JSON.stringify(filters, null, 2));
-
       const result = await superAdminService.getTransactionsTimeline(filters);
 
       res.json({
@@ -274,6 +259,51 @@ class SuperAdminController {
       });
     } catch (error) {
       console.error("Error in getTransactionsTimeline controller:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Obtiene datos temporales de métodos de pago
+  async getPaymentMethodsTimeline(req, res) {
+    try {
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else {
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
+      const filters = {
+        view_type: req.query.view_type || "daily",
+        start_date: req.query.start_date,
+        end_date: req.query.end_date,
+        restaurant_id: restaurantId,
+        service: req.query.service || "todos",
+      };
+
+      const result = await superAdminService.getPaymentMethodsTimeline(filters);
+
+      res.json({
+        success: true,
+        data: result,
+        filters_applied: filters,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error in getPaymentMethodsTimeline controller:", error);
       res.status(500).json({
         success: false,
         error: error.message,

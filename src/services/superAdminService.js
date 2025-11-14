@@ -1,17 +1,40 @@
 const supabase = require("../config/supabase");
 
 class SuperAdminService {
-  /**
-   * Obtiene todas las estadísticas del super admin con filtros aplicados
-   * @param {Object} filters - Filtros para las estadísticas
-   * @param {string} filters.start_date - Fecha de inicio (ISO string)
-   * @param {string} filters.end_date - Fecha de fin (ISO string)
-   * @param {number|number[]|string} filters.restaurant_id - ID del restaurante, array de IDs, o 'todos' (opcional)
-   * @param {string} filters.service - Servicio ('todos', 'flex-bill', 'tap-order-pay')
-   * @param {string} filters.gender - Género ('todos', 'male', 'female', 'other')
-   * @param {string} filters.age_range - Rango de edad ('todos', '18-24', '25-34', '35-44', '45-54', '55+')
-   * @returns {Promise<Object>} Estadísticas completas del sistema
-   */
+  // Calcula el período anterior basado en el período actual
+  getPreviousPeriod(start_date, end_date) {
+    if (!start_date || !end_date)
+      return { previous_start_date: null, previous_end_date: null };
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    // Calcular duración del período en días
+    const durationMs = endDate - startDate;
+    const durationDays = Math.ceil(durationMs / (1000 * 60 * 60 * 24));
+
+    // Calcular período anterior
+    const previousEndDate = new Date(startDate);
+    previousEndDate.setDate(previousEndDate.getDate() - 1); // Un día antes del start_date actual
+
+    const previousStartDate = new Date(previousEndDate);
+    previousStartDate.setDate(previousStartDate.getDate() - durationDays + 1);
+
+    return {
+      previous_start_date: previousStartDate.toISOString().split("T")[0],
+      previous_end_date: previousEndDate.toISOString().split("T")[0],
+    };
+  }
+
+  // Calcula el porcentaje de cambio entre dos valores
+  calculateChange(current, previous) {
+    if (previous === 0) {
+      return current > 0 ? 100 : 0;
+    }
+    return parseFloat((((current - previous) / previous) * 100).toFixed(2));
+  }
+
+  // Obtiene todas las estadísticas del super admin con filtros aplicados
   async getSuperAdminStats(filters) {
     const {
       start_date,
@@ -23,7 +46,18 @@ class SuperAdminService {
     } = filters;
 
     try {
-      // Ejecutar todas las consultas en paralelo para mejor performance
+      // Calcular período anterior
+      const { previous_start_date, previous_end_date } = this.getPreviousPeriod(
+        start_date,
+        end_date
+      );
+      const previousFilters = {
+        ...filters,
+        start_date: previous_start_date,
+        end_date: previous_end_date,
+      };
+
+      // Ejecutar consultas para período actual
       const [
         transactionVolume,
         xquisitoIncome,
@@ -48,6 +82,72 @@ class SuperAdminService {
         this.getTransactionsByService(filters),
       ]);
 
+      // Ejecutar consultas para período anterior (solo si hay fechas)
+      let previousStats = null;
+      if (previous_start_date && previous_end_date) {
+        const [
+          prevTransactionVolume,
+          prevXquisitoIncome,
+          prevActiveDiners,
+          prevSuccessfulOrders,
+          prevActiveAdmins,
+          prevTotalTransactions,
+        ] = await Promise.all([
+          this.getTransactionVolume(previousFilters),
+          this.getXquisitoIncome(previousFilters),
+          this.getActiveDiners(previousFilters),
+          this.getSuccessfulOrders(previousFilters),
+          this.getActiveAdmins(previousFilters),
+          this.getTotalTransactions(previousFilters),
+        ]);
+
+        previousStats = {
+          transaction_volume: prevTransactionVolume,
+          xquisito_income: prevXquisitoIncome,
+          active_diners: prevActiveDiners,
+          successful_orders: prevSuccessfulOrders,
+          active_admins: prevActiveAdmins,
+          total_transactions: prevTotalTransactions,
+        };
+      }
+
+      // Calcular cambios porcentuales
+      const changes = previousStats
+        ? {
+            transaction_volume_change: this.calculateChange(
+              transactionVolume,
+              previousStats.transaction_volume
+            ),
+            xquisito_income_change: this.calculateChange(
+              xquisitoIncome,
+              previousStats.xquisito_income
+            ),
+            active_diners_change: this.calculateChange(
+              activeDiners,
+              previousStats.active_diners
+            ),
+            successful_orders_change: this.calculateChange(
+              successfulOrders,
+              previousStats.successful_orders
+            ),
+            active_admins_change: this.calculateChange(
+              activeAdmins,
+              previousStats.active_admins
+            ),
+            total_transactions_change: this.calculateChange(
+              totalTransactions,
+              previousStats.total_transactions
+            ),
+          }
+        : {
+            transaction_volume_change: 0,
+            xquisito_income_change: 0,
+            active_diners_change: 0,
+            successful_orders_change: 0,
+            active_admins_change: 0,
+            total_transactions_change: 0,
+          };
+
       return {
         success: true,
         data: {
@@ -59,6 +159,12 @@ class SuperAdminService {
           active_admins: activeAdmins,
           most_used_payment_method: mostUsedPaymentMethod,
           total_transactions: totalTransactions,
+
+          // Cambios porcentuales
+          ...changes,
+
+          // Métricas del período anterior (para referencia)
+          previous_period: previousStats,
 
           // Métricas por servicio
           volume_by_service: volumeByService,
@@ -135,10 +241,11 @@ class SuperAdminService {
       } = filters;
 
       // Obtener usuarios únicos de user_order (Flex Bill)
-      // user_order no tiene created_at ni restaurant_id, así que hacemos join con table_order
       let flexBillQuery = supabase
         .from("user_order")
-        .select("clerk_user_id, table_order!inner(created_at, restaurant_id)");
+        .select(
+          "user_id, guest_id, table_order!inner(created_at, table_id, tables!inner(restaurant_id))"
+        );
 
       if (start_date)
         flexBillQuery = flexBillQuery.gte("table_order.created_at", start_date);
@@ -150,12 +257,12 @@ class SuperAdminService {
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           flexBillQuery = flexBillQuery.in(
-            "table_order.restaurant_id",
+            "table_order.tables.restaurant_id",
             restaurant_id
           );
         } else {
           flexBillQuery = flexBillQuery.eq(
-            "table_order.restaurant_id",
+            "table_order.tables.restaurant_id",
             restaurant_id
           );
         }
@@ -164,7 +271,7 @@ class SuperAdminService {
       // Obtener usuarios únicos de tap_orders_and_pay (Tap Order & Pay)
       let tapOrderQuery = supabase
         .from("tap_orders_and_pay")
-        .select("clerk_user_id");
+        .select("clerk_user_id, tables!inner(restaurant_id)");
 
       if (start_date)
         tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
@@ -175,9 +282,15 @@ class SuperAdminService {
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
-          tapOrderQuery = tapOrderQuery.in("restaurant_id", restaurant_id);
+          tapOrderQuery = tapOrderQuery.in(
+            "tables.restaurant_id",
+            restaurant_id
+          );
         } else {
-          tapOrderQuery = tapOrderQuery.eq("restaurant_id", restaurant_id);
+          tapOrderQuery = tapOrderQuery.eq(
+            "tables.restaurant_id",
+            restaurant_id
+          );
         }
       }
 
@@ -190,30 +303,38 @@ class SuperAdminService {
           : { data: [] },
       ]);
 
-      // Combinar todos los clerk_user_ids únicos
+      // Combinar todos los IDs únicos (user_id, guest_id, clerk_user_id)
       const allUserIds = new Set();
+      const allGuestIds = new Set();
 
+      // Procesar Flex Bill - user_id y guest_id
       if (flexBillResult.data) {
         flexBillResult.data.forEach((row) => {
-          if (row.clerk_user_id) allUserIds.add(row.clerk_user_id);
+          // Preferir user_id (usuario registrado) sobre guest_id
+          if (row.user_id) {
+            allUserIds.add(row.user_id);
+          } else if (row.guest_id) {
+            allGuestIds.add(row.guest_id);
+          }
         });
       }
 
+      // Procesar Tap Order & Pay - clerk_user_id
       if (tapOrderResult.data) {
         tapOrderResult.data.forEach((row) => {
           if (row.clerk_user_id) allUserIds.add(row.clerk_user_id);
         });
       }
 
-      // Si hay filtros demográficos, filtrar por usuarios
+      // Si hay filtros demográficos, filtrar por usuarios registrados
       if (
         (gender !== "todos" || age_range !== "todos") &&
         allUserIds.size > 0
       ) {
         let userQuery = supabase
           .from("users")
-          .select("clerk_user_id")
-          .in("clerk_user_id", Array.from(allUserIds));
+          .select("id")
+          .in("id", Array.from(allUserIds));
 
         if (gender !== "todos") {
           userQuery = userQuery.eq("gender", gender);
@@ -232,10 +353,13 @@ class SuperAdminService {
         const { data: filteredUsers, error } = await userQuery;
         if (error) throw error;
 
+        // Solo contamos usuarios registrados que cumplen los filtros demográficos
+        // Los invitados (guest_id) no tienen demografía, así que no se incluyen cuando hay filtros
         return filteredUsers ? filteredUsers.length : 0;
       }
 
-      return allUserIds.size;
+      // Sin filtros demográficos: contar usuarios registrados + invitados
+      return allUserIds.size + allGuestIds.size;
     } catch (error) {
       console.error("Error getting active diners:", error);
       return 0;
@@ -256,7 +380,10 @@ class SuperAdminService {
         try {
           let flexQuery = supabase
             .from("table_order")
-            .select("id", { count: "exact", head: true });
+            .select("id, tables!inner(restaurant_id)", {
+              count: "exact",
+              head: true,
+            });
 
           if (start_date) flexQuery = flexQuery.gte("created_at", start_date);
           if (end_date)
@@ -266,9 +393,9 @@ class SuperAdminService {
             );
           if (restaurant_id && restaurant_id !== "todos") {
             if (Array.isArray(restaurant_id)) {
-              flexQuery = flexQuery.in("restaurant_id", restaurant_id);
+              flexQuery = flexQuery.in("tables.restaurant_id", restaurant_id);
             } else {
-              flexQuery = flexQuery.eq("restaurant_id", restaurant_id);
+              flexQuery = flexQuery.eq("tables.restaurant_id", restaurant_id);
             }
           }
 
@@ -290,7 +417,10 @@ class SuperAdminService {
         try {
           let tapQuery = supabase
             .from("tap_orders_and_pay")
-            .select("id", { count: "exact", head: true });
+            .select("id, tables!inner(restaurant_id)", {
+              count: "exact",
+              head: true,
+            });
 
           if (start_date) tapQuery = tapQuery.gte("created_at", start_date);
           if (end_date)
@@ -300,9 +430,9 @@ class SuperAdminService {
             );
           if (restaurant_id && restaurant_id !== "todos") {
             if (Array.isArray(restaurant_id)) {
-              tapQuery = tapQuery.in("restaurant_id", restaurant_id);
+              tapQuery = tapQuery.in("tables.restaurant_id", restaurant_id);
             } else {
-              tapQuery = tapQuery.eq("restaurant_id", restaurant_id);
+              tapQuery = tapQuery.eq("tables.restaurant_id", restaurant_id);
             }
           }
 
@@ -325,54 +455,14 @@ class SuperAdminService {
   }
 
   // Obtiene el número de administradores activos
-  async getActiveAdmins(filters) {
+  // NOTA: Este método NO aplica filtros
+  async getActiveAdmins() {
     try {
-      const { start_date, end_date, restaurant_id } = filters;
-
-      let query = supabase
+      // Ignorar todos los filtros - siempre devolver el total de administradores activos
+      const query = supabase
         .from("user_admin_portal")
         .select("id", { count: "exact", head: true })
         .eq("is_active", true);
-
-      // Si hay filtro de restaurante, obtener solo admins de ese restaurante
-      if (restaurant_id && restaurant_id !== "todos") {
-        if (Array.isArray(restaurant_id)) {
-          // Si es un array, obtener los user_ids de todos los restaurantes
-          const { data: restaurants, error: restError } = await supabase
-            .from("restaurants")
-            .select("user_id")
-            .in("id", restaurant_id);
-
-          if (restError) throw restError;
-
-          if (restaurants && restaurants.length > 0) {
-            const userIds = restaurants
-              .map((r) => r.user_id)
-              .filter((id) => id != null);
-            if (userIds.length > 0) {
-              query = query.in("id", userIds);
-            }
-          }
-        } else {
-          // Si es un único ID, obtener el user_id del restaurante
-          const { data: restaurant, error: restError } = await supabase
-            .from("restaurants")
-            .select("user_id")
-            .eq("id", restaurant_id)
-            .single();
-
-          if (restError) throw restError;
-
-          if (restaurant) {
-            query = query.eq("id", restaurant.user_id);
-          }
-        }
-      }
-
-      // Filtro de fecha basado en última actividad o creación
-      if (start_date) query = query.gte("created_at", start_date);
-      if (end_date)
-        query = query.lt("created_at", this.getEndDateInclusive(end_date));
 
       const { count, error } = await query;
 
@@ -538,16 +628,16 @@ class SuperAdminService {
     try {
       const { start_date, end_date, restaurant_id, service } = filters;
 
-      console.log("=== getOrdersByService ===");
-      console.log("Filters:", { start_date, end_date, restaurant_id, service });
-
       const results = [];
 
       // Órdenes de Flex Bill - contar desde table_order
       if (service === "todos" || service === "flex-bill") {
         let flexBillQuery = supabase
           .from("table_order")
-          .select("id", { count: "exact", head: true });
+          .select("id, tables!inner(restaurant_id)", {
+            count: "exact",
+            head: true,
+          });
 
         if (start_date)
           flexBillQuery = flexBillQuery.gte("created_at", start_date);
@@ -558,17 +648,19 @@ class SuperAdminService {
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
-            flexBillQuery = flexBillQuery.in("restaurant_id", restaurant_id);
+            flexBillQuery = flexBillQuery.in(
+              "tables.restaurant_id",
+              restaurant_id
+            );
           } else {
-            flexBillQuery = flexBillQuery.eq("restaurant_id", restaurant_id);
+            flexBillQuery = flexBillQuery.eq(
+              "tables.restaurant_id",
+              restaurant_id
+            );
           }
         }
 
         const flexBillResult = await flexBillQuery;
-        console.log("Flex Bill orders count:", flexBillResult.count);
-        if (flexBillResult.error) {
-          console.error("Flex Bill error:", flexBillResult.error);
-        }
         results.push({
           service: "Flex Bill",
           count: flexBillResult.count || 0,
@@ -579,7 +671,10 @@ class SuperAdminService {
       if (service === "todos" || service === "tap-order-pay") {
         let tapOrderQuery = supabase
           .from("tap_orders_and_pay")
-          .select("id", { count: "exact", head: true });
+          .select("id, tables!inner(restaurant_id)", {
+            count: "exact",
+            head: true,
+          });
 
         if (start_date)
           tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
@@ -590,17 +685,19 @@ class SuperAdminService {
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
-            tapOrderQuery = tapOrderQuery.in("restaurant_id", restaurant_id);
+            tapOrderQuery = tapOrderQuery.in(
+              "tables.restaurant_id",
+              restaurant_id
+            );
           } else {
-            tapOrderQuery = tapOrderQuery.eq("restaurant_id", restaurant_id);
+            tapOrderQuery = tapOrderQuery.eq(
+              "tables.restaurant_id",
+              restaurant_id
+            );
           }
         }
 
         const tapOrderResult = await tapOrderQuery;
-        console.log("Tap Order & Pay orders count:", tapOrderResult.count);
-        if (tapOrderResult.error) {
-          console.error("Tap Order & Pay error:", tapOrderResult.error);
-        }
         results.push({
           service: "Tap Order & Pay",
           count: tapOrderResult.count || 0,
@@ -722,8 +819,6 @@ class SuperAdminService {
   }
 
   // Convierte una fecha de fin para incluir TODO el día
-  // Si end_date es "2025-01-12", retorna "2025-01-13T00:00:00..."
-  // para que .lt() incluya todo el día 12
   getEndDateInclusive(end_date) {
     if (!end_date) return null;
     const endDatePlusOne = new Date(end_date);
@@ -764,16 +859,7 @@ class SuperAdminService {
     }
   }
 
-  /**
-   * Obtiene datos temporales de volumen por servicio (para gráfica de líneas)
-   * @param {Object} filters - Filtros para los datos
-   * @param {string} filters.view_type - Tipo de vista ('daily', 'weekly', 'monthly')
-   * @param {string} filters.start_date - Fecha de inicio (ISO string)
-   * @param {string} filters.end_date - Fecha de fin (ISO string)
-   * @param {number|number[]|string} filters.restaurant_id - ID del restaurante, array de IDs, o 'todos'
-   * @param {string} filters.service - Servicio ('todos', 'flex-bill', 'tap-order-pay')
-   * @returns {Promise<Array>} Datos temporales de volumen
-   */
+  // Obtiene datos temporales de volumen por servicio
   async getVolumeTimeline(filters) {
     const {
       view_type = "daily",
@@ -852,9 +938,7 @@ class SuperAdminService {
     }
   }
 
-  /**
-   * Obtiene datos temporales de órdenes por servicio (para gráfica de líneas)
-   */
+  // Obtiene datos temporales de órdenes por servicio (para gráfica de líneas)
   async getOrdersTimeline(filters) {
     const {
       view_type = "daily",
@@ -868,7 +952,7 @@ class SuperAdminService {
       // Obtener órdenes de Flex Bill
       let flexBillQuery = supabase
         .from("table_order")
-        .select("created_at, id, restaurant_id");
+        .select("created_at, id, table_id, tables!inner(restaurant_id)");
 
       if (start_date)
         flexBillQuery = flexBillQuery.gte("created_at", start_date);
@@ -879,16 +963,22 @@ class SuperAdminService {
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
-          flexBillQuery = flexBillQuery.in("restaurant_id", restaurant_id);
+          flexBillQuery = flexBillQuery.in(
+            "tables.restaurant_id",
+            restaurant_id
+          );
         } else {
-          flexBillQuery = flexBillQuery.eq("restaurant_id", restaurant_id);
+          flexBillQuery = flexBillQuery.eq(
+            "tables.restaurant_id",
+            restaurant_id
+          );
         }
       }
 
       // Obtener órdenes de Tap Order & Pay
       let tapOrderQuery = supabase
         .from("tap_orders_and_pay")
-        .select("created_at, id, restaurant_id");
+        .select("created_at, id, tables!inner(restaurant_id)");
 
       if (start_date)
         tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
@@ -899,19 +989,25 @@ class SuperAdminService {
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
-          tapOrderQuery = tapOrderQuery.in("restaurant_id", restaurant_id);
+          tapOrderQuery = tapOrderQuery.in(
+            "tables.restaurant_id",
+            restaurant_id
+          );
         } else {
-          tapOrderQuery = tapOrderQuery.eq("restaurant_id", restaurant_id);
+          tapOrderQuery = tapOrderQuery.eq(
+            "tables.restaurant_id",
+            restaurant_id
+          );
         }
       }
 
       const [flexBillResult, tapOrderResult] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
-          : { data: [] },
+          : Promise.resolve({ data: [], error: null }),
         service === "todos" || service === "tap-order-pay"
           ? tapOrderQuery
-          : { data: [] },
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       // Agrupar datos por período de tiempo
@@ -924,8 +1020,6 @@ class SuperAdminService {
         end_date
       );
 
-      console.log(groupedData);
-
       return groupedData;
     } catch (error) {
       console.error("Error getting orders timeline:", error);
@@ -933,9 +1027,7 @@ class SuperAdminService {
     }
   }
 
-  /**
-   * Obtiene datos temporales de transacciones por servicio (para gráfica de líneas)
-   */
+  // Obtiene datos temporales de transacciones por servicio (para gráfica de líneas)
   async getTransactionsTimeline(filters) {
     const {
       view_type = "daily",
@@ -1014,10 +1106,7 @@ class SuperAdminService {
     }
   }
 
-  /**
-   * Agrupa datos por período de tiempo (daily, weekly, monthly)
-   * @private
-   */
+  // Agrupa datos por período de tiempo (daily, weekly, monthly)
   groupDataByTimePeriod(
     flexBillData,
     tapOrderData,
@@ -1035,11 +1124,24 @@ class SuperAdminService {
       if (viewType === "daily") {
         return date.toISOString().split("T")[0]; // YYYY-MM-DD
       } else if (viewType === "weekly") {
-        // Obtener el inicio de la semana (lunes)
-        const dayOfWeek = date.getDay();
-        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const monday = new Date(date.setDate(diff));
-        return monday.toISOString().split("T")[0];
+        // Obtener el inicio de la semana (lunes) usando UTC para evitar problemas de zona horaria
+        const year = date.getUTCFullYear();
+        const month = date.getUTCMonth();
+        const day = date.getUTCDate();
+
+        // Crear fecha en UTC
+        const utcDate = new Date(Date.UTC(year, month, day));
+        const dayOfWeek = utcDate.getUTCDay();
+
+        // Calcular días para retroceder hasta el lunes
+        // Si es domingo (0), retroceder 6 días; si es lunes-sábado (1-6), retroceder (dayOfWeek - 1) días
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+        // Restar los días necesarios para llegar al lunes
+        const monday = new Date(Date.UTC(year, month, day - daysToMonday));
+        const mondayKey = monday.toISOString().split("T")[0];
+
+        return mondayKey;
       } else if (viewType === "monthly") {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
           2,
@@ -1093,39 +1195,358 @@ class SuperAdminService {
       a.date.localeCompare(b.date)
     );
 
-    // Para vista diaria, rellenar todos los días faltantes en el rango
-    if (viewType === "daily" && filterStartDate && filterEndDate) {
+    // Rellenar periodos faltantes según el tipo de vista
+    if (filterStartDate && filterEndDate) {
       const filledData = [];
-      // Usar las fechas de los filtros en lugar de las fechas de los datos
       const startDate = new Date(filterStartDate);
       const endDate = new Date(filterEndDate);
 
-      // Iterar día por día desde el inicio hasta el final
-      const currentDate = new Date(startDate);
-      while (currentDate <= endDate) {
-        const dateKey = currentDate.toISOString().split("T")[0];
+      if (viewType === "daily") {
+        // Iterar día por día desde el inicio hasta el final
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dateKey = currentDate.toISOString().split("T")[0];
 
-        // Buscar si existe data para este día
-        const existingData = sortedData.find((item) => item.date === dateKey);
+          // Buscar si existe data para este día
+          const existingData = sortedData.find((item) => item.date === dateKey);
 
-        if (existingData) {
-          filledData.push(existingData);
-        } else {
-          // Agregar día con valores en 0
-          filledData.push({
-            date: dateKey,
-            "Flex Bill": 0,
-            "Tap Order & Pay": 0,
-          });
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            // Agregar día con valores en 0
+            filledData.push({
+              date: dateKey,
+              "Flex Bill": 0,
+              "Tap Order & Pay": 0,
+            });
+          }
+
+          // Avanzar al siguiente día
+          currentDate.setDate(currentDate.getDate() + 1);
         }
+      } else if (viewType === "weekly") {
+        // Iterar semana por semana desde el inicio hasta el final usando UTC
+        const startDateObj = new Date(startDate);
 
-        // Avanzar al siguiente día
-        currentDate.setDate(currentDate.getDate() + 1);
+        // Ajustar al lunes de la primera semana usando UTC
+        const startYear = startDateObj.getUTCFullYear();
+        const startMonth = startDateObj.getUTCMonth();
+        const startDay = startDateObj.getUTCDate();
+        const startUtcDate = new Date(
+          Date.UTC(startYear, startMonth, startDay)
+        );
+        const startDayOfWeek = startUtcDate.getUTCDay();
+        const daysToStartMonday = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+        const currentDate = new Date(
+          Date.UTC(startYear, startMonth, startDay - daysToStartMonday)
+        );
+
+        // Obtener el lunes de la última semana que contiene el endDate usando UTC
+        const endDateObj = new Date(endDate);
+        const endYear = endDateObj.getUTCFullYear();
+        const endMonth = endDateObj.getUTCMonth();
+        const endDay = endDateObj.getUTCDate();
+        const endUtcDate = new Date(Date.UTC(endYear, endMonth, endDay));
+        const endDayOfWeek = endUtcDate.getUTCDay();
+        const daysToEndMonday = endDayOfWeek === 0 ? 6 : endDayOfWeek - 1;
+        const endDateMonday = new Date(
+          Date.UTC(endYear, endMonth, endDay - daysToEndMonday)
+        );
+
+        while (currentDate <= endDateMonday) {
+          const dateKey = currentDate.toISOString().split("T")[0];
+
+          // Buscar si existe data para esta semana
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            // Agregar semana con valores en 0
+            filledData.push({
+              date: dateKey,
+              "Flex Bill": 0,
+              "Tap Order & Pay": 0,
+            });
+          }
+
+          // Avanzar a la siguiente semana (7 días) usando UTC
+          const nextWeek = new Date(currentDate);
+          nextWeek.setUTCDate(currentDate.getUTCDate() + 7);
+          currentDate.setTime(nextWeek.getTime());
+        }
+      } else if (viewType === "monthly") {
+        // Iterar mes por mes desde el inicio hasta el final
+        const currentDate = new Date(startDate);
+        currentDate.setDate(1); // Primer día del mes
+
+        const endDateMonth = new Date(endDate);
+        endDateMonth.setDate(1);
+
+        while (currentDate <= endDateMonth) {
+          const dateKey = `${currentDate.getFullYear()}-${String(
+            currentDate.getMonth() + 1
+          ).padStart(2, "0")}`;
+
+          // Buscar si existe data para este mes
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            // Agregar mes con valores en 0
+            filledData.push({
+              date: dateKey,
+              "Flex Bill": 0,
+              "Tap Order & Pay": 0,
+            });
+          }
+
+          // Avanzar al siguiente mes
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
       }
 
       return filledData;
     }
 
+    return sortedData;
+  }
+
+  // Obtiene datos temporales de métodos de pago (timeline)
+  async getPaymentMethodsTimeline(filters) {
+    const {
+      view_type = "daily",
+      start_date,
+      end_date,
+      restaurant_id = "todos",
+      service = "todos",
+    } = filters;
+
+    try {
+      // Obtener transacciones con información del método de pago
+      let query = supabase
+        .from("payment_transactions")
+        .select(
+          "created_at, id_table_order, id_tap_orders_and_pay, restaurant_id, payment_method_id, card_type"
+        );
+
+      if (start_date) query = query.gte("created_at", start_date);
+      if (end_date)
+        query = query.lt("created_at", this.getEndDateInclusive(end_date));
+
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          query = query.in("restaurant_id", restaurant_id);
+        } else {
+          query = query.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      // Filtrar por servicio
+      if (service === "flex-bill") {
+        query = query.not("id_table_order", "is", null);
+      } else if (service === "tap-order-pay") {
+        query = query.not("id_tap_orders_and_pay", "is", null);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Transformar datos para incluir el nombre del método de pago
+      const transformedData = data.map((item) => ({
+        ...item,
+        payment_method_name: item.card_type || "Desconocido",
+      }));
+
+      // Agrupar por período y método de pago
+      const groupedData = this.groupPaymentMethodsByTimePeriod(
+        transformedData || [],
+        view_type,
+        start_date,
+        end_date
+      );
+
+      return groupedData;
+    } catch (error) {
+      console.error("Error getting payment methods timeline:", error);
+      throw error;
+    }
+  }
+
+  // Agrupa datos de métodos de pago por período de tiempo
+  groupPaymentMethodsByTimePeriod(
+    transactionsData,
+    viewType,
+    filterStartDate,
+    filterEndDate
+  ) {
+    const grouped = {};
+
+    // Función para formatear la fecha según el tipo de vista
+    const getDateKey = (dateString) => {
+      const date = new Date(dateString);
+
+      if (viewType === "daily") {
+        return date.toISOString().split("T")[0];
+      } else if (viewType === "weekly") {
+        const year = date.getUTCFullYear();
+        const month = date.getUTCMonth();
+        const day = date.getUTCDate();
+        const utcDate = new Date(Date.UTC(year, month, day));
+        const dayOfWeek = utcDate.getUTCDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monday = new Date(Date.UTC(year, month, day - daysToMonday));
+        return monday.toISOString().split("T")[0];
+      } else if (viewType === "monthly") {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}`;
+      }
+    };
+
+    // Mapear nombres de métodos de pago para consistencia
+    const normalizePaymentMethod = (method) => {
+      if (!method) return "Desconocido";
+      const methodLower = method.toLowerCase();
+      if (methodLower.includes("debit") || methodLower.includes("débito"))
+        return "Tarjeta Débito";
+      if (methodLower.includes("credit") || methodLower.includes("crédito"))
+        return "Tarjeta Crédito";
+      return method;
+    };
+
+    // Procesar cada transacción
+    transactionsData.forEach((transaction) => {
+      const dateKey = getDateKey(transaction.created_at);
+      const paymentMethod = normalizePaymentMethod(
+        transaction.payment_method_name
+      );
+
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: dateKey,
+        };
+      }
+
+      if (!grouped[dateKey][paymentMethod]) {
+        grouped[dateKey][paymentMethod] = 0;
+      }
+
+      grouped[dateKey][paymentMethod] += 1;
+    });
+
+    // Convertir a array y ordenar
+    const sortedData = Object.values(grouped).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+
+    // Rellenar períodos faltantes
+    if (filterStartDate && filterEndDate) {
+      const filledData = [];
+      const startDate = new Date(filterStartDate);
+      const endDate = new Date(filterEndDate);
+
+      // Obtener todos los métodos de pago únicos
+      const allPaymentMethods = new Set();
+      sortedData.forEach((item) => {
+        Object.keys(item).forEach((key) => {
+          if (key !== "date") {
+            allPaymentMethods.add(key);
+          }
+        });
+      });
+
+      if (viewType === "daily") {
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dateKey = currentDate.toISOString().split("T")[0];
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            const emptyEntry = { date: dateKey };
+            allPaymentMethods.forEach((method) => {
+              emptyEntry[method] = 0;
+            });
+            filledData.push(emptyEntry);
+          }
+
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      } else if (viewType === "weekly") {
+        const startDateObj = new Date(startDate);
+        const startYear = startDateObj.getUTCFullYear();
+        const startMonth = startDateObj.getUTCMonth();
+        const startDay = startDateObj.getUTCDate();
+        const startUtcDate = new Date(
+          Date.UTC(startYear, startMonth, startDay)
+        );
+        const startDayOfWeek = startUtcDate.getUTCDay();
+        const daysToStartMonday = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+        const currentDate = new Date(
+          Date.UTC(startYear, startMonth, startDay - daysToStartMonday)
+        );
+
+        const endDateObj = new Date(endDate);
+        const endYear = endDateObj.getUTCFullYear();
+        const endMonth = endDateObj.getUTCMonth();
+        const endDay = endDateObj.getUTCDate();
+        const endUtcDate = new Date(Date.UTC(endYear, endMonth, endDay));
+        const endDayOfWeek = endUtcDate.getUTCDay();
+        const daysToEndMonday = endDayOfWeek === 0 ? 6 : endDayOfWeek - 1;
+        const endDateMonday = new Date(
+          Date.UTC(endYear, endMonth, endDay - daysToEndMonday)
+        );
+
+        while (currentDate <= endDateMonday) {
+          const dateKey = currentDate.toISOString().split("T")[0];
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            const emptyEntry = { date: dateKey };
+            allPaymentMethods.forEach((method) => {
+              emptyEntry[method] = 0;
+            });
+            filledData.push(emptyEntry);
+          }
+
+          const nextWeek = new Date(currentDate);
+          nextWeek.setUTCDate(currentDate.getUTCDate() + 7);
+          currentDate.setTime(nextWeek.getTime());
+        }
+      } else if (viewType === "monthly") {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(1);
+        const endDateMonth = new Date(endDate);
+        endDateMonth.setDate(1);
+
+        while (currentDate <= endDateMonth) {
+          const dateKey = `${currentDate.getFullYear()}-${String(
+            currentDate.getMonth() + 1
+          ).padStart(2, "0")}`;
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            const emptyEntry = { date: dateKey };
+            allPaymentMethods.forEach((method) => {
+              emptyEntry[method] = 0;
+            });
+            filledData.push(emptyEntry);
+          }
+
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+      }
+      return filledData;
+    }
     return sortedData;
   }
 }
