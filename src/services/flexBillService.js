@@ -19,7 +19,6 @@ class FlexBillService {
         } = filters;
 
         try {
-            // Query para obtener órdenes compartidas (FlexBill)
             const { data: sharedOrdersData, error: sharedOrdersError } = await supabase
                 .from('table_order')
                 .select(`
@@ -43,38 +42,18 @@ class FlexBillService {
                 throw sharedOrdersError;
             }
 
-            // Debug: Log raw data for validation
-            console.log(`\n🔍 FLEXBILL VALIDATION DEBUG:`);
-            console.log(`📊 Total orders retrieved: ${sharedOrdersData?.length || 0}`);
-
-            // Filtrar solo órdenes compartidas (más de 1 usuario)
             const sharedOrders = sharedOrdersData?.filter(order =>
                 order.user_order && order.user_order.length > 1
             ) || [];
 
-            // Debug: Log filtering results
-            console.log(`🎯 Shared orders (>1 user): ${sharedOrders.length}`);
-            if (sharedOrders.length > 0) {
-                console.log(`📋 Sample shared order:`, {
-                    id: sharedOrders[0].id,
-                    user_count: sharedOrders[0].user_order?.length,
-                    table_number: sharedOrders[0].tables?.table_number,
-                    total_amount: sharedOrders[0].total_amount
-                });
-            }
-
-            // Calcular métricas base
             const metrics = this.calculateFlexBillMetrics(sharedOrders, time_range);
 
-            // Calcular crecimiento real para todas las métricas
             const growthData = await this.calculateAllGrowthPercentages(restaurant_id, time_range);
 
-            // Asignar growth percentages a cada métrica
             metrics.growth_percentage = growthData.shared_orders_growth;
             metrics.diners_growth_percentage = growthData.diners_growth;
             metrics.ticket_growth_percentage = growthData.ticket_growth;
             metrics.payment_time_growth_percentage = growthData.payment_time_growth;
-
 
             return {
                 success: true,
@@ -110,7 +89,10 @@ class FlexBillService {
                 case 'daily':
                     timeFormat = 'YYYY-MM-DD';
                     groupBy = 'day';
-                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 días atrás
+                    // Calcular el domingo de la semana actual
+                    const dayOfWeek = now.getDay(); // 0 = domingo, 1 = lunes, etc.
+                    startDate = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+                    startDate.setHours(0, 0, 0, 0); // Inicio del domingo
                     break;
                 case 'weekly':
                     timeFormat = 'YYYY-"W"WW';
@@ -128,12 +110,59 @@ class FlexBillService {
                     startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             }
 
-            // Por ahora, usar datos básicos hasta que creemos la función SQL
-            return this.generateBasicChartData(filters);
+            return this.generateRealChartData(restaurant_id, time_range, timeFormat, groupBy, startDate);
 
         } catch (error) {
             console.error('Error fetching FlexBill chart data:', error);
             // Fallback a datos básicos si hay error
+            return this.generateBasicChartData(filters);
+        }
+    }
+
+    /**
+     * @param {Object} filters - Filtros para el gráfico de comensales
+     * @returns {Promise<Object>} Datos del gráfico de comensales
+     */
+    async getFlexBillDinersChartData(filters) {
+        const {
+            restaurant_id,
+            time_range = 'daily'
+        } = filters;
+
+        try {
+            let timeFormat, groupBy;
+            const now = new Date();
+            let startDate;
+
+            switch (time_range) {
+                case 'daily':
+                    timeFormat = 'YYYY-MM-DD';
+                    groupBy = 'day';
+                    // Calcular el domingo de la semana actual
+                    const dayOfWeek = now.getDay(); // 0 = domingo, 1 = lunes, etc.
+                    startDate = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+                    startDate.setHours(0, 0, 0, 0); // Inicio del domingo
+                    break;
+                case 'weekly':
+                    timeFormat = 'YYYY-"W"WW';
+                    groupBy = 'week';
+                    startDate = new Date(now.getTime() - 4 * 7 * 24 * 60 * 60 * 1000); // 4 semanas atrás
+                    break;
+                case 'monthly':
+                    timeFormat = 'YYYY-MM';
+                    groupBy = 'month';
+                    startDate = new Date(now.getTime() - 6 * 30 * 24 * 60 * 60 * 1000); // 6 meses atrás
+                    break;
+                default:
+                    timeFormat = 'YYYY-MM-DD';
+                    groupBy = 'day';
+                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            }
+
+            return this.generateDinersChartData(restaurant_id, time_range, timeFormat, groupBy, startDate);
+
+        } catch (error) {
+            console.error('Error fetching FlexBill diners chart data:', error);
             return this.generateBasicChartData(filters);
         }
     }
@@ -346,6 +375,218 @@ class FlexBillService {
     }
 
     /**
+     * Genera datos reales de gráfico desde la base de datos
+     * @param {number} restaurantId - ID del restaurante
+     * @param {string} timeRange - Rango de tiempo ('daily', 'weekly', 'monthly')
+     * @param {string} timeFormat - Formato de tiempo para SQL
+     * @param {string} groupBy - Tipo de agrupación
+     * @param {Date} startDate - Fecha de inicio
+     * @returns {Promise<Object>} Datos reales de gráfico
+     */
+    async generateRealChartData(restaurantId, timeRange, timeFormat, groupBy, startDate) {
+        try {
+            const { data: ordersData, error: ordersError } = await supabase
+                .from('table_order')
+                .select(`
+                    id,
+                    total_amount,
+                    created_at,
+                    tables!inner(restaurant_id, table_number),
+                    user_order(id, guest_name, user_id)
+                `)
+                .eq('tables.restaurant_id', restaurantId)
+                .gte('created_at', startDate.toISOString())
+                .lte('created_at', new Date().toISOString())
+                .order('created_at', { ascending: true });
+
+            if (ordersError) {
+                console.error('❌ Error en query Supabase:', ordersError);
+                return this.generateBasicChartData({ time_range: timeRange });
+            }
+
+            const sharedOrders = ordersData?.filter(order =>
+                order.user_order && order.user_order.length > 1
+            ) || [];
+
+
+            const groupedData = this.groupOrdersByPeriod(sharedOrders, timeRange, startDate);
+
+            return {
+                success: true,
+                chart_data: groupedData,
+                time_range: timeRange,
+                timestamp: new Date().toISOString(),
+                real_data: true
+            };
+
+        } catch (error) {
+            console.error('📋 Stack trace:', error.stack);
+            console.error('📍 Fallback a datos básicos por error');
+            return this.generateBasicChartData({ time_range: timeRange });
+        }
+    }
+
+    /**
+     * Genera datos reales para el gráfico de COMENSALES (todas las órdenes)
+     * @param {number} restaurantId - ID del restaurante
+     * @param {string} timeRange - Rango de tiempo
+     * @param {string} timeFormat - Formato de tiempo
+     * @param {string} groupBy - Tipo de agrupación
+     * @param {Date} startDate - Fecha de inicio
+     * @returns {Promise<Object>} Datos reales de gráfico de comensales
+     */
+    async generateDinersChartData(restaurantId, timeRange, timeFormat, groupBy, startDate) {
+
+        try {
+            const { data: ordersData, error: ordersError } = await supabase
+                .from('table_order')
+                .select(`
+                    id,
+                    total_amount,
+                    created_at,
+                    tables!inner(restaurant_id, table_number),
+                    user_order(id, guest_name, user_id)
+                `)
+                .eq('tables.restaurant_id', restaurantId)
+                .gte('created_at', startDate.toISOString())
+                .lte('created_at', new Date().toISOString())
+                .order('created_at', { ascending: true });
+
+            if (ordersError) {
+                console.error('❌ Error en query Supabase (comensales):', ordersError);
+                return this.generateBasicChartData({ time_range: timeRange });
+            }
+
+            const allOrdersWithDiners = ordersData?.filter(order =>
+                order.user_order && order.user_order.length > 0
+            ) || [];
+
+            const groupedData = this.groupOrdersByPeriod(allOrdersWithDiners, timeRange, startDate);
+
+            return {
+                success: true,
+                chart_data: groupedData,
+                time_range: timeRange,
+                timestamp: new Date().toISOString(),
+                real_data: true,
+                chart_type: 'diners'
+            };
+
+        } catch (error) {
+            console.error('❌ ERROR en generateDinersChartData():', error.message);
+            console.error('📋 Stack trace:', error.stack);
+            return this.generateBasicChartData({ time_range: timeRange });
+        }
+    }
+
+    /**
+     * Agrupa órdenes por período de tiempo
+     * @param {Array} orders - Órdenes compartidas
+     * @param {string} timeRange - Rango de tiempo
+     * @param {Date} startDate - Fecha de inicio
+     * @returns {Array} Datos agrupados para el gráfico
+     */
+    groupOrdersByPeriod(orders, timeRange, startDate) {
+        const now = new Date();
+        const groupedData = {};
+
+        // Inicializar períodos con valores cero
+        switch (timeRange) {
+            case 'daily':
+                for (let i = 0; i < 7; i++) {
+                    const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+                    const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
+                    const key = date.toISOString().split('T')[0]; // YYYY-MM-DD
+                    groupedData[key] = {
+                        name: dayName.charAt(0).toUpperCase() + dayName.slice(1),
+                        orders: 0,
+                        diners: 0,
+                        date: key
+                    };
+                }
+                break;
+
+            case 'weekly':
+                for (let i = 0; i < 4; i++) {
+                    const weekStart = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+                    const weekNumber = this.getWeekNumber(weekStart);
+                    const key = `week-${weekNumber}`;
+                    groupedData[key] = {
+                        name: `Sem ${i + 1}`,
+                        orders: 0,
+                        diners: 0,
+                        week: weekNumber
+                    };
+                }
+                break;
+
+            case 'monthly':
+                for (let i = 0; i < 6; i++) {
+                    const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+                    const monthName = monthDate.toLocaleDateString('es-ES', { month: 'short' });
+                    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+                    groupedData[key] = {
+                        name: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+                        orders: 0,
+                        diners: 0,
+                        month: monthDate.getMonth() + 1,
+                        year: monthDate.getFullYear()
+                    };
+                }
+                break;
+        }
+
+        orders.forEach((order, index) => {
+            const orderDate = new Date(order.created_at);
+            let key;
+
+            switch (timeRange) {
+                case 'daily':
+                    key = orderDate.toISOString().split('T')[0];
+                    break;
+                case 'weekly':
+                    const weekNumber = this.getWeekNumber(orderDate);
+                    key = `week-${weekNumber}`;
+                    break;
+                case 'monthly':
+                    key = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+                    break;
+            }
+
+
+            if (groupedData[key]) {
+                groupedData[key].orders += 1;
+                groupedData[key].diners += order.user_order?.length || 0;
+            } else {
+                console.log(`❌ Key ${key} no existe en groupedData. Keys disponibles:`, Object.keys(groupedData));
+            }
+        });
+
+        console.log('📊 TODOS los datos finales:', Object.values(groupedData));
+
+        return Object.values(groupedData).sort((a, b) => {
+            if (timeRange === 'daily') {
+                return new Date(a.date) - new Date(b.date);
+            } else if (timeRange === 'weekly') {
+                return a.week - b.week;
+            } else {
+                return (a.year * 100 + a.month) - (b.year * 100 + b.month);
+            }
+        });
+    }
+
+    /**
+     * Calcula el número de semana del año
+     * @param {Date} date - Fecha
+     * @returns {number} Número de semana
+     */
+    getWeekNumber(date) {
+        const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+        const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+    }
+
+    /**
      * Genera datos básicos de gráfico como fallback
      * @param {Object} filters - Filtros
      * @returns {Object} Datos básicos de gráfico
@@ -486,7 +727,6 @@ class FlexBillService {
                 user_order(id, guest_name, user_id)
             `;
 
-            // Obtener órdenes del período anterior
             const { data: previousOrdersData, error: previousError } = await supabase
                 .from('table_order')
                 .select(baseQuery)
@@ -499,7 +739,6 @@ class FlexBillService {
                 return this.getDefaultGrowthData();
             }
 
-            // Obtener órdenes del período actual
             const { data: currentOrdersData, error: currentError } = await supabase
                 .from('table_order')
                 .select(baseQuery)
@@ -512,7 +751,6 @@ class FlexBillService {
                 return this.getDefaultGrowthData();
             }
 
-            // Filtrar órdenes compartidas para ambos períodos
             const previousSharedOrders = previousOrdersData?.filter(order =>
                 order.user_order && order.user_order.length > 1
             ) || [];
@@ -521,14 +759,25 @@ class FlexBillService {
                 order.user_order && order.user_order.length > 1
             ) || [];
 
-            // Calcular métricas para ambos períodos
+            const previousAllOrders = previousOrdersData?.filter(order =>
+                order.user_order && order.user_order.length > 0
+            ) || [];
+
+            const currentAllOrders = currentOrdersData?.filter(order =>
+                order.user_order && order.user_order.length > 0
+            ) || [];
+
             const previousMetrics = this.calculateFlexBillMetrics(previousSharedOrders, timeRange);
             const currentMetrics = this.calculateFlexBillMetrics(currentSharedOrders, timeRange);
 
-            // Calcular crecimiento para cada métrica
+            const previousTotalDiners = previousAllOrders.reduce((total, order) =>
+                total + (order.user_order?.length || 0), 0);
+            const currentTotalDiners = currentAllOrders.reduce((total, order) =>
+                total + (order.user_order?.length || 0), 0);
+
             const growthData = {
                 shared_orders_growth: this.calculateGrowth(previousMetrics.shared_orders, currentMetrics.shared_orders),
-                diners_growth: this.calculateGrowth(previousMetrics.avg_diners_per_order, currentMetrics.avg_diners_per_order),
+                diners_growth: this.calculateGrowth(previousTotalDiners, currentTotalDiners),
                 ticket_growth: this.calculateGrowth(previousMetrics.avg_ticket_per_diner, currentMetrics.avg_ticket_per_diner),
                 payment_time_growth: this.calculateGrowth(previousMetrics.avg_payment_time, currentMetrics.avg_payment_time, true) // true = inverse (menos es mejor)
             };
@@ -551,7 +800,6 @@ class FlexBillService {
     async calculateRealGrowthPercentage(restaurantId, timeRange) {
                 
         try {
-            // Calcular rangos de fechas para período actual y anterior
             let currentStart, currentEnd, previousStart, previousEnd;
             const now = new Date();
 
@@ -594,7 +842,6 @@ class FlexBillService {
                     break;
             }
 
-            // Obtener órdenes del período anterior
             const { data: previousOrdersData, error: previousError } = await supabase
                 .from('table_order')
                 .select(`
@@ -615,12 +862,10 @@ class FlexBillService {
                 return 0;
             }
 
-            // Filtrar órdenes compartidas del período anterior
             const previousSharedOrders = previousOrdersData?.filter(order =>
                 order.user_order && order.user_order.length > 1
             ) || [];
 
-            // Obtener órdenes del período actual
             const { data: currentOrdersData, error: currentError } = await supabase
                 .from('table_order')
                 .select(`
@@ -671,7 +916,6 @@ class FlexBillService {
      * @returns {number} Porcentaje de crecimiento
      */
     calculateGrowth(previousValue, currentValue, inverse = false) {
-        // Caso especial: no hay datos en período anterior
         if (previousValue === 0) {
             if (currentValue > 0) {
                 // Primera actividad: mostrar crecimiento moderado en lugar de 100%
@@ -690,14 +934,12 @@ class FlexBillService {
         const growth = ((currentValue - previousValue) / previousValue) * 100;
         let roundedGrowth = Math.round(growth * 10) / 10;
 
-        // Limitar crecimientos extremos para mejor UX
         if (roundedGrowth > 200) {
-            roundedGrowth = 200; // Máximo 200% de crecimiento mostrado
+            roundedGrowth = 200;
         } else if (roundedGrowth < -90) {
-            roundedGrowth = -90; // Máximo -90% de decrecimiento mostrado
+            roundedGrowth = -90;
         }
 
-        // Para métricas inversas (como tiempo de pago), invertimos el signo
         return inverse ? -roundedGrowth : roundedGrowth;
     }
 

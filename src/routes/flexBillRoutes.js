@@ -31,13 +31,23 @@ router.get('/dashboard/metrics', adminPortalAuth, flexBillController.getFlexBill
 
 /**
  * @route GET /api/flex-bill/dashboard/charts
- * @desc Obtiene datos de gráficos para FlexBill
+ * @desc Obtiene datos de gráficos para FlexBill (órdenes compartidas)
  * @access Private (requires authentication)
  * @query {number} restaurant_id - ID del restaurante (requerido)
  * @query {string} time_range - Rango de tiempo (daily, weekly, monthly) - default: daily
  * @example /api/flex-bill/dashboard/charts?restaurant_id=1&time_range=weekly
  */
 router.get('/dashboard/charts', adminPortalAuth, flexBillController.getFlexBillChartData);
+
+/**
+ * @route GET /api/flex-bill/dashboard/diners
+ * @desc Obtiene datos del gráfico de COMENSALES (todas las órdenes)
+ * @access Private (requires authentication)
+ * @query {number} restaurant_id - ID del restaurante (requerido)
+ * @query {string} time_range - Rango de tiempo (daily, weekly, monthly) - default: daily
+ * @example /api/flex-bill/dashboard/diners?restaurant_id=1&time_range=daily
+ */
+router.get('/dashboard/diners', adminPortalAuth, flexBillController.getFlexBillDinersChartData);
 
 /**
  * @route GET /api/flex-bill/dashboard/payment-analytics

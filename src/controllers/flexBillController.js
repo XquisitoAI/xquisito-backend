@@ -102,6 +102,43 @@ class FlexBillController {
     }
 
     /**
+     * Obtiene datos del gráfico de COMENSALES para FlexBill
+     * @route GET /api/flex-bill/dashboard/diners
+     */
+    async getFlexBillDinersChartData(req, res) {
+        try {
+            const {
+                restaurant_id,
+                time_range = 'daily'
+            } = req.query;
+
+            if (!restaurant_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'restaurant_id is required'
+                });
+            }
+
+            const filters = {
+                restaurant_id: parseInt(restaurant_id),
+                time_range
+            };
+
+            const result = await flexBillService.getFlexBillDinersChartData(filters);
+
+            res.status(200).json(result);
+
+        } catch (error) {
+            console.error('Error in getFlexBillDinersChartData:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error fetching FlexBill diners chart data',
+                error: error.message
+            });
+        }
+    }
+
+    /**
      * Obtiene análisis de pagos para FlexBill
      * @route GET /api/flex-bill/dashboard/payment-analytics
      */
