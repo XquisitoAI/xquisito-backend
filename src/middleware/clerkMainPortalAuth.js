@@ -32,8 +32,10 @@ const authenticateMainPortalToken = async (req, res, next) => {
 
       // Verificar el token con la configuración del main portal
       // skipJwksCache: true fuerza a Clerk a obtener las claves frescas
+      // clockSkewInSeconds: permite una tolerancia de tiempo para evitar errores por desincronización
       const verifiedToken = await mainPortalClerk.verifyToken(token, {
         skipJwksCache: true,
+        clockSkewInSeconds: 60, // Tolera 60 segundos de diferencia
       });
 
       if (verifiedToken && verifiedToken.sub) {

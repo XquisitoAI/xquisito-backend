@@ -13,4 +13,29 @@ router.get(
   superAdminController.getAllRestaurants
 );
 
+// Rutas para datos temporales (timeline) - para gráficas de líneas
+router.get(
+  "/timeline/volume",
+  mainPortalAuth,
+  superAdminController.getVolumeTimeline
+);
+
+router.get(
+  "/timeline/orders",
+  mainPortalAuth,
+  superAdminController.getOrdersTimeline
+);
+
+router.get(
+  "/timeline/transactions",
+  mainPortalAuth,
+  superAdminController.getTransactionsTimeline
+);
+
+router.get(
+  "/timeline/payment-methods",
+  mainPortalAuth,
+  superAdminController.getPaymentMethodsTimeline
+);
+
 module.exports = router;

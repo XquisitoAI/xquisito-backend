@@ -7,7 +7,8 @@ class CartService {
     menuItemId,
     quantity = 1,
     customFields = [],
-    extraPrice = 0
+    extraPrice = 0,
+    restaurantId = null
   ) {
     try {
       const { clerk_user_id, guest_id } = userId;
@@ -19,6 +20,7 @@ class CartService {
         p_quantity: quantity,
         p_custom_fields: customFields,
         p_extra_price: extraPrice,
+        p_restaurant_id: restaurantId,
       });
 
       if (error) throw error;
@@ -29,13 +31,14 @@ class CartService {
   }
 
   //Obtener carrito completo del usuario
-  async getCart(userId) {
+  async getCart(userId, restaurantId = null) {
     try {
       const { clerk_user_id, guest_id } = userId;
 
       const { data, error } = await supabase.rpc("get_cart", {
         p_clerk_user_id: clerk_user_id || null,
         p_guest_id: guest_id || null,
+        p_restaurant_id: restaurantId,
       });
 
       if (error) throw error;
@@ -109,13 +112,14 @@ class CartService {
   }
 
   // Limpiar carrito completo
-  async clearCart(userId) {
+  async clearCart(userId, restaurantId = null) {
     try {
       const { clerk_user_id, guest_id } = userId;
 
       const { data, error } = await supabase.rpc("clear_cart", {
         p_clerk_user_id: clerk_user_id || null,
         p_guest_id: guest_id || null,
+        p_restaurant_id: restaurantId,
       });
 
       if (error) throw error;
@@ -126,7 +130,7 @@ class CartService {
   }
 
   // Obtener totales del carrito (rápido, sin items)
-  async getCartTotals(userId) {
+  async getCartTotals(userId, restaurantId = null) {
     try {
       const { clerk_user_id, guest_id } = userId;
 
@@ -141,6 +145,10 @@ class CartService {
         query = query.eq("clerk_user_id", clerk_user_id);
       } else {
         query = query.eq("guest_id", guest_id);
+      }
+
+      if (restaurantId) {
+        query = query.eq("restaurant_id", restaurantId);
       }
 
       const { data, error } = await query.single();

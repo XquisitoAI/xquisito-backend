@@ -2,21 +2,38 @@ const superAdminService = require("../services/superAdminService");
 
 class SuperAdminController {
   // Obtiene todas las estadísticas del super admin
-  // GET /api/super-admin/stats
   // Query params: start_date, end_date, restaurant_id, service, gender, age_range
   async getSuperAdminStats(req, res) {
     try {
-      // Configurar fechas por defecto (últimos 30 días)
+      // Fecha por defecto (últimos 30 días)
       const defaultEndDate = new Date();
       const defaultStartDate = new Date();
       defaultStartDate.setDate(defaultStartDate.getDate() - 30);
 
+      // restaurant_id: puede ser un número único, un array de números, o 'todos'
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          // Si viene como array, convertir cada elemento a número
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          // Si viene como string separado por comas, convertir a array de números
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else {
+          // Si es un único valor, convertir a número
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
       const filters = {
         start_date: req.query.start_date || defaultStartDate.toISOString(),
         end_date: req.query.end_date || defaultEndDate.toISOString(),
-        restaurant_id: req.query.restaurant_id
-          ? parseInt(req.query.restaurant_id)
-          : null,
+        restaurant_id: restaurantId,
         service: req.query.service || "todos",
         gender: req.query.gender || "todos",
         age_range: req.query.age_range || "todos",
@@ -95,7 +112,6 @@ class SuperAdminController {
   }
 
   // Obtiene todos los restaurantes del sistema
-  // GET /api/super-admin/restaurants
   async getAllRestaurants(req, res) {
     try {
       const result = await superAdminService.getAllRestaurants();
@@ -107,6 +123,187 @@ class SuperAdminController {
       });
     } catch (error) {
       console.error("Error in getAllRestaurants controller:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Obtiene datos temporales de volumen por servicio
+  async getVolumeTimeline(req, res) {
+    try {
+      // restaurant_id: puede ser un número único, un array de números, o 'todos'
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else {
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
+      const filters = {
+        view_type: req.query.view_type || "daily",
+        start_date: req.query.start_date,
+        end_date: req.query.end_date,
+        restaurant_id: restaurantId,
+        service: req.query.service || "todos",
+      };
+
+      const result = await superAdminService.getVolumeTimeline(filters);
+
+      res.json({
+        success: true,
+        data: result,
+        filters_applied: filters,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error in getVolumeTimeline controller:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Obtiene datos temporales de órdenes por servicio
+  async getOrdersTimeline(req, res) {
+    try {
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else {
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
+      const filters = {
+        view_type: req.query.view_type || "daily",
+        start_date: req.query.start_date,
+        end_date: req.query.end_date,
+        restaurant_id: restaurantId,
+        service: req.query.service || "todos",
+      };
+
+      const result = await superAdminService.getOrdersTimeline(filters);
+
+      res.json({
+        success: true,
+        data: result,
+        filters_applied: filters,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error in getOrdersTimeline controller:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Obtiene datos temporales de transacciones por servicio
+  async getTransactionsTimeline(req, res) {
+    try {
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else {
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
+      const filters = {
+        view_type: req.query.view_type || "daily",
+        start_date: req.query.start_date,
+        end_date: req.query.end_date,
+        restaurant_id: restaurantId,
+        service: req.query.service || "todos",
+      };
+
+      const result = await superAdminService.getTransactionsTimeline(filters);
+
+      res.json({
+        success: true,
+        data: result,
+        filters_applied: filters,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error in getTransactionsTimeline controller:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Obtiene datos temporales de métodos de pago
+  async getPaymentMethodsTimeline(req, res) {
+    try {
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else {
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
+      const filters = {
+        view_type: req.query.view_type || "daily",
+        start_date: req.query.start_date,
+        end_date: req.query.end_date,
+        restaurant_id: restaurantId,
+        service: req.query.service || "todos",
+      };
+
+      const result = await superAdminService.getPaymentMethodsTimeline(filters);
+
+      res.json({
+        success: true,
+        data: result,
+        filters_applied: filters,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error in getPaymentMethodsTimeline controller:", error);
       res.status(500).json({
         success: false,
         error: error.message,

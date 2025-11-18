@@ -10,6 +10,7 @@ const addToCart = async (req, res) => {
       quantity,
       custom_fields,
       extra_price,
+      restaurant_id,
     } = req.body;
 
     console.log("🛒 Adding item to cart:", {
@@ -17,6 +18,7 @@ const addToCart = async (req, res) => {
       guest_id,
       menu_item_id,
       quantity,
+      restaurant_id,
     });
 
     // Validaciones
@@ -50,7 +52,8 @@ const addToCart = async (req, res) => {
       menu_item_id,
       quantity || 1,
       custom_fields || [],
-      extra_price || 0
+      extra_price || 0,
+      restaurant_id || null
     );
 
     console.log("✅ Item added to cart successfully:", cartItemId);
@@ -82,9 +85,9 @@ const addToCart = async (req, res) => {
 // Obtener carrito del usuario
 const getCart = async (req, res) => {
   try {
-    const { clerk_user_id, guest_id } = req.query;
+    const { clerk_user_id, guest_id, restaurant_id } = req.query;
 
-    console.log("🛒 Getting cart:", { clerk_user_id, guest_id });
+    console.log("🛒 Getting cart:", { clerk_user_id, guest_id, restaurant_id });
 
     // Validaciones
     if (!clerk_user_id && !guest_id) {
@@ -96,7 +99,7 @@ const getCart = async (req, res) => {
     }
 
     const userId = { clerk_user_id, guest_id };
-    const cart = await cartService.getCart(userId);
+    const cart = await cartService.getCart(userId, restaurant_id || null);
 
     console.log(`✅ Cart retrieved: ${cart.items.length} items`);
     res.json({
@@ -176,9 +179,9 @@ const removeFromCart = async (req, res) => {
 // Limpiar carrito completo
 const clearCart = async (req, res) => {
   try {
-    const { clerk_user_id, guest_id } = req.body;
+    const { clerk_user_id, guest_id, restaurant_id } = req.body;
 
-    console.log("🛒 Clearing cart:", { clerk_user_id, guest_id });
+    console.log("🛒 Clearing cart:", { clerk_user_id, guest_id, restaurant_id });
 
     // Validaciones
     if (!clerk_user_id && !guest_id) {
@@ -190,7 +193,7 @@ const clearCart = async (req, res) => {
     }
 
     const userId = { clerk_user_id, guest_id };
-    await cartService.clearCart(userId);
+    await cartService.clearCart(userId, restaurant_id || null);
 
     console.log("✅ Cart cleared successfully");
     res.json({
@@ -210,9 +213,9 @@ const clearCart = async (req, res) => {
 // Obtener solo totales del carrito (rápido)
 const getCartTotals = async (req, res) => {
   try {
-    const { clerk_user_id, guest_id } = req.query;
+    const { clerk_user_id, guest_id, restaurant_id } = req.query;
 
-    console.log("🛒 Getting cart totals:", { clerk_user_id, guest_id });
+    console.log("🛒 Getting cart totals:", { clerk_user_id, guest_id, restaurant_id });
 
     // Validaciones
     if (!clerk_user_id && !guest_id) {
@@ -224,7 +227,7 @@ const getCartTotals = async (req, res) => {
     }
 
     const userId = { clerk_user_id, guest_id };
-    const totals = await cartService.getCartTotals(userId);
+    const totals = await cartService.getCartTotals(userId, restaurant_id || null);
 
     console.log("✅ Cart totals retrieved");
     res.json({
