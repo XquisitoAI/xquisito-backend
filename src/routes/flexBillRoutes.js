@@ -54,7 +54,8 @@ router.get('/dashboard/diners', adminPortalAuth, flexBillController.getFlexBillD
  * @desc Obtiene análisis de pagos para FlexBill
  * @access Private (requires authentication)
  * @query {number} restaurant_id - ID del restaurante (requerido)
- * @example /api/flex-bill/dashboard/payment-analytics?restaurant_id=1
+ * @query {string} time_range - Rango de tiempo (daily, weekly, monthly) - default: daily
+ * @example /api/flex-bill/dashboard/payment-analytics?restaurant_id=1&time_range=weekly
  */
 router.get('/dashboard/payment-analytics', adminPortalAuth, flexBillController.getPaymentAnalytics);
 

@@ -144,7 +144,7 @@ class FlexBillController {
      */
     async getPaymentAnalytics(req, res) {
         try {
-            const { restaurant_id } = req.query;
+            const { restaurant_id, time_range } = req.query;
 
             if (!restaurant_id) {
                 return res.status(400).json({
@@ -154,7 +154,8 @@ class FlexBillController {
             }
 
             const filters = {
-                restaurant_id: parseInt(restaurant_id)
+                restaurant_id: parseInt(restaurant_id),
+                time_range: time_range || 'daily'
             };
 
             const result = await flexBillService.getPaymentAnalytics(filters);

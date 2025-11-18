@@ -173,9 +173,44 @@ class FlexBillService {
      * @returns {Promise<Object>} Análisis de pagos
      */
     async getPaymentAnalytics(filters) {
-        const { restaurant_id } = filters;
+        const { restaurant_id, time_range = 'daily' } = filters;
+        const timeRange = time_range; // Para mantener consistencia con el código existente
 
         try {
+            // Calcular fecha de inicio basada en timeRange
+            const now = new Date();
+            let startDate;
+
+            switch (timeRange) {
+                case 'daily':
+                    // Solo transacciones del día actual (desde las 00:00 de hoy)
+                    startDate = new Date();
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'weekly':
+                    // Últimos 7 días desde hoy
+                    startDate = new Date();
+                    startDate.setDate(startDate.getDate() - 7);
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'monthly':
+                    // Últimos 30 días desde hoy
+                    startDate = new Date();
+                    startDate.setDate(startDate.getDate() - 30);
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                default:
+                    // Por defecto: últimos 7 días
+                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            }
+
+            const endDate = new Date();
+            const periods = {
+                'daily': 'solo del día actual',
+                'weekly': 'últimos 7 días',
+                'monthly': 'últimos 30 días'
+            };
+
             // Query para transacciones de FlexBill
             const { data: transactionsData, error: transactionsError } = await supabase
                 .from('payment_transactions')
@@ -192,19 +227,43 @@ class FlexBillService {
                     )
                 `)
                 .eq('table_order.tables.restaurant_id', restaurant_id)
-                .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+                .gte('created_at', startDate.toISOString())
+                .lte('created_at', endDate.toISOString());
+
 
             if (transactionsError) {
                 console.error('Error fetching payment analytics:', transactionsError);
                 throw transactionsError;
             }
 
-            // Filtrar transacciones de órdenes compartidas
-            const sharedTransactions = transactionsData?.filter(transaction =>
-                transaction.table_order?.user_order?.length > 1
-            ) || [];
+            // Para analytics de pagos necesitamos TODAS las transacciones, no solo las compartidas
+            const allTransactions = transactionsData || [];
 
-            const paymentAnalytics = this.calculatePaymentAnalytics(sharedTransactions);
+            if (allTransactions.length > 0) {
+                const dates = allTransactions.map(t => t.created_at).sort();
+            }
+
+            const { data: allTransactionsEver, error: allError } = await supabase
+                .from('payment_transactions')
+                .select(`
+                    id,
+                    created_at,
+                    table_order!inner(
+                        id,
+                        tables!inner(restaurant_id)
+                    )
+                `)
+                .eq('table_order.tables.restaurant_id', restaurant_id)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (!allError && allTransactionsEver) {
+                allTransactionsEver.slice(0, 5).forEach((t, i) => {
+                    console.log(`   ${i + 1}. ID: ${t.id.substring(0, 8)} - Fecha: ${t.created_at}`);
+                });
+            }
+
+            const paymentAnalytics = this.calculatePaymentAnalytics(allTransactions);
 
             return {
                 success: true,
@@ -320,16 +379,28 @@ class FlexBillService {
     calculatePaymentAnalytics(transactions) {
         if (!transactions || transactions.length === 0) {
             return {
-                payment_type_distribution: { split: 0, single: 100 },
+                payment_type_distribution: { single: 0, split: 0 },
                 payment_time_distribution: {},
-                avg_payment_time: 0
+                avg_payment_time: 0,
+                total_transactions: 0
             };
         }
 
-        // Distribución de tipo de pago (siempre será split para FlexBill)
+        const singlePaymentOrders = transactions.filter(transaction => {
+            const userOrderCount = transaction.table_order?.user_order?.length || 0;
+            return userOrderCount === 1;
+        }).length;
+
+        const splitPaymentOrders = transactions.filter(transaction => {
+            const userOrderCount = transaction.table_order?.user_order?.length || 0;
+            return userOrderCount > 1;
+        }).length;
+
+        const totalOrders = transactions.length;
+
         const paymentTypeDistribution = {
-            split: 100, // FlexBill siempre es pago dividido
-            single: 0
+            single: totalOrders > 0 ? Math.round((singlePaymentOrders / totalOrders) * 100) : 0,
+            split: totalOrders > 0 ? Math.round((splitPaymentOrders / totalOrders) * 100) : 0
         };
 
         // Distribución de tiempo de pago
@@ -561,8 +632,6 @@ class FlexBillService {
                 console.log(`❌ Key ${key} no existe en groupedData. Keys disponibles:`, Object.keys(groupedData));
             }
         });
-
-        console.log('📊 TODOS los datos finales:', Object.values(groupedData));
 
         return Object.values(groupedData).sort((a, b) => {
             if (timeRange === 'daily') {
