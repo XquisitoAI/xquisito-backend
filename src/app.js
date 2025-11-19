@@ -21,6 +21,7 @@ const mainPortalRoutes = require("./routes/mainPortalRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
 const aiAgentRoutes = require("./routes/aiAgentRoutes");
 const flexBillStatisticsRoutes = require("./routes/flexBillRoutes");
+const pickAndGoRoutes = require("./routes/pickAndGoRoutes");
 
 const app = express();
 
@@ -71,6 +72,9 @@ app.use("/api/ai-agent", aiAgentRoutes);
 
 // FlexBill Statistics
 app.use("/api/flex-bill", flexBillStatisticsRoutes);
+
+// Pick & Go
+app.use("/api/pick-and-go", pickAndGoRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
