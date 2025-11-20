@@ -244,6 +244,43 @@ const getCartTotals = async (req, res) => {
   }
 };
 
+// Migrar carrito de invitado a usuario autenticado
+const migrateGuestCart = async (req, res) => {
+  try {
+    const { guest_id, clerk_user_id, restaurant_id } = req.body;
+
+    console.log("🔄 Migrating guest cart to user:", { guest_id, clerk_user_id, restaurant_id });
+
+    // Validaciones
+    if (!guest_id || !clerk_user_id) {
+      return res.status(400).json({
+        success: false,
+        error: "validation_error",
+        message: "Both guest_id and clerk_user_id are required",
+      });
+    }
+
+    const result = await cartService.migrateGuestCartToUser(
+      guest_id,
+      clerk_user_id,
+      restaurant_id || null
+    );
+
+    console.log("✅ Cart migrated successfully:", result);
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("❌ Error migrating cart:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "server_error",
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   addToCart,
   getCart,
@@ -251,4 +288,5 @@ module.exports = {
   removeFromCart,
   clearCart,
   getCartTotals,
+  migrateGuestCart,
 };

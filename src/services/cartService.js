@@ -175,6 +175,22 @@ class CartService {
     }
   }
 
+  // Migrar carrito de invitado a usuario autenticado
+  async migrateGuestCartToUser(guestId, clerkUserId, restaurantId = null) {
+    try {
+      const { data, error } = await supabase.rpc("migrate_guest_cart_to_user", {
+        p_guest_id: guestId,
+        p_clerk_user_id: clerkUserId,
+        p_restaurant_id: restaurantId,
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      throw new Error(`Error migrating guest cart: ${error.message}`);
+    }
+  }
+
   // Parsear custom_fields de JSONB a array
   parseCustomFields(customFields) {
     try {
