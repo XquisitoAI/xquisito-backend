@@ -47,19 +47,22 @@ BEGIN
   ORDER BY created_at DESC
   LIMIT 1;
 
-  -- Si el usuario no tiene carrito, crear uno
-  IF v_user_cart_id IS NULL THEN
-    INSERT INTO carts (clerk_user_id, restaurant_id, expires_at)
-    VALUES (
-      p_clerk_user_id,
-      p_restaurant_id,
-      NOW() + INTERVAL '24 hours'
-    )
-    RETURNING id INTO v_user_cart_id;
+  -- Si el usuario tiene un carrito existente, eliminarlo (cascade eliminará los items)
+  IF v_user_cart_id IS NOT NULL THEN
+    DELETE FROM carts WHERE id = v_user_cart_id;
+    v_user_cart_id := NULL;
   END IF;
 
-  -- Migrar los items del carrito del invitado al carrito del usuario
-  -- Simplemente mover todos los items del carrito del invitado al del usuario
+  -- Crear un nuevo carrito para el usuario
+  INSERT INTO carts (clerk_user_id, restaurant_id, expires_at)
+  VALUES (
+    p_clerk_user_id,
+    p_restaurant_id,
+    NOW() + INTERVAL '24 hours'
+  )
+  RETURNING id INTO v_user_cart_id;
+
+  -- Migrar los items del carrito del invitado al nuevo carrito del usuario
   UPDATE cart_items
   SET cart_id = v_user_cart_id
   WHERE cart_id = v_guest_cart_id;
@@ -67,7 +70,7 @@ BEGIN
   -- Contar items migrados
   GET DIAGNOSTICS v_items_migrated = ROW_COUNT;
 
-  -- Eliminar el carrito del invitado (los items se eliminan en cascada)
+  -- Eliminar el carrito del invitado (ya está vacío)
   DELETE FROM carts WHERE id = v_guest_cart_id;
 
   -- Recalcular totales del carrito del usuario

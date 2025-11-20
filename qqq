@@ -1,0 +1,430 @@
+[33mcommit 96316fd9b588eab7cdb27a674d17a3c925dbfda5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdev-leonardo-back[m[33m, [m[1;31morigin/dev-leonardo-back[m[33m)[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Thu Nov 20 13:34:06 2025 -0600
+
+    carrito en restaurante y migracion de carrito
+
+[33mcommit 72d3f0a9d748405016468826cf0c09e102169c00[m[33m ([m[1;31morigin/branch-testing-back[m[33m, [m[1;32mbranch-testing-back[m[33m)[m
+Merge: cd43fae 19d76af
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Nov 18 11:13:36 2025 -0600
+
+    Merge branch 'dev-leonardo-back' into branch-testing-back
+
+[33mcommit 19d76af4bd52f65c5fa575f9d560a909d6ffe1e3[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Nov 18 11:09:35 2025 -0600
+
+    restaurant_id en carrito
+
+[33mcommit cd43faeb5064432dcf0acd0720eb5461765a91cc[m[33m ([m[1;31morigin/dev-ezequiel-back[m[33m, [m[1;32mdev-ezequiel-back[m[33m)[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Tue Nov 18 10:50:56 2025 -0600
+
+    ordenes compartidas y comensales
+
+[33mcommit 40821f1892cc73548d185680f4f007d45d5d887f[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Nov 14 15:58:57 2025 -0600
+
+    routes definidos para comensales y ordenes compartidas
+
+[33mcommit f5a3ccb659e1d19c69815730737c682ff8cb514b[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Nov 14 13:34:48 2025 -0600
+
+    dashboard main portal v2 back
+
+[33mcommit bb477941d44330e26d7cc93e6ee2cda22b9df63d[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Nov 14 12:02:53 2025 -0600
+
+    endpoint para metricas de modalDashboardFlexbill
+
+[33mcommit 36210242838568f2de7e04ef4dcb3eb1843a5aac[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Wed Nov 12 17:59:23 2025 -0600
+
+    avances en dashboard main portal
+
+[33mcommit 8c28d83e251f874508f43acb01a22d84ae824e2c[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Wed Nov 12 16:41:11 2025 -0600
+
+    eliminar client de db y de clerk
+
+[33mcommit 92d415bf98bea3c451c2864c2fd49b96cf09f138[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m
+Merge: c9180b9 0c9300f
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Nov 11 18:03:09 2025 -0600
+
+    Merge branch 'dev-leonardo-back' into branch-testing-back
+
+[33mcommit 0c9300f05d2c6b6e54a6f9756baf0c7c57746271[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Nov 11 16:54:22 2025 -0600
+
+    agentes pepper en back
+
+[33mcommit a83526c53dfde93c0bb11731aa02a88750337089[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Mon Nov 10 19:05:12 2025 -0600
+
+    sistema de carrito en db
+
+[33mcommit c9180b9147acd10752813f79ad459bb50bcbc615[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Nov 10 13:40:20 2025 -0600
+
+    consumo de servicios habilitados
+
+[33mcommit ac68c02a04a9057fa333aec92fafb855389a35b6[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Thu Nov 6 16:10:38 2025 -0600
+
+    get history for guests
+
+[33mcommit 14fde48fd4ceb695b91ca2ddd91ec8a863eecb2c[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Wed Nov 5 11:45:43 2025 -0600
+
+    payment_transaction_id null
+
+[33mcommit bef9ea3dac8f97bd53fe2124acaf4c0941ca243c[m
+Merge: 4795d46 fab9efd
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Wed Nov 5 11:24:51 2025 -0600
+
+    merge branch leo into testing
+
+[33mcommit fab9efd3d1063c606e79ddb7f8f115b281409d7a[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Wed Nov 5 11:11:05 2025 -0600
+
+    avance analiticas en main portal
+
+[33mcommit 2e3f31272eb5d637e9b442fabec3da4f592cbace[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Wed Nov 5 11:09:55 2025 -0600
+
+    modificaciones en db
+
+[33mcommit 4795d46f91fc4fc3c4d6aa8ec7aa57afe459d9f6[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Tue Nov 4 16:37:28 2025 -0600
+
+    creacion de nuevo endpoint de reordenamiento
+
+[33mcommit cbfe624655e0e2ec6d53e6ee4a1f5df6f86bbb9d[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Tue Nov 4 09:41:18 2025 -0600
+
+    flujo para invitacion por mail
+
+[33mcommit 98518fe7993b97d52c1f9c72a690aca8688ac572[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 31 18:21:30 2025 -0600
+
+    autenticacion
+
+[33mcommit 2f26249eefb1cb907d660f532a002e4029b7cdd2[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 31 16:17:39 2025 -0600
+
+    conexion a base de datos y desarrollo de enpoint para el servicio de admin manager
+
+[33mcommit d5ec6c955d92558d8698ab53d5587b556d0d4f08[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 31 10:50:13 2025 -0600
+
+    registrar transacciones de pago en db
+
+[33mcommit ebf1441a5fda8714ddec6c74e2269b0421a6d791[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 27 16:07:03 2025 -0600
+
+    correcion a getDishOrdersByTapOrder
+
+[33mcommit 6868c4a02597bc0a467a407e45ccec7f18adbf4e[m
+Merge: 5e0ea82 417ebd6
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 24 17:37:46 2025 -0600
+
+    Merge branch 'dev-leonardo-back' into branch-testing-back
+
+[33mcommit 417ebd6e28ed7a8cbdd2b3de9607939683e33f8d[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 24 17:32:45 2025 -0600
+
+    aceptar user_id & guest_id en create_tap_order
+
+[33mcommit 5e0ea8277cebc86381aa3b53393f8faaa41fb2a9[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 24 17:31:05 2025 -0600
+
+    correciones hacia endpoints de tap order
+
+[33mcommit 172fdd886f79a24062821d13b19a8463f906fc36[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 24 13:03:06 2025 -0600
+
+    mejoras para funcionalidad de tap order and pay
+
+[33mcommit 66271f97e947195ee0636b482aea196432a1188a[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Thu Oct 23 17:10:14 2025 -0600
+
+    endpoints para tap order and pay
+
+[33mcommit d39738c4fe8012814db87db8b0e6f673c29d2693[m
+Merge: 4285a54 87f1ad3
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 20 12:40:33 2025 -0600
+
+    Merge branch 'dev-leonardo-back' into branch-testing-back
+
+[33mcommit 4285a54509dc63678cbec5059bf4b831b1bc12bd[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 20 12:26:25 2025 -0600
+
+    logs
+
+[33mcommit 4dccfdf0df6577d7cf65a62f1976246e29e0043e[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 20 12:21:34 2025 -0600
+
+    configuracion de nuevos endpoints, consumo de data
+
+[33mcommit f3829cf6a3b173e0b2a7c779d7a42edb2bcbac59[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 17 13:06:15 2025 -0600
+
+    tiempo promedio
+
+[33mcommit 87f1ad3f84073ac2a3d02a239e4e5f4e03db8139[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 17 12:22:42 2025 -0600
+
+    Agregar restaurantId a rutas de ordenes y pagos
+
+[33mcommit b2684a72f5aa45e4ea7693e6822181301897d3f9[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 17 12:21:17 2025 -0600
+
+    rating de restaurants
+
+[33mcommit 6001833724e5a62296d4024cc98da18789c6a3e3[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Thu Oct 16 12:12:36 2025 -0600
+
+    endpoints para consumo del dashboard
+
+[33mcommit d1a1afc04273119930a3e87d6c8f2b74d179a3f6[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Thu Oct 16 11:42:26 2025 -0600
+
+    sistema de rating de platillos
+
+[33mcommit 8db91495990460b94241ab3a26fa6b7b0256b0c8[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 13 17:49:28 2025 -0600
+
+    almacenamos datos para interactuar con las notificaciones
+
+[33mcommit 0f8f1bedecd91c51176360cdeec6fe207a39c96a[m
+Merge: a3105f8 8478a2a
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 13 11:51:15 2025 -0600
+
+    Merge branch 'dev-ezequiel-back' into branch-testing-back
+
+[33mcommit 8478a2acb61e97c3790aeef716bc73a02a7f8293[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 13 10:13:54 2025 -0600
+
+    horario de atencion
+
+[33mcommit a3105f8a84a660e9abfd393ce91e6eabd19fe9bd[m
+Merge: bb5caf6 4c040bc
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 10 17:42:54 2025 -0600
+
+    Merge branch 'branch-testing-back' into dev-leonardo-back
+
+[33mcommit bb5caf6f9074297c942d65fe6516a337a905b25b[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 10 17:38:38 2025 -0600
+
+    actualizar metodos de pago en orden de usuario
+
+[33mcommit cf1b7bfb70abc3d8b7101abdef3307380b57c7a4[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Oct 10 17:37:46 2025 -0600
+
+    update sql supabase functions
+
+[33mcommit 4c040bcb41a1e29b7a71302de61b5ea4aba5cf57[m
+Merge: bf602f0 a7fad08
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Oct 10 12:57:23 2025 -0600
+
+    Merge branch 'dev-ezequiel-back' into branch-testing-back
+
+[33mcommit 48cea9cd64ab54a11412ec79723b250a12095587[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Thu Oct 9 11:49:35 2025 -0600
+
+    Obtener datos de resaurantes
+
+[33mcommit 8c3c72217652ec8df4b5f2cd14e8a42218b8d988[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Thu Oct 9 11:49:09 2025 -0600
+
+    agregar tarjeta (quitar campos incesarios)
+
+[33mcommit 2dc446ae6054e1bfde73fefa03c291bd6c510e9c[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Thu Oct 9 11:48:34 2025 -0600
+
+    Actualizacion de tablas y funciones supabase
+
+[33mcommit a7fad08b65af64fffd4bffbf81855af8ef5b74a1[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Tue Oct 7 10:32:25 2025 -0600
+
+    carga de imagenes
+
+[33mcommit bf602f0f50ec3c8ae1e0ec4c871dc3a7c97daae7[m
+Merge: 4703457 d16e450
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Mon Oct 6 10:59:11 2025 -0600
+
+    Merge branch 'dev-ezequiel-back' into branch-testing-back
+
+[33mcommit d16e4505cf9da67a181946ed5c8c5d4af3328513[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Oct 6 10:24:52 2025 -0600
+
+    endpoint de admin portal, controllers, routes y services
+
+[33mcommit f6e1f344e3310257beb6d35265a3134c97b8733c[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Thu Oct 2 13:13:09 2025 -0600
+
+    end point para categoria y sus items del restaurant
+
+[33mcommit 470345785266719f7261c23ec9202accc9202e7e[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Wed Oct 1 18:03:34 2025 -0600
+
+    Cambiar currency a MXN
+
+[33mcommit 1ef6cebf03882107c59d1526007f54b313469ed3[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Sep 30 12:05:04 2025 -0600
+
+    Obtener datos de otros usuarios registrados (images, usernames, etc.)
+
+[33mcommit fafba499ab7c2c2cf88b260fd4ae65c980c407f6[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Sep 30 12:03:58 2025 -0600
+
+    Modificaciones en base de datos
+
+[33mcommit 344507c03895097b7306d6bcb74fb0ebac51014e[m
+Merge: dd4a432 e47387d
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 26 14:17:07 2025 -0600
+
+    Merge branch 'dev-leonardo-back' into branch-testing-back
+     Merge de la rama back de leonardo
+
+[33mcommit e47387d501482c132fa23f995423935b9350fa59[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Fri Sep 26 13:02:39 2025 -0600
+
+    nueva implementacion de sistema de pago por mesas
+
+[33mcommit dd4a432c50736cb408636f8ef9688c6a5c39d0e8[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 26 12:04:17 2025 -0600
+
+    tipo de tarjeta que se envia al front
+
+[33mcommit 8d111e7d6bca7f4bafcb7718946b7a4f57a4a30e[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Thu Sep 25 12:15:28 2025 -0600
+
+    flujo de usuario registrado, guardamos sus tarjetas y correccion de ordenes que no se mostraban en la page de /order
+
+[33mcommit 442ac38c98108305bfd5324f53ab5558b15d788d[m
+Author: leo-garcia-xquisito <leonardogarcia@xquisito.ai>
+Date:   Tue Sep 23 18:27:40 2025 -0600
+
+    modificacion payment date
+
+[33mcommit 1a814e1f022885062be5d1b2561f16a688b41c5f[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 19 16:51:52 2025 -0600
+
+    logs
+
+[33mcommit 3063b9a66dbc0ed393fbca31d35eb2f6d9308b37[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 19 13:59:48 2025 -0600
+
+    endpoint para flujo de visualizacion de ordenes sin pagar en /order
+
+[33mcommit b62793dd5cdc4a37add493faed1ebfae28b2b1a7[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Wed Sep 17 17:51:00 2025 -0600
+
+    pago sin redirect al sandbox de ecartpay, pago directo
+
+[33mcommit 5a7b4444646f35a3f890e14c04637ff7d813770a[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 12 17:57:47 2025 -0600
+
+    logs
+
+[33mcommit a7fbb54b6d72e177c6713ae531d958ffd9ca370a[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 12 12:08:47 2025 -0600
+
+    endpoint de user, creacion de tabla user
+
+[33mcommit 9172d0ebea56cc627f1640e96fbbe5d40f22e2a2[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Wed Sep 10 17:12:14 2025 -0600
+
+    flujo condicional sobre ecartpay
+
+[33mcommit 8ace53e5d370122c4316bbc28a4f48e0eed9528f[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Tue Sep 9 17:25:14 2025 -0600
+
+    flujo ecartpay payment
+
+[33mcommit 213540bee0913337661d1a22bf48362bab0532b2[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Sep 8 13:12:07 2025 -0600
+
+    validacion de flujo agregar tarjeta, manejo de endpoint
+
+[33mcommit 799912cc03904ef065c37c9b5766f12e1d041894[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Fri Sep 5 13:27:55 2025 -0600
+
+    endpoint de ecartpay e implementaciones
+
+[33mcommit 435371db0047f8757c67d901111708f59e9fad9d[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Tue Sep 2 18:06:38 2025 -0600
+
+    creacion endpoint de table
+
+[33mcommit 9f4b53f58da8f53e83365e6a649f23d076b15f3a[m
+Author: Ezequiel Lino <elino@xquisito.ai>
+Date:   Mon Aug 25 17:25:06 2025 -0600
+
+    first commit
