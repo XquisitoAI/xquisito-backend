@@ -36,12 +36,15 @@ class PickAndGoController {
                 });
             }
 
+            // Extraer total_amount del session_data si está disponible
+            const totalAmount = session_data?.total_amount || 0;
+
             const orderData = {
                 clerk_user_id,
                 customer_name,
                 customer_phone,
                 customer_email,
-                total_amount: 0, // Se actualizará cuando se agreguen items
+                total_amount: totalAmount,
                 session_data: session_data || {},
                 prep_metadata: prep_metadata || {}
             };
