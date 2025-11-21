@@ -80,6 +80,7 @@ class PaymentTransactionService {
         restaurant_id,
         id_table_order = null,
         id_tap_orders_and_pay = null,
+        pick_and_go_order_id = null,
 
         // Montos base (vienen del frontend)
         base_amount,
@@ -114,12 +115,13 @@ class PaymentTransactionService {
       }
 
       // Validar que exista al menos un tipo de orden
-      if (!id_table_order && !id_tap_orders_and_pay) {
-        throw new Error("Se requiere id_table_order o id_tap_orders_and_pay");
+      if (!id_table_order && !id_tap_orders_and_pay && !pick_and_go_order_id) {
+        throw new Error("Se requiere id_table_order, id_tap_orders_and_pay o pick_and_go_order_id");
       }
 
-      // Validar que no existan ambos tipos de orden
-      if (id_table_order && id_tap_orders_and_pay) {
+      // Validar que solo exista un tipo de orden
+      const orderTypes = [id_table_order, id_tap_orders_and_pay, pick_and_go_order_id].filter(Boolean);
+      if (orderTypes.length > 1) {
         throw new Error("Solo puede existir un tipo de orden");
       }
 
@@ -177,6 +179,7 @@ class PaymentTransactionService {
         restaurant_id,
         id_table_order,
         id_tap_orders_and_pay,
+        id_pick_and_go_order: pick_and_go_order_id, // Mapear para que coincida con el esquema de BD
         user_id: userId, // Clerk user ID (puede ser null para invitados)
 
         // Montos base

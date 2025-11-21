@@ -900,14 +900,15 @@ class PaymentController {
       // Validar que exista al menos un tipo de orden
       if (
         !transactionData.id_table_order &&
-        !transactionData.id_tap_orders_and_pay
+        !transactionData.id_tap_orders_and_pay &&
+        !transactionData.pick_and_go_order_id
       ) {
         return res.status(400).json({
           success: false,
           error: {
             type: "validation_error",
             message:
-              "Either id_table_order or id_tap_orders_and_pay is required",
+              "Either id_table_order, id_tap_orders_and_pay, or pick_and_go_order_id is required",
           },
         });
       }
