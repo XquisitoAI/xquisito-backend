@@ -417,6 +417,7 @@ class UserController {
           restaurant_id,
           id_table_order,
           id_tap_orders_and_pay,
+          id_pick_and_go_order,
           base_amount,
           tip_amount,
           total_amount_charged,
@@ -456,6 +457,11 @@ class UserController {
           transactions.map((tx) => tx.id_tap_orders_and_pay).filter(Boolean)
         ),
       ];
+      const pickAndGoOrdersIds = [
+        ...new Set(
+          transactions.map((tx) => tx.id_pick_and_go_order).filter(Boolean)
+        ),
+      ];
       const restaurantIds = [
         ...new Set(transactions.map((tx) => tx.restaurant_id).filter(Boolean)),
       ];
@@ -466,7 +472,7 @@ class UserController {
       ];
 
       console.log(
-        `📊 IDs to fetch: ${tableOrderIds.length} table_orders, ${tapOrderIds.length} tap_orders`
+        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders`
       );
 
       // ========================================
@@ -605,6 +611,67 @@ class UserController {
       }
 
       // ========================================
+      // 4. Consultar Pick and Go Orders (Pick & Go)
+      // ========================================
+      let pickAndGoOrdersMap = {};
+      if (pickAndGoOrdersIds.length > 0) {
+        const { data: pickOrders } = await supabase
+          .from("pick_and_go_orders")
+          .select(
+            `
+            id,
+            payment_status,
+            order_status,
+            created_at,
+            total_amount
+          `
+          )
+          .in("id", pickAndGoOrdersIds);
+
+        if (pickOrders) {
+          console.log(
+            `✅ Fetched ${pickOrders.length} pick_and_go_orders (Pick & Go)`
+          );
+          pickOrders.forEach((order) => {
+            pickAndGoOrdersMap[order.id] = order;
+          });
+        }
+
+        // Obtener dish_orders de estos tap_orders
+        const { data: pickDishes } = await supabase
+          .from("dish_order")
+          .select(
+            `
+            id,
+            pick_and_go_order_id,
+            item,
+            quantity,
+            price,
+            status,
+            payment_status,
+            images,
+            custom_fields,
+            extra_price
+          `
+          )
+          .in("pick_and_go_order_id", pickAndGoOrdersIds)
+          .not("pick_and_go_order_id", "is", null);
+
+        if (pickDishes) {
+          // Agregar dishes a cada tap_order
+          pickDishes.forEach((dish) => {
+            const pickOrderId = dish.pick_and_go_order_id;
+            if (pickAndGoOrdersMap[pickOrderId]) {
+              if (!pickAndGoOrdersMap[pickOrderId].dishes) {
+                pickAndGoOrdersMap[pickOrderId].dishes = [];
+              }
+              pickAndGoOrdersMap[pickOrderId].dishes.push(dish);
+            }
+          });
+        }
+      }
+
+      // ========================================
       // 5. Consultar Restaurants
       // ========================================
       let restaurantsMap = {};
@@ -625,15 +692,11 @@ class UserController {
       // 6. Consultar Payment Methods
       // ========================================
       let paymentMethodsMap = {};
-      console.log("💳 Payment Method IDs to fetch:", paymentMethodIds);
       if (paymentMethodIds.length > 0) {
         const { data: paymentMethods, error: pmError } = await supabase
           .from("user_payment_methods")
           .select("id, card_brand, last_four_digits, card_type")
           .in("id", paymentMethodIds);
-
-        console.log("💳 Payment Methods fetched:", paymentMethods);
-        console.log("💳 Payment Methods error:", pmError);
 
         if (paymentMethods) {
           paymentMethods.forEach((pm) => {
@@ -648,6 +711,7 @@ class UserController {
       const orderHistory = transactions.map((tx) => {
         const isFlexBill = tx.id_table_order != null;
         const isTapOrder = tx.id_tap_orders_and_pay != null;
+        const isPickOrder = tx.id_pick_and_go_order != null;
 
         let orderData = null;
         let tableNumber = null;
@@ -667,15 +731,18 @@ class UserController {
           tableNumber = orderData?.tables?.table_number;
           orderStatus = orderData?.order_status;
           dishes = orderData?.dishes || [];
+        } else if (isPickOrder) {
+          orderData = pickAndGoOrdersMap[tx.id_pick_and_go_order];
+          orderType = "pick-and-go";
+          tableNumber = null; // Pick & Go no tiene mesa
+          orderStatus = orderData?.order_status;
+          dishes = orderData?.dishes || [];
         }
 
+        // El restaurant_id viene de la transacción (payment_transactions)
+        // Nota: pick_and_go_orders no tiene restaurant_id propio
         const restaurant = restaurantsMap[tx.restaurant_id];
         const paymentMethod = paymentMethodsMap[tx.payment_method_id];
-
-        console.log(
-          `💳 Transaction ${tx.id} - payment_method_id: ${tx.payment_method_id}, paymentMethod found:`,
-          paymentMethod
-        );
 
         // Calcular totales de los platos
         const totalQuantity = dishes.reduce(
@@ -693,7 +760,10 @@ class UserController {
           orderType,
 
           // Order info
-          tableOrderId: tx.id_table_order || tx.id_tap_orders_and_pay,
+          tableOrderId:
+            tx.id_table_order ||
+            tx.id_tap_orders_and_pay ||
+            tx.id_pick_and_go_order,
           tableNumber,
           tableOrderStatus: orderStatus,
           tableOrderDate: orderData?.created_at || tx.created_at,
