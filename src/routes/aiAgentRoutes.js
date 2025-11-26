@@ -21,26 +21,37 @@ router.post("/chat", async (req, res) => {
       });
     }
 
-    // Detectar si el mensaje viene del admin-portal
+    // Detectar el tipo de contexto del mensaje
     const isAdminPortal = message.includes("admin_portal=true");
+    const isSupportDashboard = message.includes("support_dashboard");
 
     // Seleccionar la API key apropiada
-    const apiKey = isAdminPortal
-      ? process.env.AI_AGENT_ADMIN_API_KEY
-      : process.env.AI_AGENT_API_KEY;
+    let apiKey;
+    let agentType;
+
+    if (isAdminPortal) {
+      apiKey = process.env.AI_AGENT_ADMIN_API_KEY;
+      agentType = "Admin Portal";
+    } else if (isSupportDashboard) {
+      apiKey = process.env.AI_AGENT_SUPPORT_API_KEY;
+      agentType = "Support Dashboard";
+    } else {
+      apiKey = process.env.AI_AGENT_API_KEY;
+      agentType = "Frontend";
+    }
 
     // Validar que la API key existe
     if (!apiKey) {
       const keyName = isAdminPortal
         ? "AI_AGENT_ADMIN_API_KEY"
-        : "AI_AGENT_API_KEY";
+        : isSupportDashboard
+          ? "AI_AGENT_SUPPORT_API_KEY"
+          : "AI_AGENT_API_KEY";
       console.error(`❌ ${keyName} no está configurada en .env`);
       return res.status(500).json({
         error: "Configuración del servidor incompleta",
       });
     }
-
-    const agentType = isAdminPortal ? "Admin Portal" : "Frontend";
 
     // Llamar al agente de AI usando axios
     const response = await axios.post(
