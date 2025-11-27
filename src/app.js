@@ -5,6 +5,7 @@ const morgan = require("morgan");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
+const profileRoutes = require("./routes/profileRoutes");
 const tableRoutes = require("./routes/tableRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -48,7 +49,10 @@ app.get("/health", (req, res) => {
     .json({ status: "OK", message: "Xquisito Backend is running" });
 });
 
+// Supabase auth
 app.use("/api/auth", authRoutes);
+app.use("/api/profiles", profileRoutes);
+
 app.use("/api", tableRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api/users", userRoutes);
