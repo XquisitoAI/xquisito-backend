@@ -20,8 +20,8 @@ class UserService {
       // Obtener información de usuarios desde la tabla profiles
       const { data: profiles, error } = await supabase
         .from("profiles")
-        .select("user_id, photo_url, first_name, last_name")
-        .in("user_id", validUserIds);
+        .select("id, photo_url, first_name, last_name")
+        .in("id", validUserIds);
 
       if (error) {
         console.error("❌ Error fetching profiles from Supabase:", error);
