@@ -1,16 +1,7 @@
-const { createClerkClient } = require('@clerk/clerk-sdk-node');
-
-// Initialize Clerk client
-const clerkClient = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY
-});
+const supabase = require("../config/supabase");
 
 class UserService {
-  /**
-   * Obtener información de múltiples usuarios de Clerk
-   * @param {string[]} userIds - Array de user IDs de Clerk
-   * @returns {Promise<Object>} - Mapa de userId -> {imageUrl, firstName, lastName, fullName}
-   */
+  // Obtener información de múltiples usuarios desde Supabase
   async getUsersInfo(userIds) {
     try {
       if (!userIds || userIds.length === 0) {
@@ -18,38 +9,54 @@ class UserService {
       }
 
       // Filtrar IDs válidos (no null, no undefined, no vacíos)
-      const validUserIds = userIds.filter(id => id && typeof id === 'string' && id.trim() !== '');
+      const validUserIds = userIds.filter(
+        (id) => id && typeof id === "string" && id.trim() !== ""
+      );
 
       if (validUserIds.length === 0) {
         return {};
       }
 
-      // Obtener información de cada usuario
-      const userPromises = validUserIds.map(async (userId) => {
-        try {
-          const user = await clerkClient.users.getUser(userId);
-          return {
-            userId: user.id,
-            imageUrl: user.imageUrl || null,
-            firstName: user.firstName || null,
-            lastName: user.lastName || null,
-            fullName: user.firstName && user.lastName
-              ? `${user.firstName} ${user.lastName}`
-              : user.firstName || user.lastName || null,
-          };
-        } catch (error) {
-          console.error(`Error fetching user ${userId}:`, error.message);
-          return null;
-        }
-      });
+      // Obtener información de usuarios desde la tabla profiles
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("user_id, photo_url, first_name, last_name")
+        .in("user_id", validUserIds);
 
-      const users = await Promise.all(userPromises);
+      if (error) {
+        console.error("❌ Error fetching profiles from Supabase:", error);
+        throw new Error(`Error fetching profiles: ${error.message}`);
+      }
 
       // Convertir array a objeto {userId: userInfo}
       const usersMap = {};
-      users.forEach(user => {
-        if (user) {
-          usersMap[user.userId] = user;
+
+      if (profiles && profiles.length > 0) {
+        profiles.forEach((profile) => {
+          usersMap[profile.user_id] = {
+            userId: profile.user_id,
+            imageUrl: profile.photo_url || null,
+            firstName: profile.first_name || null,
+            lastName: profile.last_name || null,
+            fullName:
+              profile.first_name && profile.last_name
+                ? `${profile.first_name} ${profile.last_name}`
+                : profile.first_name || profile.last_name || null,
+          };
+        });
+      }
+
+      // Para usuarios que no se encontraron en profiles, retornar null
+      validUserIds.forEach((userId) => {
+        if (!usersMap[userId]) {
+          console.warn(`⚠️ Profile not found for user ${userId}`);
+          usersMap[userId] = {
+            userId: userId,
+            imageUrl: null,
+            firstName: null,
+            lastName: null,
+            fullName: null,
+          };
         }
       });
 
