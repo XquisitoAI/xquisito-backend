@@ -4,7 +4,7 @@ const cartService = require("../services/cartService");
 const addToCart = async (req, res) => {
   try {
     const {
-      clerk_user_id,
+      user_id,
       guest_id,
       menu_item_id,
       quantity,
@@ -14,7 +14,7 @@ const addToCart = async (req, res) => {
     } = req.body;
 
     console.log("🛒 Adding item to cart:", {
-      clerk_user_id,
+      user_id,
       guest_id,
       menu_item_id,
       quantity,
@@ -22,19 +22,19 @@ const addToCart = async (req, res) => {
     });
 
     // Validaciones
-    if (!clerk_user_id && !guest_id) {
+    if (!user_id && !guest_id) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Either clerk_user_id or guest_id is required",
+        message: "Either user_id or guest_id is required",
       });
     }
 
-    if (clerk_user_id && guest_id) {
+    if (user_id && guest_id) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Cannot provide both clerk_user_id and guest_id",
+        message: "Cannot provide both user_id and guest_id",
       });
     }
 
@@ -46,7 +46,7 @@ const addToCart = async (req, res) => {
       });
     }
 
-    const userId = { clerk_user_id, guest_id };
+    const userId = { user_id, guest_id };
     const cartItemId = await cartService.addToCart(
       userId,
       menu_item_id,
@@ -85,20 +85,20 @@ const addToCart = async (req, res) => {
 // Obtener carrito del usuario
 const getCart = async (req, res) => {
   try {
-    const { clerk_user_id, guest_id, restaurant_id } = req.query;
+    const { user_id, guest_id, restaurant_id } = req.query;
 
-    console.log("🛒 Getting cart:", { clerk_user_id, guest_id, restaurant_id });
+    console.log("🛒 Getting cart:", { user_id, guest_id, restaurant_id });
 
     // Validaciones
-    if (!clerk_user_id && !guest_id) {
+    if (!user_id && !guest_id) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Either clerk_user_id or guest_id is required",
+        message: "Either user_id or guest_id is required",
       });
     }
 
-    const userId = { clerk_user_id, guest_id };
+    const userId = { user_id, guest_id };
     const cart = await cartService.getCart(userId, restaurant_id || null);
 
     console.log(`✅ Cart retrieved: ${cart.items.length} items`);
@@ -179,20 +179,20 @@ const removeFromCart = async (req, res) => {
 // Limpiar carrito completo
 const clearCart = async (req, res) => {
   try {
-    const { clerk_user_id, guest_id, restaurant_id } = req.body;
+    const { user_id, guest_id, restaurant_id } = req.body;
 
-    console.log("🛒 Clearing cart:", { clerk_user_id, guest_id, restaurant_id });
+    console.log("🛒 Clearing cart:", { user_id, guest_id, restaurant_id });
 
     // Validaciones
-    if (!clerk_user_id && !guest_id) {
+    if (!user_id && !guest_id) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Either clerk_user_id or guest_id is required",
+        message: "Either user_id or guest_id is required",
       });
     }
 
-    const userId = { clerk_user_id, guest_id };
+    const userId = { user_id, guest_id };
     await cartService.clearCart(userId, restaurant_id || null);
 
     console.log("✅ Cart cleared successfully");
@@ -213,20 +213,20 @@ const clearCart = async (req, res) => {
 // Obtener solo totales del carrito (rápido)
 const getCartTotals = async (req, res) => {
   try {
-    const { clerk_user_id, guest_id, restaurant_id } = req.query;
+    const { user_id, guest_id, restaurant_id } = req.query;
 
-    console.log("🛒 Getting cart totals:", { clerk_user_id, guest_id, restaurant_id });
+    console.log("🛒 Getting cart totals:", { user_id, guest_id, restaurant_id });
 
     // Validaciones
-    if (!clerk_user_id && !guest_id) {
+    if (!user_id && !guest_id) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Either clerk_user_id or guest_id is required",
+        message: "Either user_id or guest_id is required",
       });
     }
 
-    const userId = { clerk_user_id, guest_id };
+    const userId = { user_id, guest_id };
     const totals = await cartService.getCartTotals(userId, restaurant_id || null);
 
     console.log("✅ Cart totals retrieved");
@@ -247,22 +247,22 @@ const getCartTotals = async (req, res) => {
 // Migrar carrito de invitado a usuario autenticado
 const migrateGuestCart = async (req, res) => {
   try {
-    const { guest_id, clerk_user_id, restaurant_id } = req.body;
+    const { guest_id, user_id, restaurant_id } = req.body;
 
-    console.log("🔄 Migrating guest cart to user:", { guest_id, clerk_user_id, restaurant_id });
+    console.log("🔄 Migrating guest cart to user:", { guest_id, user_id, restaurant_id });
 
     // Validaciones
-    if (!guest_id || !clerk_user_id) {
+    if (!guest_id || !user_id) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Both guest_id and clerk_user_id are required",
+        message: "Both guest_id and user_id are required",
       });
     }
 
     const result = await cartService.migrateGuestCartToUser(
       guest_id,
-      clerk_user_id,
+      user_id,
       restaurant_id || null
     );
 

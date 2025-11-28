@@ -11,11 +11,11 @@ class CartService {
     restaurantId = null
   ) {
     try {
-      const { clerk_user_id, guest_id } = userId;
+      const { user_id, guest_id } = userId;
 
       const { data, error } = await supabase.rpc("add_to_cart", {
         p_menu_item_id: menuItemId,
-        p_clerk_user_id: clerk_user_id || null,
+        p_user_id: user_id || null,
         p_guest_id: guest_id || null,
         p_quantity: quantity,
         p_custom_fields: customFields,
@@ -33,10 +33,10 @@ class CartService {
   //Obtener carrito completo del usuario
   async getCart(userId, restaurantId = null) {
     try {
-      const { clerk_user_id, guest_id } = userId;
+      const { user_id, guest_id } = userId;
 
       const { data, error } = await supabase.rpc("get_cart", {
-        p_clerk_user_id: clerk_user_id || null,
+        p_user_id: user_id || null,
         p_guest_id: guest_id || null,
         p_restaurant_id: restaurantId,
       });
@@ -114,10 +114,10 @@ class CartService {
   // Limpiar carrito completo
   async clearCart(userId, restaurantId = null) {
     try {
-      const { clerk_user_id, guest_id } = userId;
+      const { user_id, guest_id } = userId;
 
       const { data, error } = await supabase.rpc("clear_cart", {
-        p_clerk_user_id: clerk_user_id || null,
+        p_user_id: user_id || null,
         p_guest_id: guest_id || null,
         p_restaurant_id: restaurantId,
       });
@@ -132,7 +132,7 @@ class CartService {
   // Obtener totales del carrito (rápido, sin items)
   async getCartTotals(userId, restaurantId = null) {
     try {
-      const { clerk_user_id, guest_id } = userId;
+      const { user_id, guest_id } = userId;
 
       let query = supabase
         .from("carts")
@@ -141,8 +141,8 @@ class CartService {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (clerk_user_id) {
-        query = query.eq("clerk_user_id", clerk_user_id);
+      if (user_id) {
+        query = query.eq("user_id", user_id);
       } else {
         query = query.eq("guest_id", guest_id);
       }
@@ -176,11 +176,11 @@ class CartService {
   }
 
   // Migrar carrito de invitado a usuario autenticado
-  async migrateGuestCartToUser(guestId, clerkUserId, restaurantId = null) {
+  async migrateGuestCartToUser(guestId, userId, restaurantId = null) {
     try {
       const { data, error } = await supabase.rpc("migrate_guest_cart_to_user", {
         p_guest_id: guestId,
-        p_clerk_user_id: clerkUserId,
+        p_user_id: userId,
         p_restaurant_id: restaurantId,
       });
 
