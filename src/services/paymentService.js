@@ -42,14 +42,15 @@ class PaymentService {
           `Processing guest user: ${userId} with unique email: ${uniqueGuestEmail} (original: ${userEmail})`
         );
       } else {
-        // For authenticated users (Clerk), get from public.users table
+        // For authenticated users (Supabase Auth), get from public.profiles table
         const { data: userData, error: userError } = await supabase
-          .from("users")
+          .from("profiles")
           .select("*")
-          .eq("clerk_user_id", userId)
+          .eq("id", userId)
           .single();
 
         if (userError || !userData) {
+          console.error('❌ Supabase profiles lookup failed:', userError);
           return {
             success: false,
             error: {
@@ -63,11 +64,11 @@ class PaymentService {
         user = {
           user: {
             email: userData.email,
-            id: userData.clerk_user_id,
+            id: userData.id,
             phone: userData.phone,
           },
         };
-        console.log(`Processing authenticated user (Clerk): ${userId}`);
+        console.log(`Processing authenticated user (Supabase Auth): ${userId}`);
       }
 
       // Check if user already has an EcartPay customer
@@ -75,7 +76,7 @@ class PaymentService {
       const tableName = isGuest
         ? "guest_payment_methods"
         : "user_payment_methods";
-      const userFieldName = isGuest ? "guest_id" : "clerk_user_id";
+      const userFieldName = isGuest ? "guest_id" : "user_id";
 
       const { data: existingMethods } = await supabase
         .from(tableName)
@@ -216,7 +217,7 @@ class PaymentService {
           insertData.session_data = context.sessionData;
         }
       } else {
-        insertData.clerk_user_id = userId;
+        insertData.user_id = userId;
       }
 
       // Store payment method metadata in our database
@@ -276,7 +277,7 @@ class PaymentService {
       const tableName = isGuest
         ? "guest_payment_methods"
         : "user_payment_methods";
-      const userFieldName = isGuest ? "guest_id" : "clerk_user_id";
+      const userFieldName = isGuest ? "guest_id" : "user_id";
 
       // For guest users, also filter by non-expired records
       let query = supabase
@@ -354,7 +355,7 @@ class PaymentService {
       const { data: method, error: fetchError } = await supabase
         .from("user_payment_methods")
         .select("ecartpay_token, is_default")
-        .eq("clerk_user_id", userId)
+        .eq("user_id", userId)
         .eq("id", paymentMethodId)
         .single();
 
@@ -399,7 +400,7 @@ class PaymentService {
       const { error: deleteError } = await supabase
         .from("user_payment_methods")
         .delete()
-        .eq("clerk_user_id", userId)
+        .eq("user_id", userId)
         .eq("id", paymentMethodId);
 
       if (deleteError) {
@@ -422,7 +423,7 @@ class PaymentService {
         const { data: otherMethods } = await supabase
           .from("user_payment_methods")
           .select("id")
-          .eq("clerk_user_id", userId)
+          .eq("user_id", userId)
           .eq("is_active", true)
           .limit(1);
 
@@ -456,7 +457,7 @@ class PaymentService {
       const { data: method, error: fetchError } = await supabase
         .from("user_payment_methods")
         .select("id")
-        .eq("clerk_user_id", userId)
+        .eq("user_id", userId)
         .eq("id", paymentMethodId)
         .eq("is_active", true)
         .single();
@@ -475,7 +476,7 @@ class PaymentService {
       await supabase
         .from("user_payment_methods")
         .update({ is_default: false })
-        .eq("clerk_user_id", userId);
+        .eq("user_id", userId);
 
       // Set the selected one as default
       const { error: updateError } = await supabase
@@ -516,7 +517,7 @@ class PaymentService {
       const tableName = isGuest
         ? "guest_payment_methods"
         : "user_payment_methods";
-      const userFieldName = isGuest ? "guest_id" : "clerk_user_id";
+      const userFieldName = isGuest ? "guest_id" : "user_id";
 
       // Get all payment methods for this user/guest
       const { data: methods, error } = await supabase

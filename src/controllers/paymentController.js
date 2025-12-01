@@ -325,7 +325,7 @@ class PaymentController {
       const tableName = isGuest
         ? "guest_payment_methods"
         : "user_payment_methods";
-      const userFieldName = isGuest ? "guest_id" : "clerk_user_id";
+      const userFieldName = isGuest ? "guest_id" : "user_id";
 
       console.log(`🔍 Fetching payment method from database:`, {
         tableName,
