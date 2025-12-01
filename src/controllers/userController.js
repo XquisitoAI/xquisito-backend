@@ -506,7 +506,9 @@ class UserController {
         }
 
         // Obtener dish_orders de estas table_orders
-        const { data: userOrders } = await supabase
+        // Nota: No filtramos por user_id para mostrar todos los items de la transacción
+        console.log(`🔍 Fetching ALL user_orders for table_order_ids:`, tableOrderIds);
+        const { data: userOrders, error: userOrdersError } = await supabase
           .from("user_order")
           .select(
             `
@@ -526,8 +528,12 @@ class UserController {
             )
           `
           )
-          .in("table_order_id", tableOrderIds)
-          .eq("user_id", clerkUserId);
+          .in("table_order_id", tableOrderIds);
+
+        if (userOrdersError) {
+          console.error("❌ Error fetching user_orders:", userOrdersError);
+        }
+        console.log(`✅ Fetched ${userOrders?.length || 0} user_orders with dishes`);
 
         if (userOrders) {
           // Agregar dishes a cada table_order

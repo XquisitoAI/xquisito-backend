@@ -33,8 +33,8 @@ class UserService {
 
       if (profiles && profiles.length > 0) {
         profiles.forEach((profile) => {
-          usersMap[profile.user_id] = {
-            userId: profile.user_id,
+          usersMap[profile.id] = {
+            userId: profile.id,
             imageUrl: profile.photo_url || null,
             firstName: profile.first_name || null,
             lastName: profile.last_name || null,

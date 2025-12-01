@@ -269,6 +269,91 @@ class ProfileController {
       });
     }
   }
+
+  // Subir foto de perfil del usuario autenticado
+  async uploadProfilePhoto(req, res) {
+    try {
+      const authUser = req.user;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({
+          success: false,
+          error: "No se proporcionó ninguna imagen",
+        });
+      }
+
+      console.log(`📤 User ${authUser.id} uploading profile photo:`, file.originalname);
+
+      // Obtener foto anterior para eliminarla
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("photo_url")
+        .eq("id", authUser.id)
+        .single();
+
+      const oldPhotoUrl = profile?.photo_url;
+
+      // Importar ImageUploadService
+      const ImageUploadService = require("../services/imageUploadService");
+
+      // Subir nueva foto
+      const photoUrl = await ImageUploadService.updateImage(
+        file,
+        "profile",
+        authUser.id,
+        oldPhotoUrl
+      );
+
+      // Actualizar el perfil con la nueva URL
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          photo_url: photoUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", authUser.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("❌ Error updating profile with photo URL:", updateError);
+        return res.status(500).json({
+          success: false,
+          error: "Error al actualizar el perfil con la foto",
+        });
+      }
+
+      console.log(`✅ Profile photo uploaded successfully for user ${authUser.id}`);
+
+      res.json({
+        success: true,
+        message: "Foto de perfil actualizada exitosamente",
+        data: {
+          photoUrl: photoUrl,
+          profile: {
+            id: updatedProfile.id,
+            email: updatedProfile.email,
+            phone: updatedProfile.phone,
+            firstName: updatedProfile.first_name,
+            lastName: updatedProfile.last_name,
+            birthDate: updatedProfile.birth_date,
+            gender: updatedProfile.gender,
+            photoUrl: updatedProfile.photo_url,
+            accountType: updatedProfile.account_type,
+            createdAt: updatedProfile.created_at,
+            updatedAt: updatedProfile.updated_at,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("❌ Error uploading profile photo:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message || "Error al subir la foto de perfil",
+      });
+    }
+  }
 }
 
 module.exports = new ProfileController();
