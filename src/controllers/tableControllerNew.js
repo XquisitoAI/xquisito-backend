@@ -11,9 +11,10 @@ class TableController {
       );
 
       if (!summary) {
-        return res.status(404).json({
-          success: false,
+        return res.status(200).json({
+          success: true,
           message: `No hay cuenta activa para la mesa ${tableNumber} del restaurante ${restaurantId}`,
+          data: null,
         });
       }
 

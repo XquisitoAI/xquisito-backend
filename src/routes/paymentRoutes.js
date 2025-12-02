@@ -1,11 +1,11 @@
 const express = require("express");
 const paymentController = require("../controllers/paymentController");
-const { optionalAuth } = require("../middleware/supabaseAuth");
+const { guestAuth } = require("../middleware/supabaseAuth");
 
 const router = express.Router();
 
-// Use optionalAuth middleware - supports both Supabase-authenticated users and guests
-router.use(optionalAuth);
+// Use guestAuth middleware - supports both Supabase-authenticated users and guests with automatic guest ID generation
+router.use(guestAuth);
 
 // Payment Methods Management
 router.post("/payment-methods", paymentController.addPaymentMethod);
