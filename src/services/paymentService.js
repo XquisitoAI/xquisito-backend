@@ -369,32 +369,35 @@ class PaymentService {
         };
       }
 
-      // Detach from EcartPay first
-      console.log(
-        `🗑️ Attempting to delete from EcartPay: ${method.ecartpay_token}`
-      );
-      const detachResult = await ecartPayService.detachPaymentMethod(
-        method.ecartpay_token
-      );
-
-      if (!detachResult.success) {
-        console.error(
-          "❌ Failed to delete payment method from EcartPay:",
-          detachResult.error
+      // Attempt to detach from EcartPay (continue even if it fails)
+      if (method.ecartpay_token) {
+        console.log(
+          `🗑️ Attempting to delete from EcartPay: ${method.ecartpay_token}`
         );
-        return {
-          success: false,
-          error: {
-            type: "external_service_error",
-            message: "Failed to delete payment method from payment processor",
-            details: detachResult.error,
-          },
-        };
+        try {
+          const detachResult = await ecartPayService.detachPaymentMethod(
+            method.ecartpay_token
+          );
+
+          if (!detachResult.success) {
+            console.warn(
+              "⚠️ Failed to delete payment method from EcartPay (will continue with local deletion):",
+              detachResult.error
+            );
+          } else {
+            console.log("✅ Successfully deleted from EcartPay");
+          }
+        } catch (ecartPayError) {
+          console.warn(
+            "⚠️ EcartPay deletion failed (will continue with local deletion):",
+            ecartPayError
+          );
+        }
+      } else {
+        console.log("ℹ️ No EcartPay token found, skipping external deletion");
       }
 
-      console.log(
-        "✅ Successfully deleted from EcartPay, now deleting from database"
-      );
+      console.log("🗑️ Proceeding with database deletion");
 
       // Delete completely from our database after successful EcartPay deletion
       const { error: deleteError } = await supabase
