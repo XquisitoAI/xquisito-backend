@@ -300,6 +300,9 @@ class UserAdminPortalController {
       const clerkUserId = req.auth?.userId;
       const updateData = req.body;
 
+      console.log('🔍 [DEBUG] updateRestaurant received data:', updateData);
+      console.log('🔍 [DEBUG] updateData.table_count:', updateData.table_count);
+
       if (!clerkUserId) {
         return res.status(401).json({
           success: false,

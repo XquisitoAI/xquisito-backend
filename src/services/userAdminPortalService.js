@@ -265,7 +265,8 @@ class UserAdminPortalService {
         opening_hours,
         order_notifications,
         email_notifications,
-        sms_notifications
+        sms_notifications,
+        table_count
       } = updateData;
 
       const updateFields = {};
@@ -294,6 +295,24 @@ class UserAdminPortalService {
       if (sms_notifications !== undefined) {
         console.log('📱 Setting sms_notifications to:', sms_notifications);
         updateFields.sms_notifications = sms_notifications;
+      }
+
+      // Manejar table_count
+      if (table_count !== undefined) {
+        console.log('🏛️ Setting table_count to:', table_count);
+        // Validar que table_count sea un número válido
+        if (typeof table_count === 'number' && table_count >= 0 && table_count <= 100) {
+          updateFields.table_count = table_count;
+        } else if (typeof table_count === 'string' && !isNaN(table_count)) {
+          const parsedTableCount = parseInt(table_count, 10);
+          if (parsedTableCount >= 0 && parsedTableCount <= 100) {
+            updateFields.table_count = parsedTableCount;
+          } else {
+            throw new Error('table_count debe estar entre 0 y 100');
+          }
+        } else {
+          throw new Error('table_count debe ser un número válido entre 0 y 100');
+        }
       }
 
       // Aplicar lógica de dependencias en el backend
