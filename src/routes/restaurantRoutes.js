@@ -17,6 +17,15 @@ router.get("/:id/menu", restaurantController.getRestaurantMenu);
 // GET /api/restaurants/:id/complete - Obtener restaurante con su menú completo (todo en una petición)
 router.get("/:id/complete", restaurantController.getRestaurantWithMenu);
 
+// GET /api/restaurants/:id/branches - Obtener sucursales de un restaurante
+router.get("/:id/branches", restaurantController.getRestaurantBranches);
+
+// GET /api/restaurants/:restaurantId/:branchNumber/:tableNumber/validate - Validar restaurante, sucursal y mesa
+router.get("/:restaurantId/:branchNumber/:tableNumber/validate", restaurantController.validateRestaurantBranchTable);
+
+// GET /api/restaurants/:id/:branchNumber/menu - Obtener menú de un restaurante específico por sucursal
+router.get("/:id/:branchNumber/menu", restaurantController.getRestaurantMenuByBranch);
+
 // ===============================================
 // RUTAS DE REVIEWS
 // ===============================================

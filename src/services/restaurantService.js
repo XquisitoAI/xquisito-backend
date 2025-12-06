@@ -136,6 +136,63 @@ class RestaurantService {
     }
   }
 
+  // Obtener sucursales de un restaurante
+  async getRestaurantBranches(restaurantId) {
+    try {
+      // Primero verificar que el restaurante existe y obtener su client_id
+      const restaurant = await this.getRestaurantById(restaurantId);
+
+      if (!restaurant) {
+        throw new Error("Restaurant not found");
+      }
+
+      // Si el restaurante no tiene client_id, devolver array vacío
+      if (!restaurant.client_id) {
+        console.warn(`Restaurant ${restaurantId} has no client_id`);
+        return [];
+      }
+
+      // Obtener todas las sucursales activas del cliente
+      const { data, error } = await supabase
+        .from("branches")
+        .select("id, client_id, branch_number, name, address, tables, active, created_at, updated_at")
+        .eq("client_id", restaurant.client_id)
+        .eq("active", true)
+        .order("branch_number", { ascending: true });
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      throw new Error(`Error getting restaurant branches: ${error.message}`);
+    }
+  }
+
+  // Validar que una mesa existe para una sucursal específica
+  async validateTable(branchId, tableNumber) {
+    try {
+      const { error } = await supabase
+        .from("tables")
+        .select("id")
+        .eq("branch_id", branchId)
+        .eq("table_number", tableNumber)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") {
+          // No se encontró la mesa
+          return false;
+        }
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`Error validating table: ${error.message}`);
+      return false;
+    }
+  }
+
   //Parsear custom_fields de JSON string a array
   parseCustomFields(customFields) {
     try {

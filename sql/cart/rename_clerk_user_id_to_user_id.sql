@@ -266,8 +266,11 @@ BEGIN
     RETURN FALSE;
   END IF;
 
-  -- Eliminar todos los items (esto también eliminará el carrito si es CASCADE)
+  -- Eliminar todos los items del carrito
   DELETE FROM cart_items WHERE cart_id = v_cart_id;
+
+  -- Eliminar el carrito (esto asegura que se elimine completamente)
+  DELETE FROM carts WHERE id = v_cart_id;
 
   RETURN TRUE;
 END;
