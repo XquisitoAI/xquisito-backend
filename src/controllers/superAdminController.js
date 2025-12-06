@@ -45,12 +45,12 @@ class SuperAdminController {
       console.log("Query params received:", JSON.stringify(req.query, null, 2));
 
       // Validar servicio
-      const validServices = ["todos", "flex-bill", "tap-order-pay"];
+      const validServices = ["todos", "flex-bill", "tap-order-pay", "pick-and-go"];
       if (!validServices.includes(filters.service)) {
         return res.status(400).json({
           success: false,
           error:
-            "Servicio inválido. Debe ser: todos, flex-bill, o tap-order-pay",
+            "Servicio inválido. Debe ser: todos, flex-bill, tap-order-pay, o pick-and-go",
         });
       }
 
