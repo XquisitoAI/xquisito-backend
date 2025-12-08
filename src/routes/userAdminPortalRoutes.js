@@ -135,4 +135,11 @@ router.get('/services/enabled', userAdminPortalController.getEnabledServices);
  */
 router.get('/branches', userAdminPortalController.getBranches);
 
+/**
+ * @route   PUT /api/admin-portal/branches/:branchId/address
+ * @desc    Actualizar dirección de una sucursal específica
+ * @access  Private
+ */
+router.put('/branches/:branchId/address', userAdminPortalController.updateBranchAddress);
+
 module.exports = router;
