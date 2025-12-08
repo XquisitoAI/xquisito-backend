@@ -128,4 +128,11 @@ router.get('/setup/status', userAdminPortalController.getSetupStatus);
  */
 router.get('/services/enabled', userAdminPortalController.getEnabledServices);
 
+/**
+ * @route   GET /api/admin-portal/branches
+ * @desc    Obtener sucursales del cliente actual
+ * @access  Private
+ */
+router.get('/branches', userAdminPortalController.getBranches);
+
 module.exports = router;

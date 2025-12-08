@@ -579,6 +579,102 @@ class UserAdminPortalController {
       });
     }
   }
+
+  /**
+   * Obtener sucursales del cliente actual
+   * GET /api/admin-portal/branches
+   */
+  async getBranches(req, res) {
+    try {
+      const clerkUserId = req.auth?.userId;
+
+      if (!clerkUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      console.log(`🔍 [getBranches] Getting branches for user: ${clerkUserId}`);
+
+      const userQuery = await supabase
+        .from('user_admin_portal')
+        .select('id, email')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (userQuery.error || !userQuery.data) {
+        console.error('❌ Error getting user:', userQuery.error);
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      const userId = userQuery.data.id;
+      console.log(`🔍 [getBranches] Found user ID: ${userId} (${userQuery.data.email})`);
+
+      const restaurantQuery = await supabase
+        .from('restaurants')
+        .select('id, name, client_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (restaurantQuery.error || !restaurantQuery.data) {
+        console.error('❌ Error getting restaurant for user:', restaurantQuery.error);
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no tiene restaurante asociado'
+        });
+      }
+
+      const restaurant = restaurantQuery.data;
+      const clientId = restaurant.client_id;
+      console.log(`🔍 [getBranches] Found restaurant: ${restaurant.name} (ID: ${restaurant.id})`);
+      console.log(`🔍 [getBranches] Found client_id: ${clientId}`);
+
+      const branchesQuery = await supabase
+        .from('branches')
+        .select(`
+          id,
+          name,
+          address,
+          tables,
+          active,
+          created_at,
+          updated_at
+        `)
+        .eq('client_id', clientId)
+        .eq('active', true)
+        .order('created_at', { ascending: true });
+
+      if (branchesQuery.error) {
+        console.error('❌ Error getting branches:', branchesQuery.error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error obteniendo sucursales'
+        });
+      }
+
+      const branches = branchesQuery.data || [];
+      console.log(`✅ [getBranches] Found ${branches.length} branches for client ${clientId}`);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          client_id: clientId,
+          branches: branches
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting branches:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo sucursales'
+      });
+    }
+  }
 }
 
 module.exports = new UserAdminPortalController();
