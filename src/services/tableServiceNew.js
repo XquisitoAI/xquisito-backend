@@ -151,8 +151,14 @@ class TableService {
         .select(`
           *,
           user_order!inner(
+            user_id,
+            guest_name,
+            guest_id,
             table_order!inner(
-              tables!inner(table_number, restaurant_id, branch_number)
+              tables!inner(
+                table_number,
+                branches!inner(restaurant_id, branch_number)
+              )
             )
           )
         `)
@@ -161,9 +167,12 @@ class TableService {
 
       if (dishError) throw dishError;
 
-      const restaurantId = dishData.user_order.table_order.tables.restaurant_id;
-      const branchNumber = dishData.user_order.table_order.tables.branch_number;
+      const restaurantId = dishData.user_order.table_order.tables.branches.restaurant_id;
+      const branchNumber = dishData.user_order.table_order.tables.branches.branch_number;
       const tableNumber = dishData.user_order.table_order.tables.table_number;
+      const userId = dishData.user_order.user_id;
+      const guestName = dishData.user_order.guest_name;
+      const guestId = dishData.user_order.guest_id;
 
       const { data, error } = await supabase.rpc("pay_dish_order", {
         p_dish_order_id: dishOrderId,
@@ -176,13 +185,15 @@ class TableService {
         await this.savePaymentMethodToUserOrder(
           restaurantId,
           tableNumber,
-          dishData.user_id,
-          dishData.guest_name,
+          userId,
+          guestName,
           paymentMethodId
         );
       }
 
-      const amountPaid = parseFloat(dishData.total_price || dishData.price);
+      // Calcular el monto total pagado: (price + extra_price) * quantity
+      const pricePerItem = parseFloat(dishData.price) + parseFloat(dishData.extra_price || 0);
+      const amountPaid = pricePerItem * parseInt(dishData.quantity);
 
       // Verificar si la mesa sigue activa (no se cerró automáticamente)
       const summary = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
@@ -194,21 +205,22 @@ class TableService {
           restaurantId,
           branchNumber,
           tableNumber,
-          dishData.user_id,
-          dishData.guest_name,
+          userId,
+          guestName,
           "individual",
           amountPaid
         );
 
-        // Actualizar split_payments si existe
+        // Actualizar split_payments si existe - marcar como paid porque pagó por items individuales
         await this.updateSplitPaymentProgress(
           restaurantId,
           branchNumber,
           tableNumber,
-          dishData.user_id,
-          dishData.guest_name,
-          dishData.guest_id,
-          amountPaid
+          userId,
+          guestName,
+          guestId,
+          amountPaid,
+          true // forceMarkAsPaid - quien paga items individuales sale del split
         );
       }
 
@@ -573,7 +585,7 @@ class TableService {
       const pendingPeople = activeSplits.filter((split) => {
         if (split.status !== "pending") return false;
 
-        // Buscar si esta persona ya pagó significativamente por otros métodos
+        // Buscar si esta persona ya pagó por otros métodos (individual o por monto)
         const activeUser = activeUsers.find(
           (user) =>
             (user.guest_id && user.guest_id === split.guest_id) ||
@@ -586,8 +598,9 @@ class TableService {
             parseFloat(activeUser.total_paid_individual || 0) +
             parseFloat(activeUser.total_paid_amount || 0);
 
-          // Si ya pagó una cantidad significativa (más de $10) por otros métodos, excluirlo del split
-          return totalPaidByOtherMethods < 10;
+          // Si ya pagó CUALQUIER cantidad por otros métodos, excluirlo del split
+          // Solo incluir personas que NO han pagado nada todavía
+          return totalPaidByOtherMethods === 0;
         }
 
         return true;
@@ -640,6 +653,9 @@ class TableService {
   // Pagar parte individual
   async paySplitAmount(restaurantId, branchNumber, tableNumber, userId = null, guestName = null, paymentMethodId = null) {
     try {
+      // IMPORTANTE: Recalcular el split antes de pagar, en caso de que hayan habido pagos individuales
+      await this.redistributeSplitBill(restaurantId, branchNumber, tableNumber);
+
       // Obtener todos los pagos pendientes para ver si es la última persona
       const { data: allPendingSplits, error: allPendingError } = await supabase
         .from("split_payments")
