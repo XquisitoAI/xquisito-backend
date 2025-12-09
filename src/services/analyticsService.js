@@ -15,6 +15,7 @@ class AnalyticsService {
     async getDashboardMetrics(filters) {
         const {
             restaurant_id,
+            branch_id,  // ✅ NUEVO: Extraer branch_id
             start_date,
             end_date,
             gender = 'todos',
@@ -25,6 +26,7 @@ class AnalyticsService {
         try {
             const { data, error } = await supabase.rpc('get_dashboard_metrics', {
                 p_restaurant_id: restaurant_id || null,
+                p_branch_id: branch_id || null,  // ✅ NUEVO: Pasar branch_id
                 p_start_date: start_date || null,
                 p_end_date: end_date || null,
                 p_gender: gender,
@@ -107,6 +109,7 @@ class AnalyticsService {
     async getTopSellingItem(filters) {
         const {
             restaurant_id,
+            branch_id,  // ✅ NUEVO: Extraer branch_id
             start_date,
             end_date
         } = filters;
@@ -114,6 +117,7 @@ class AnalyticsService {
         try {
             const { data, error } = await supabase.rpc('get_top_selling_item', {
                 p_restaurant_id: restaurant_id || null,
+                p_branch_id: branch_id || null,  // ✅ NUEVO: Pasar branch_id
                 p_start_date: start_date || null,
                 p_end_date: end_date || null
             });
