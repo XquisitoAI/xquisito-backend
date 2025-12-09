@@ -368,12 +368,17 @@ RETURNS BOOLEAN AS $$
 DECLARE
     v_remaining_amount DECIMAL(10,2);
     v_table_id UUID;
+    v_restaurant_id INTEGER;
+    v_branch_number INTEGER;
+    v_table_number INTEGER;
 BEGIN
-    -- Verificar si queda algo por pagar
-    SELECT remaining_amount, table_id
-    INTO v_remaining_amount, v_table_id
-    FROM table_order
-    WHERE id = p_table_order_id;
+    -- Verificar si queda algo por pagar y obtener datos de la mesa
+    SELECT "to".remaining_amount, "to".table_id, b.restaurant_id, b.branch_number, t.table_number
+    INTO v_remaining_amount, v_table_id, v_restaurant_id, v_branch_number, v_table_number
+    FROM table_order "to"
+    JOIN tables t ON "to".table_id = t.id
+    JOIN branches b ON t.branch_id = b.id
+    WHERE "to".id = p_table_order_id;
 
     IF v_remaining_amount <= 0 THEN
         -- Cerrar la orden
@@ -390,19 +395,15 @@ BEGIN
 
         -- Limpiar split_payments de esta mesa (si existe la tabla)
         DELETE FROM split_payments
-        WHERE table_number = (
-            SELECT table_number
-            FROM tables
-            WHERE id = v_table_id
-        );
+        WHERE restaurant_id = v_restaurant_id
+        AND branch_number = v_branch_number
+        AND table_number = v_table_number;
 
         -- Limpiar active_table_users de esta mesa
         DELETE FROM active_table_users
-        WHERE table_number = (
-            SELECT table_number
-            FROM tables
-            WHERE id = v_table_id
-        );
+        WHERE restaurant_id = v_restaurant_id
+        AND branch_number = v_branch_number
+        AND table_number = v_table_number;
 
         RETURN TRUE;
     END IF;
@@ -440,16 +441,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 12. Actualizar pay_table_amount para incluir restaurant_id
+-- 12. Actualizar pay_table_amount para incluir restaurant_id y branch_number
 -- Primero eliminar todas las versiones anteriores de la función
 DROP FUNCTION IF EXISTS pay_table_amount(INTEGER, DECIMAL);
 DROP FUNCTION IF EXISTS pay_table_amount(INTEGER, DECIMAL, INTEGER);
+DROP FUNCTION IF EXISTS pay_table_amount(INTEGER, DECIMAL, INTEGER, INTEGER);
 
--- Crear la nueva versión con restaurant_id
+-- Crear la nueva versión con restaurant_id y branch_number
 CREATE OR REPLACE FUNCTION pay_table_amount(
     p_table_number INTEGER,
     p_amount DECIMAL(10,2),
-    p_restaurant_id INTEGER DEFAULT NULL
+    p_restaurant_id INTEGER DEFAULT NULL,
+    p_branch_number INTEGER DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
 DECLARE
     v_table_order_id UUID;
@@ -458,14 +461,26 @@ DECLARE
     v_new_paid_amount DECIMAL(10,2);
     v_remaining_amount DECIMAL(10,2);
 BEGIN
-    -- Buscar orden activa de la mesa (filtrando por restaurant_id si se proporciona)
-    IF p_restaurant_id IS NOT NULL THEN
+    -- Buscar orden activa de la mesa filtrando por restaurant_id y branch_number
+    IF p_restaurant_id IS NOT NULL AND p_branch_number IS NOT NULL THEN
         SELECT "to".id, "to".paid_amount, "to".total_amount
         INTO v_table_order_id, v_current_paid, v_total_amount
         FROM table_order "to"
         JOIN tables t ON "to".table_id = t.id
+        JOIN branches b ON t.branch_id = b.id
         WHERE t.table_number = p_table_number
-        AND t.restaurant_id = p_restaurant_id
+        AND b.restaurant_id = p_restaurant_id
+        AND b.branch_number = p_branch_number
+        AND "to".status IN ('not_paid', 'partial');
+    ELSIF p_restaurant_id IS NOT NULL THEN
+        -- Solo filtrar por restaurant_id si branch_number no está disponible (retrocompatibilidad)
+        SELECT "to".id, "to".paid_amount, "to".total_amount
+        INTO v_table_order_id, v_current_paid, v_total_amount
+        FROM table_order "to"
+        JOIN tables t ON "to".table_id = t.id
+        JOIN branches b ON t.branch_id = b.id
+        WHERE t.table_number = p_table_number
+        AND b.restaurant_id = p_restaurant_id
         AND "to".status IN ('not_paid', 'partial');
     ELSE
         -- Retrocompatibilidad

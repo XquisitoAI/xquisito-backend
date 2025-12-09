@@ -8,7 +8,8 @@ class CartService {
     quantity = 1,
     customFields = [],
     extraPrice = 0,
-    restaurantId = null
+    restaurantId = null,
+    branchNumber = null
   ) {
     try {
       const { user_id, guest_id } = userId;
@@ -21,6 +22,7 @@ class CartService {
         p_custom_fields: customFields,
         p_extra_price: extraPrice,
         p_restaurant_id: restaurantId,
+        p_branch_number: branchNumber,
       });
 
       if (error) throw error;
@@ -31,7 +33,7 @@ class CartService {
   }
 
   //Obtener carrito completo del usuario
-  async getCart(userId, restaurantId = null) {
+  async getCart(userId, restaurantId = null, branchNumber = null) {
     try {
       const { user_id, guest_id } = userId;
 
@@ -39,6 +41,7 @@ class CartService {
         p_user_id: user_id || null,
         p_guest_id: guest_id || null,
         p_restaurant_id: restaurantId,
+        p_branch_number: branchNumber,
       });
 
       if (error) throw error;
@@ -112,7 +115,7 @@ class CartService {
   }
 
   // Limpiar carrito completo
-  async clearCart(userId, restaurantId = null) {
+  async clearCart(userId, restaurantId = null, branchNumber = null) {
     try {
       const { user_id, guest_id } = userId;
 
@@ -120,6 +123,7 @@ class CartService {
         p_user_id: user_id || null,
         p_guest_id: guest_id || null,
         p_restaurant_id: restaurantId,
+        p_branch_number: branchNumber,
       });
 
       if (error) throw error;
@@ -130,7 +134,7 @@ class CartService {
   }
 
   // Obtener totales del carrito (rápido, sin items)
-  async getCartTotals(userId, restaurantId = null) {
+  async getCartTotals(userId, restaurantId = null, branchNumber = null) {
     try {
       const { user_id, guest_id } = userId;
 
@@ -149,6 +153,10 @@ class CartService {
 
       if (restaurantId) {
         query = query.eq("restaurant_id", restaurantId);
+      }
+
+      if (branchNumber) {
+        query = query.eq("branch_number", branchNumber);
       }
 
       const { data, error } = await query.single();

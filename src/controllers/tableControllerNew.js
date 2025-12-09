@@ -4,9 +4,10 @@ class TableController {
   // Obtener resumen de cuenta de mesa
   async getTableSummary(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const summary = await tableService.getTableSummary(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber)
       );
 
@@ -34,9 +35,10 @@ class TableController {
   // Obtener todas las órdenes de una mesa
   async getTableOrders(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const orders = await tableService.getTableOrders(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber)
       );
 
@@ -56,7 +58,7 @@ class TableController {
   // Crear nueva orden de platillo
   async createDishOrder(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const {
         userId,
         guestName,
@@ -86,6 +88,7 @@ class TableController {
 
       const result = await tableService.createDishOrder(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber),
         userId,
         guestName,
@@ -145,7 +148,7 @@ class TableController {
   // Pagar monto específico a la mesa
   async payTableAmount(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const { amount, userId, guestName, paymentMethodId } = req.body;
 
       if (!amount || amount <= 0) {
@@ -157,6 +160,7 @@ class TableController {
 
       const success = await tableService.payTableAmount(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber),
         parseFloat(amount),
         userId || null,
@@ -279,7 +283,7 @@ class TableController {
   // Inicializar división de cuenta
   async initializeSplitBill(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const { numberOfPeople, userIds, guestNames } = req.body;
 
       if (!numberOfPeople || numberOfPeople <= 0) {
@@ -291,6 +295,7 @@ class TableController {
 
       const result = await tableService.initializeSplitBill(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber),
         numberOfPeople,
         userIds,
@@ -313,7 +318,7 @@ class TableController {
   // Pagar parte individual de la cuenta dividida
   async paySplitAmount(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const { userId, guestName, paymentMethodId } = req.body;
 
       if (!userId && !guestName) {
@@ -325,6 +330,7 @@ class TableController {
 
       const success = await tableService.paySplitAmount(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber),
         userId,
         guestName,
@@ -354,9 +360,10 @@ class TableController {
   // Obtener estado de pagos divididos
   async getSplitPaymentStatus(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const splitStatus = await tableService.getSplitPaymentStatus(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber)
       );
 
@@ -396,9 +403,10 @@ class TableController {
   // Obtener usuarios activos en la mesa
   async getActiveUsers(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const activeUsers = await tableService.getActiveUsers(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber)
       );
 
