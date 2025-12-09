@@ -10,6 +10,7 @@ class AnalyticsController {
         try {
             const filters = {
                 restaurant_id: req.query.restaurant_id ? parseInt(req.query.restaurant_id) : null,
+                branch_id: req.query.branch_id || null,  // ✅ NUEVO: Filtro por sucursal
                 start_date: req.query.start_date || null,
                 end_date: req.query.end_date || null,
                 gender: req.query.gender || 'todos',
@@ -68,16 +69,20 @@ class AnalyticsController {
      * Query params: restaurant_id, start_date, end_date, gender, age_range, granularity
      */
     async getCompleteDashboardData(req, res) {
-        
+
         try {
             const filters = {
                 restaurant_id: req.query.restaurant_id ? parseInt(req.query.restaurant_id) : null,
+                branch_id: req.query.branch_id || null,  // ✅ NUEVO: Filtro por sucursal
                 start_date: req.query.start_date || null,
                 end_date: req.query.end_date || null,
                 gender: req.query.gender || 'todos',
                 age_range: req.query.age_range || 'todos',
                 granularity: req.query.granularity || 'dia'
             };
+
+            // 🔍 LOG TEMPORAL: Verificar filtros recibidos
+            console.log('🎯 [getCompleteDashboardData] Filtros recibidos:', JSON.stringify(filters, null, 2));
 
             const data = await analyticsService.getCompleteDashboardData(filters);            
 
