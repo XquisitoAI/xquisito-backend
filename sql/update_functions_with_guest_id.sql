@@ -3,7 +3,7 @@
 -- 1. Actualizar función add_user_to_order para incluir guest_id
 CREATE OR REPLACE FUNCTION add_user_to_order(
     p_table_order_id UUID,
-    p_user_id VARCHAR(255) DEFAULT NULL,
+    p_user_id UUID DEFAULT NULL,
     p_guest_name VARCHAR(255) DEFAULT NULL,
     p_guest_id VARCHAR(255) DEFAULT NULL
 ) RETURNS UUID AS $$
