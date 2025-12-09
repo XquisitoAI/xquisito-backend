@@ -540,9 +540,12 @@ class SuperAdminService {
     try {
       const { start_date, end_date, restaurant_id, service } = filters;
 
+      console.log("🔍 getVolumeByService - Filters:", filters);
+
       const results = [];
       let flexBillVolume = 0;
       let tapOrderVolume = 0;
+      let pickAndGoVolume = 0;
 
       // Volumen de Flex Bill
       if (service === "todos" || service === "flex-bill") {
@@ -573,6 +576,8 @@ class SuperAdminService {
               0
             )
           : 0;
+
+        console.log(`💰 Flex Bill Volume: ${flexBillVolume} (${flexBillResult.data?.length || 0} transactions)`);
 
         results.push({
           service: "Flex Bill",
@@ -610,12 +615,53 @@ class SuperAdminService {
             )
           : 0;
 
+        console.log(`💰 Tap Order & Pay Volume: ${tapOrderVolume} (${tapOrderResult.data?.length || 0} transactions)`);
+
         results.push({
           service: "Tap Order & Pay",
           volume: parseFloat(tapOrderVolume.toFixed(2)),
         });
       }
 
+      // Volumen de Pick & Go
+      if (service === "todos" || service === "pick-and-go") {
+        let pickAndGoQuery = supabase
+          .from("payment_transactions")
+          .select("total_amount_charged, id_pick_and_go_order");
+
+        if (start_date)
+          pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
+        if (end_date)
+          pickAndGoQuery = pickAndGoQuery.lt(
+            "created_at",
+            this.getEndDateInclusive(end_date)
+          );
+        if (restaurant_id && restaurant_id !== "todos") {
+          if (Array.isArray(restaurant_id)) {
+            pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
+          } else {
+            pickAndGoQuery = pickAndGoQuery.eq("restaurant_id", restaurant_id);
+          }
+        }
+        pickAndGoQuery = pickAndGoQuery.not("id_pick_and_go_order", "is", null);
+
+        const pickAndGoResult = await pickAndGoQuery;
+        pickAndGoVolume = pickAndGoResult.data
+          ? pickAndGoResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
+              0
+            )
+          : 0;
+
+        console.log(`💰 Pick & Go Volume: ${pickAndGoVolume} (${pickAndGoResult.data?.length || 0} transactions)`);
+
+        results.push({
+          service: "Pick & Go",
+          volume: parseFloat(pickAndGoVolume.toFixed(2)),
+        });
+      }
+
+      console.log("📊 Volume by Service Results:", results);
       return results;
     } catch (error) {
       console.error("Error getting volume by service:", error);
@@ -627,6 +673,8 @@ class SuperAdminService {
   async getOrdersByService(filters) {
     try {
       const { start_date, end_date, restaurant_id, service } = filters;
+
+      console.log("🔍 getOrdersByService - Filters:", filters);
 
       const results = [];
 
@@ -661,6 +709,7 @@ class SuperAdminService {
         }
 
         const flexBillResult = await flexBillQuery;
+        console.log(`📦 Flex Bill Orders: ${flexBillResult.count || 0}`);
         results.push({
           service: "Flex Bill",
           count: flexBillResult.count || 0,
@@ -698,11 +747,46 @@ class SuperAdminService {
         }
 
         const tapOrderResult = await tapOrderQuery;
+        console.log(`📦 Tap Order & Pay Orders: ${tapOrderResult.count || 0}`);
         results.push({
           service: "Tap Order & Pay",
           count: tapOrderResult.count || 0,
         });
       }
+
+      // Órdenes de Pick & Go
+      if (service === "todos" || service === "pick-and-go") {
+        let pickAndGoQuery = supabase
+          .from("pick_and_go_orders")
+          .select("id", {
+            count: "exact",
+            head: true,
+          });
+
+        if (start_date)
+          pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
+        if (end_date)
+          pickAndGoQuery = pickAndGoQuery.lt(
+            "created_at",
+            this.getEndDateInclusive(end_date)
+          );
+        if (restaurant_id && restaurant_id !== "todos") {
+          if (Array.isArray(restaurant_id)) {
+            pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
+          } else {
+            pickAndGoQuery = pickAndGoQuery.eq("restaurant_id", restaurant_id);
+          }
+        }
+
+        const pickAndGoResult = await pickAndGoQuery;
+        console.log(`📦 Pick & Go Orders: ${pickAndGoResult.count || 0}`);
+        results.push({
+          service: "Pick & Go",
+          count: pickAndGoResult.count || 0,
+        });
+      }
+
+      console.log("📊 Orders by Service Results:", results);
       return results;
     } catch (error) {
       console.error("Error getting orders by service:", error);
@@ -714,6 +798,8 @@ class SuperAdminService {
   async getTransactionsByService(filters) {
     try {
       const { start_date, end_date, restaurant_id, service } = filters;
+
+      console.log("🔍 getTransactionsByService - Filters:", filters);
 
       const results = [];
 
@@ -740,6 +826,7 @@ class SuperAdminService {
         }
 
         const flexBillResult = await flexBillQuery;
+        console.log(`💳 Flex Bill Transactions: ${flexBillResult.count || 0}`);
         results.push({
           service: "Flex Bill",
           count: flexBillResult.count || 0,
@@ -769,12 +856,44 @@ class SuperAdminService {
         }
 
         const tapOrderResult = await tapOrderQuery;
+        console.log(`💳 Tap Order & Pay Transactions: ${tapOrderResult.count || 0}`);
         results.push({
           service: "Tap Order & Pay",
           count: tapOrderResult.count || 0,
         });
       }
 
+      // Transacciones de Pick & Go
+      if (service === "todos" || service === "pick-and-go") {
+        let pickAndGoQuery = supabase
+          .from("payment_transactions")
+          .select("id", { count: "exact", head: true })
+          .not("id_pick_and_go_order", "is", null);
+
+        if (start_date)
+          pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
+        if (end_date)
+          pickAndGoQuery = pickAndGoQuery.lt(
+            "created_at",
+            this.getEndDateInclusive(end_date)
+          );
+        if (restaurant_id && restaurant_id !== "todos") {
+          if (Array.isArray(restaurant_id)) {
+            pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
+          } else {
+            pickAndGoQuery = pickAndGoQuery.eq("restaurant_id", restaurant_id);
+          }
+        }
+
+        const pickAndGoResult = await pickAndGoQuery;
+        console.log(`💳 Pick & Go Transactions: ${pickAndGoResult.count || 0}`);
+        results.push({
+          service: "Pick & Go",
+          count: pickAndGoResult.count || 0,
+        });
+      }
+
+      console.log("📊 Transactions by Service Results:", results);
       return results;
     } catch (error) {
       console.error("Error getting transactions by service:", error);
@@ -785,6 +904,8 @@ class SuperAdminService {
   // Aplica filtros comunes a las consultas de payment_transactions
   applyFilters(query, filters) {
     const { start_date, end_date, restaurant_id, service } = filters;
+
+    console.log("🔧 applyFilters - Service filter:", service);
 
     if (start_date) {
       query = query.gte("created_at", start_date);
@@ -808,11 +929,19 @@ class SuperAdminService {
     if (service && service !== "todos") {
       if (service === "flex-bill") {
         // Solo transacciones de Flex Bill (tienen id_table_order)
+        console.log("✅ Filtering for Flex Bill");
         query = query.not("id_table_order", "is", null);
       } else if (service === "tap-order-pay") {
         // Solo transacciones de Tap Order & Pay (tienen id_tap_orders_and_pay)
+        console.log("✅ Filtering for Tap Order & Pay");
         query = query.not("id_tap_orders_and_pay", "is", null);
+      } else if (service === "pick-and-go") {
+        // Solo transacciones de Pick & Go (tienen id_pick_and_go_order)
+        console.log("✅ Filtering for Pick & Go");
+        query = query.not("id_pick_and_go_order", "is", null);
       }
+    } else {
+      console.log("✅ No service filter (todos)");
     }
 
     return query;
@@ -912,12 +1041,36 @@ class SuperAdminService {
         }
       }
 
-      const [flexBillResult, tapOrderResult] = await Promise.all([
+      // Obtener transacciones de Pick & Go
+      let pickAndGoQuery = supabase
+        .from("payment_transactions")
+        .select("created_at, total_amount_charged, restaurant_id")
+        .not("id_pick_and_go_order", "is", null);
+
+      if (start_date)
+        pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
+      if (end_date)
+        pickAndGoQuery = pickAndGoQuery.lt(
+          "created_at",
+          this.getEndDateInclusive(end_date)
+        );
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
+        } else {
+          pickAndGoQuery = pickAndGoQuery.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      const [flexBillResult, tapOrderResult, pickAndGoResult] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
           : { data: [] },
         service === "todos" || service === "tap-order-pay"
           ? tapOrderQuery
+          : { data: [] },
+        service === "todos" || service === "pick-and-go"
+          ? pickAndGoQuery
           : { data: [] },
       ]);
 
@@ -925,6 +1078,7 @@ class SuperAdminService {
       const groupedData = this.groupDataByTimePeriod(
         flexBillResult.data || [],
         tapOrderResult.data || [],
+        pickAndGoResult.data || [],
         view_type,
         "volume",
         start_date,
@@ -1001,12 +1155,35 @@ class SuperAdminService {
         }
       }
 
-      const [flexBillResult, tapOrderResult] = await Promise.all([
+      // Obtener órdenes de Pick & Go
+      let pickAndGoQuery = supabase
+        .from("pick_and_go_orders")
+        .select("created_at, id, restaurant_id");
+
+      if (start_date)
+        pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
+      if (end_date)
+        pickAndGoQuery = pickAndGoQuery.lt(
+          "created_at",
+          this.getEndDateInclusive(end_date)
+        );
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
+        } else {
+          pickAndGoQuery = pickAndGoQuery.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      const [flexBillResult, tapOrderResult, pickAndGoResult] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
           : Promise.resolve({ data: [], error: null }),
         service === "todos" || service === "tap-order-pay"
           ? tapOrderQuery
+          : Promise.resolve({ data: [], error: null }),
+        service === "todos" || service === "pick-and-go"
+          ? pickAndGoQuery
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -1014,6 +1191,7 @@ class SuperAdminService {
       const groupedData = this.groupDataByTimePeriod(
         flexBillResult.data || [],
         tapOrderResult.data || [],
+        pickAndGoResult.data || [],
         view_type,
         "orders",
         start_date,
@@ -1080,12 +1258,36 @@ class SuperAdminService {
         }
       }
 
-      const [flexBillResult, tapOrderResult] = await Promise.all([
+      // Obtener transacciones de Pick & Go
+      let pickAndGoQuery = supabase
+        .from("payment_transactions")
+        .select("created_at, id, restaurant_id")
+        .not("id_pick_and_go_order", "is", null);
+
+      if (start_date)
+        pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
+      if (end_date)
+        pickAndGoQuery = pickAndGoQuery.lt(
+          "created_at",
+          this.getEndDateInclusive(end_date)
+        );
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
+        } else {
+          pickAndGoQuery = pickAndGoQuery.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      const [flexBillResult, tapOrderResult, pickAndGoResult] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
           : { data: [] },
         service === "todos" || service === "tap-order-pay"
           ? tapOrderQuery
+          : { data: [] },
+        service === "todos" || service === "pick-and-go"
+          ? pickAndGoQuery
           : { data: [] },
       ]);
 
@@ -1093,6 +1295,7 @@ class SuperAdminService {
       const groupedData = this.groupDataByTimePeriod(
         flexBillResult.data || [],
         tapOrderResult.data || [],
+        pickAndGoResult.data || [],
         view_type,
         "transactions",
         start_date,
@@ -1110,6 +1313,7 @@ class SuperAdminService {
   groupDataByTimePeriod(
     flexBillData,
     tapOrderData,
+    pickAndGoData = [],
     viewType,
     dataType,
     filterStartDate,
@@ -1158,6 +1362,7 @@ class SuperAdminService {
           date: dateKey,
           "Flex Bill": 0,
           "Tap Order & Pay": 0,
+          "Pick & Go": 0,
         };
       }
 
@@ -1178,6 +1383,7 @@ class SuperAdminService {
           date: dateKey,
           "Flex Bill": 0,
           "Tap Order & Pay": 0,
+          "Pick & Go": 0,
         };
       }
 
@@ -1187,6 +1393,27 @@ class SuperAdminService {
         );
       } else {
         grouped[dateKey]["Tap Order & Pay"] += 1;
+      }
+    });
+
+    // Procesar datos de Pick & Go
+    pickAndGoData.forEach((item) => {
+      const dateKey = getDateKey(item.created_at);
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: dateKey,
+          "Flex Bill": 0,
+          "Tap Order & Pay": 0,
+          "Pick & Go": 0,
+        };
+      }
+
+      if (dataType === "volume") {
+        grouped[dateKey]["Pick & Go"] += parseFloat(
+          item.total_amount_charged || 0
+        );
+      } else {
+        grouped[dateKey]["Pick & Go"] += 1;
       }
     });
 
@@ -1218,6 +1445,7 @@ class SuperAdminService {
               date: dateKey,
               "Flex Bill": 0,
               "Tap Order & Pay": 0,
+              "Pick & Go": 0,
             });
           }
 
@@ -1267,6 +1495,7 @@ class SuperAdminService {
               date: dateKey,
               "Flex Bill": 0,
               "Tap Order & Pay": 0,
+              "Pick & Go": 0,
             });
           }
 
@@ -1299,6 +1528,7 @@ class SuperAdminService {
               date: dateKey,
               "Flex Bill": 0,
               "Tap Order & Pay": 0,
+              "Pick & Go": 0,
             });
           }
 
@@ -1328,7 +1558,7 @@ class SuperAdminService {
       let query = supabase
         .from("payment_transactions")
         .select(
-          "created_at, id_table_order, id_tap_orders_and_pay, restaurant_id, payment_method_id, card_type"
+          "created_at, id_table_order, id_tap_orders_and_pay, id_pick_and_go_order, restaurant_id, payment_method_id, card_type"
         );
 
       if (start_date) query = query.gte("created_at", start_date);
@@ -1348,6 +1578,8 @@ class SuperAdminService {
         query = query.not("id_table_order", "is", null);
       } else if (service === "tap-order-pay") {
         query = query.not("id_tap_orders_and_pay", "is", null);
+      } else if (service === "pick-and-go") {
+        query = query.not("id_pick_and_go_order", "is", null);
       }
 
       const { data, error } = await query;
