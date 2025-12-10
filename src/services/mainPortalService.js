@@ -296,10 +296,26 @@ const getBranchById = async (id) => {
 // Crear nueva sucursal
 const createBranch = async (branchData) => {
   try {
+    // Primero encontrar el restaurant_id asociado al client_id
+    const { data: restaurant, error: restaurantError } = await supabase
+      .from('restaurants')
+      .select('id')
+      .eq('client_id', branchData.client_id)
+      .eq('is_active', true)
+      .single();
+
+    if (restaurantError || !restaurant) {
+      console.error('❌ No restaurant found for client_id:', branchData.client_id);
+      throw new Error('No active restaurant found for this client. Please create a restaurant first.');
+    }
+
+    console.log('✅ Found restaurant_id:', restaurant.id, 'for client_id:', branchData.client_id);
+
     const { data, error } = await supabase
       .from('branches')
       .insert([{
         client_id: branchData.client_id,
+        restaurant_id: restaurant.id, // ← AGREGADO: campo requerido
         name: branchData.name,
         address: branchData.address,
         tables: branchData.tables || 1,
@@ -313,7 +329,7 @@ const createBranch = async (branchData) => {
 
     if (error) {
       if (error.code === '23503') { // Foreign key violation
-        throw new Error('Client not found');
+        throw new Error('Client or restaurant not found');
       }
       throw new Error(`Error creating branch: ${error.message}`);
     }
@@ -330,7 +346,27 @@ const updateBranch = async (id, branchData) => {
   try {
     const updateData = {};
 
-    if (branchData.client_id !== undefined) updateData.client_id = branchData.client_id;
+    // Si se está cambiando el client_id, también necesitamos actualizar restaurant_id
+    if (branchData.client_id !== undefined) {
+      updateData.client_id = branchData.client_id;
+
+      // Encontrar el restaurant_id asociado al nuevo client_id
+      const { data: restaurant, error: restaurantError } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('client_id', branchData.client_id)
+        .eq('is_active', true)
+        .single();
+
+      if (restaurantError || !restaurant) {
+        console.error('❌ No restaurant found for client_id:', branchData.client_id);
+        throw new Error('No active restaurant found for this client.');
+      }
+
+      updateData.restaurant_id = restaurant.id;
+      console.log('✅ Updated restaurant_id to:', restaurant.id, 'for client_id:', branchData.client_id);
+    }
+
     if (branchData.name !== undefined) updateData.name = branchData.name;
     if (branchData.address !== undefined) updateData.address = branchData.address;
     if (branchData.tables !== undefined) updateData.tables = branchData.tables;
