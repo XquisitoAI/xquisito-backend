@@ -640,6 +640,7 @@ class UserAdminPortalController {
           name,
           address,
           tables,
+          opening_hours,
           active,
           created_at,
           updated_at
@@ -807,6 +808,136 @@ class UserAdminPortalController {
       res.status(500).json({
         success: false,
         message: 'Error actualizando dirección de sucursal'
+      });
+    }
+  }
+
+  /**
+   * Actualizar horarios de apertura de una sucursal específica
+   * PUT /api/admin-portal/branches/:branchId/opening-hours
+   */
+  async updateBranchOpeningHours(req, res) {
+    try {
+      const { branchId } = req.params;
+      const { opening_hours } = req.body;
+      const clerkUserId = req.auth?.userId;
+
+      if (!clerkUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      if (!branchId || !opening_hours) {
+        return res.status(400).json({
+          success: false,
+          message: 'Branch ID and opening_hours are required'
+        });
+      }
+
+      console.log(`🔄 [updateBranchOpeningHours] Updating branch ${branchId} opening hours for user: ${clerkUserId}`);
+
+      // Obtener usuario
+      const userQuery = await supabase
+        .from('user_admin_portal')
+        .select('id, email')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (userQuery.error || !userQuery.data) {
+        console.error('❌ Error getting user:', userQuery.error);
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      const userId = userQuery.data.id;
+
+      // Primero obtener el client_id del usuario a través de su restaurant
+      const restaurantQuery = await supabase
+        .from('restaurants')
+        .select('client_id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (restaurantQuery.error || !restaurantQuery.data) {
+        console.error('❌ Error getting restaurant:', restaurantQuery.error);
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no tiene restaurante asociado'
+        });
+      }
+
+      const userClientId = restaurantQuery.data.client_id;
+      console.log(`🔍 [updateBranchOpeningHours] User client_id: ${userClientId}`);
+
+      // Validar que la branch pertenece al mismo client_id del usuario
+      const branchQuery = await supabase
+        .from('branches')
+        .select(`
+          id,
+          name,
+          opening_hours,
+          client_id
+        `)
+        .eq('id', branchId)
+        .eq('client_id', userClientId)
+        .single();
+
+      if (branchQuery.error || !branchQuery.data) {
+        console.error('❌ Error validating branch ownership:', branchQuery.error);
+        return res.status(403).json({
+          success: false,
+          message: 'No tienes permisos para editar esta sucursal'
+        });
+      }
+
+      const oldOpeningHours = branchQuery.data.opening_hours;
+      console.log(`🔍 [updateBranchOpeningHours] Updating opening hours for branch: ${branchQuery.data.name}`);
+
+      // Actualizar horarios de apertura
+      const updateQuery = await supabase
+        .from('branches')
+        .update({
+          opening_hours: opening_hours,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', branchId)
+        .select(`
+          id,
+          name,
+          address,
+          tables,
+          opening_hours,
+          active,
+          updated_at
+        `)
+        .single();
+
+      if (updateQuery.error) {
+        console.error('❌ Error updating opening hours:', updateQuery.error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error actualizando horarios de apertura'
+        });
+      }
+
+      console.log(`✅ [updateBranchOpeningHours] Branch ${branchId} opening hours updated successfully`);
+
+      res.status(200).json({
+        success: true,
+        data: updateQuery.data,
+        message: 'Horarios de apertura actualizados correctamente'
+      });
+
+    } catch (error) {
+      console.error('❌ Error updating branch opening hours:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error actualizando horarios de apertura de sucursal'
       });
     }
   }

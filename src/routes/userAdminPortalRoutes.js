@@ -142,4 +142,18 @@ router.get('/branches', userAdminPortalController.getBranches);
  */
 router.put('/branches/:branchId/address', userAdminPortalController.updateBranchAddress);
 
+/**
+ * @route   PUT /api/admin-portal/branches/:branchId/opening-hours
+ * @desc    Actualizar horarios de apertura de una sucursal específica
+ * @access  Private
+ */
+router.put('/branches/:branchId/opening-hours', adminPortalAuth, (req, res) => {
+  try {
+    return userAdminPortalController.updateBranchOpeningHours(req, res);
+  } catch (error) {
+    console.error('❌ Error in opening hours route:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 module.exports = router;
