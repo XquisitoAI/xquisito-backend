@@ -292,6 +292,7 @@ class MenuAdminPortalService {
         description,
         image_url,
         price,
+        base_price,
         discount = 0,
         custom_fields = [],
         display_order = 0
@@ -305,6 +306,7 @@ class MenuAdminPortalService {
           description,
           image_url,
           price,
+          base_price,
           discount,
           custom_fields: JSON.stringify(custom_fields),
           display_order,
@@ -351,6 +353,7 @@ class MenuAdminPortalService {
         description,
         image_url,
         price,
+        base_price,
         discount,
         custom_fields,
         is_available,
@@ -370,6 +373,7 @@ class MenuAdminPortalService {
       if (description !== undefined) updateData.description = description;
       if (image_url !== undefined) updateData.image_url = image_url;
       if (price !== undefined) updateData.price = price;
+      if (base_price !== undefined) updateData.base_price = base_price;
       if (discount !== undefined) updateData.discount = discount;
       if (custom_fields !== undefined) updateData.custom_fields = JSON.stringify(custom_fields);
       if (is_available !== undefined) updateData.is_available = is_available;
