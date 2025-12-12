@@ -4,7 +4,7 @@
 
 CREATE OR REPLACE FUNCTION migrate_guest_cart_to_user(
   p_guest_id TEXT,
-  p_clerk_user_id TEXT,
+  p_user_id TEXT,
   p_restaurant_id INTEGER DEFAULT NULL
 )
 RETURNS JSONB
@@ -14,14 +14,19 @@ DECLARE
   v_guest_cart_id UUID;
   v_user_cart_id UUID;
   v_items_migrated INTEGER := 0;
+  v_user_uuid UUID;
+  v_guest_cart RECORD;
 BEGIN
   -- Validaciones
-  IF p_guest_id IS NULL OR p_clerk_user_id IS NULL THEN
-    RAISE EXCEPTION 'guest_id and clerk_user_id are required';
+  IF p_guest_id IS NULL OR p_user_id IS NULL THEN
+    RAISE EXCEPTION 'guest_id and user_id are required';
   END IF;
 
-  -- Buscar el carrito del invitado
-  SELECT id INTO v_guest_cart_id
+  -- Convertir user_id de TEXT a UUID
+  v_user_uuid := p_user_id::UUID;
+
+  -- Buscar el carrito del invitado con todos sus campos
+  SELECT * INTO v_guest_cart
   FROM carts
   WHERE guest_id = p_guest_id
     AND (p_restaurant_id IS NULL OR restaurant_id = p_restaurant_id)
@@ -30,7 +35,7 @@ BEGIN
   LIMIT 1;
 
   -- Si no hay carrito del invitado, no hay nada que migrar
-  IF v_guest_cart_id IS NULL THEN
+  IF v_guest_cart.id IS NULL THEN
     RETURN jsonb_build_object(
       'success', true,
       'message', 'No guest cart found to migrate',
@@ -38,10 +43,12 @@ BEGIN
     );
   END IF;
 
-  -- Buscar o crear carrito del usuario
+  v_guest_cart_id := v_guest_cart.id;
+
+  -- Buscar carrito existente del usuario
   SELECT id INTO v_user_cart_id
   FROM carts
-  WHERE clerk_user_id = p_clerk_user_id
+  WHERE user_id = v_user_uuid
     AND (p_restaurant_id IS NULL OR restaurant_id = p_restaurant_id)
     AND expires_at > NOW()
   ORDER BY created_at DESC
@@ -53,11 +60,13 @@ BEGIN
     v_user_cart_id := NULL;
   END IF;
 
-  -- Crear un nuevo carrito para el usuario
-  INSERT INTO carts (clerk_user_id, restaurant_id, expires_at)
+  -- Crear un nuevo carrito para el usuario copiando branch_number y client_id del guest
+  INSERT INTO carts (user_id, restaurant_id, branch_number, client_id, expires_at)
   VALUES (
-    p_clerk_user_id,
-    p_restaurant_id,
+    v_user_uuid,
+    v_guest_cart.restaurant_id,
+    v_guest_cart.branch_number,
+    v_guest_cart.client_id,
     NOW() + INTERVAL '24 hours'
   )
   RETURNING id INTO v_user_cart_id;
@@ -107,5 +116,5 @@ $$;
 
 -- Agregar comentario a la función
 COMMENT ON FUNCTION migrate_guest_cart_to_user IS
-'Migra el carrito de un invitado (guest_id) a un usuario autenticado (clerk_user_id).
-Si el usuario ya tiene items en su carrito, se suman las cantidades de items idénticos.';
+'Migra el carrito de un invitado (guest_id) a un usuario autenticado (user_id).
+Si el usuario ya tiene un carrito existente, se reemplaza con el carrito del invitado.';
