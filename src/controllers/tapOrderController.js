@@ -50,17 +50,18 @@ class TapOrderController {
   // GET /api/tap-orders/restaurant/:restaurantId/table/:tableNumber - Obtener orden existente (NO crear)
   async getOrderByTable(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
 
-      if (!restaurantId || !tableNumber) {
+      if (!restaurantId || !branchNumber || !tableNumber) {
         return res.status(400).json({
           success: false,
-          message: 'Restaurant ID and table number are required'
+          message: 'Restaurant ID, branch number, and table number are required'
         });
       }
 
       const result = await tapOrderService.getTapOrderByTable(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber)
       );
 

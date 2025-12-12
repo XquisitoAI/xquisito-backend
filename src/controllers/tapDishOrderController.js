@@ -20,16 +20,16 @@ function calculateExtraPriceFromCustomFields(customFields) {
 }
 
 class TapDishOrderController {
-  // POST /api/tap-orders/restaurant/:restaurantId/table/:tableNumber/dishes - Crear orden y primer dish
+  // POST /api/tap-orders/restaurant/:restaurantId/branch/:branchNumber/table/:tableNumber/dishes - Crear orden y primer dish
   async createOrderWithFirstDish(req, res) {
     try {
-      const { restaurantId, tableNumber } = req.params;
+      const { restaurantId, branchNumber, tableNumber } = req.params;
       const dishData = req.body;
 
-      if (!restaurantId || !tableNumber) {
+      if (!restaurantId || !branchNumber || !tableNumber) {
         return res.status(400).json({
           success: false,
-          message: "Restaurant ID and table number are required",
+          message: "Restaurant ID, branch number, and table number are required",
         });
       }
 
@@ -89,6 +89,7 @@ class TapDishOrderController {
 
       const result = await tapDishOrderService.createOrderWithFirstDish(
         parseInt(restaurantId),
+        parseInt(branchNumber),
         parseInt(tableNumber),
         dishData,
         customerData

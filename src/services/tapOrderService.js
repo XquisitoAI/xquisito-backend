@@ -58,14 +58,15 @@ class TapOrderService {
     }
   }
 
-  // SOLO buscar tap order existente por restaurant_id y table_number (NO auto-crear)
-  async getTapOrderByTable(restaurant_id, table_number) {
+  // SOLO buscar tap order existente por restaurant_id, branch_number y table_number (NO auto-crear)
+  async getTapOrderByTable(restaurant_id, branch_number, table_number) {
     try {
       // Usar función SQL para verificar orden activa
       const { data, error } = await supabase
         .rpc('check_active_tap_order_by_table', {
           p_table_number: table_number,
-          p_restaurant_id: restaurant_id
+          p_restaurant_id: restaurant_id,
+          p_branch_number: branch_number
         });
 
       if (error) throw error;
@@ -82,7 +83,7 @@ class TapOrderService {
   }
 
   // Crear tap order al agregar primer item con platillo
-  async createTapOrderWithFirstDish(restaurant_id, table_number, dishData, customerData = {}) {
+  async createTapOrderWithFirstDish(restaurant_id, branch_number, table_number, dishData, customerData = {}) {
     try {
       const {
         item,
@@ -98,6 +99,7 @@ class TapOrderService {
         .rpc('create_tap_order_with_first_dish', {
           p_table_number: table_number,
           p_restaurant_id: restaurant_id,
+          p_branch_number: branch_number,
           p_item: item,
           p_price: price,
           p_quantity: quantity,

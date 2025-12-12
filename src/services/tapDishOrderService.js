@@ -45,11 +45,12 @@ class TapDishOrderService {
   }
 
   // Crear orden Y primer dish order (para el flujo de primer item)
-  async createOrderWithFirstDish(restaurant_id, table_number, dishData, customerData = {}) {
+  async createOrderWithFirstDish(restaurant_id, branch_number, table_number, dishData, customerData = {}) {
     try {
       // Usar función SQL que crea tap_order + primer dish en una transacción
       const result = await tapOrderService.createTapOrderWithFirstDish(
         restaurant_id,
+        branch_number,
         table_number,
         dishData,
         customerData

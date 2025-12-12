@@ -7,13 +7,14 @@ const router = express.Router();
 // ===============================================
 // RUTAS PARA TAP ORDER AND PAY
 // Arquitectura: dish_order + tables + tap_orders_and_pay
+// Incluye branchNumber para validación de mesa por sucursal
 // ===============================================
 
 // Verificar si existe orden activa en una mesa (NO auto-crear)
-router.get('/tap-orders/restaurant/:restaurantId/table/:tableNumber', tapOrderController.getOrderByTable);
+router.get('/tap-orders/restaurant/:restaurantId/branch/:branchNumber/table/:tableNumber', tapOrderController.getOrderByTable);
 
 // Crear orden con primer platillo (endpoint principal para iniciar)
-router.post('/tap-orders/restaurant/:restaurantId/table/:tableNumber/dishes', tapDishOrderController.createOrderWithFirstDish);
+router.post('/tap-orders/restaurant/:restaurantId/branch/:branchNumber/table/:tableNumber/dishes', tapDishOrderController.createOrderWithFirstDish);
 
 // Obtener tap order por ID con resumen completo
 router.get('/tap-orders/:id', tapOrderController.getTapOrderById);
