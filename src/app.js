@@ -24,6 +24,7 @@ const aiAgentRoutes = require("./routes/aiAgentRoutes");
 const flexBillStatisticsRoutes = require("./routes/flexBillRoutes");
 const pickAndGoRoutes = require("./routes/pickAndGoRoutes");
 const segmentsRoutes = require("./routes/segmentsRoutes");
+const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
 
 const app = express();
@@ -87,6 +88,9 @@ app.use("/api/sms-templates", smsTemplateRoutes);
 
 // Customer Segments for Rewards
 app.use("/api/rewards/segments", segmentsRoutes);
+
+// Campaigns for Rewards System
+app.use("/api/campaigns", campaignsRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
