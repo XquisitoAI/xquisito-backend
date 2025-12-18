@@ -95,10 +95,10 @@ class CampaignsController {
                 });
             }
 
-            // Validar campos requeridos
+            // Validar campos requeridos (reward_value y reward_code son opcionales)
             const requiredFields = [
                 'restaurant_id', 'name', 'segment_id', 'reward_type',
-                'reward_value', 'start_date', 'end_date'
+                'start_date', 'end_date'
             ];
 
             for (const field of requiredFields) {
