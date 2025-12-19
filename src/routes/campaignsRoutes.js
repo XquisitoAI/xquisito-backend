@@ -176,16 +176,18 @@ router.get('/:id/stats', adminPortalAuth, campaignsController.getCampaignStats);
 
 /**
  * @route POST /api/campaigns/:id/send
- * @desc Enviar una campaña (funcionalidad futura)
+ * @desc Enviar una campaña a su segmento
  * @access Private (Admin Portal)
  * @param {string} id - UUID de la campaña
  * @body {number} restaurant_id - ID del restaurante (para validación)
- * @body {boolean} test_mode - Si es envío de prueba (opcional)
- * @body {Array<string>} test_recipients - Destinatarios de prueba (opcional)
  * @returns {Object} Confirmación de envío iniciado
- * @todo Implementar lógica de envío de mensajes
+ * @example
+ * POST /api/campaigns/uuid-123/send
+ * {
+ *   "restaurant_id": 3
+ * }
  */
-// router.post('/:id/send', adminPortalAuth, campaignsController.sendCampaign);
+router.post('/:id/send', adminPortalAuth, campaignsController.sendCampaign);
 
 /**
  * @route GET /api/campaigns/:id/sends

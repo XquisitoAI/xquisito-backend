@@ -1,4 +1,5 @@
 const campaignsService = require('../services/campaignsService');
+const campaignSendingService = require('../services/campaignSendingService');
 
 class CampaignsController {
     /**
@@ -475,6 +476,54 @@ class CampaignsController {
 
         } catch (error) {
             console.error('Error in getCampaignStats controller:', error);
+            const status = error.message.includes('no encontrada') ? 404 : 500;
+
+            res.status(status).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    /**
+     * Enviar una campaña a su segmento
+     * POST /api/campaigns/:id/send
+     */
+    async sendCampaign(req, res) {
+        try {
+            const { id } = req.params;
+            const { restaurant_id } = req.body;
+
+            if (!id) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'ID de campaña es requerido'
+                });
+            }
+
+            if (!restaurant_id || isNaN(parseInt(restaurant_id))) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'ID de restaurante es requerido y debe ser un número válido'
+                });
+            }
+
+            // Validar que la campaña pertenece al restaurant
+            await campaignsService.validateCampaignOwnership(id, parseInt(restaurant_id));
+
+            // Enviar la campaña
+            const result = await campaignSendingService.sendCampaign(id);
+
+            res.json({
+                success: true,
+                data: result,
+                message: 'Campaña enviada exitosamente',
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error in sendCampaign controller:', error);
             const status = error.message.includes('no encontrada') ? 404 : 500;
 
             res.status(status).json({
