@@ -16,10 +16,24 @@ class CampaignSendingService {
       // 1. Get campaign details with segment and templates
       const campaign = await this.getCampaignDetails(campaignId);
 
-      // 2. Validate campaign can be sent
+      // 2. Check if campaign was already sent (silently skip if already sent)
+      if (campaign.first_sent_at) {
+        console.log(
+          `ℹ️ Campaign ${campaignId} was already sent at ${campaign.first_sent_at}. Skipping send to prevent duplicates.`
+        );
+        return {
+          success: true,
+          campaign_id: campaignId,
+          already_sent: true,
+          first_sent_at: campaign.first_sent_at,
+          message: "Campaign was already sent previously",
+        };
+      }
+
+      // 3. Validate campaign can be sent
       this.validateCampaignForSending(campaign);
 
-      // 3. Get customers from the segment
+      // 4. Get customers from the segment
       const customers = await this.getSegmentCustomers(
         campaign.segment_id,
         campaign.restaurant_id
@@ -31,10 +45,10 @@ class CampaignSendingService {
         throw new Error("No customers found in segment. Cannot send campaign.");
       }
 
-      // 4. Send messages to each customer
+      // 5. Send messages to each customer
       const sendResults = await this.sendToCustomers(campaign, customers);
 
-      // 5. Update campaign metrics and mark as sent
+      // 6. Update campaign metrics and mark as sent
       await this.updateCampaignAfterSend(campaign.id, sendResults);
 
       console.log(
@@ -94,13 +108,6 @@ class CampaignSendingService {
 
   // Validate campaign can be sent
   validateCampaignForSending(campaign) {
-    // Check if campaign has already been sent
-    if (campaign.first_sent_at) {
-      throw new Error(
-        "Campaign has already been sent. Cannot send again to prevent duplicate messages."
-      );
-    }
-
     // Check if campaign is active
     if (campaign.status !== "running") {
       throw new Error(
@@ -268,7 +275,9 @@ class CampaignSendingService {
 
       // Send via actual API
       if (deliveryMethod === "sms") {
-        await this.sendViaTwilio(recipientContact, messageContent);
+        // Extraer la URL de la imagen si existe en custom_variables
+        const imageUrl = template.custom_variables?.image_url || null;
+        await this.sendViaTwilio(recipientContact, messageContent, imageUrl);
       } else if (deliveryMethod === "whatsapp") {
         await this.sendViaWhatsApp(recipientContact, messageContent);
       }
@@ -349,34 +358,40 @@ class CampaignSendingService {
   // MÉTODOS DE ENVÍO REAL (TWILIO/WHATSAPP)
   // =====================================================
 
-  // Send SMS via Twilio
-  async sendViaTwilio(phoneNumber, messageBody) {
+  // Send SMS/MMS via Twilio
+  async sendViaTwilio(phoneNumber, messageBody, imageUrl = null) {
     try {
-      // TODO: Install Twilio SDK: npm install twilio
-      // Uncomment the code below when ready to use Twilio
-
-      /*
-      const twilio = require('twilio');
+      const twilio = require("twilio");
+      const PHONE = "+524949423431";
       const client = twilio(
         process.env.TWILIO_ACCOUNT_SID,
         process.env.TWILIO_AUTH_TOKEN
       );
 
-      const message = await client.messages.create({
+      const messageData = {
         body: messageBody,
-        from: process.env.TWILIO_PHONE_NUMBER, // Your Twilio phone number
-        to: phoneNumber // Customer phone number (must be in E.164 format: +52XXXXXXXXXX)
-      });
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: PHONE,
+      };
 
-      console.log(`✅ SMS sent via Twilio. SID: ${message.sid}`);
+      // Si hay una imagen, agregar mediaUrl para enviar MMS en lugar de SMS
+      if (imageUrl) {
+        messageData.mediaUrl = [imageUrl];
+      }
+
+      const message = await client.messages.create(messageData);
+
+      console.log(
+        `✅ ${imageUrl ? "MMS" : "SMS"} sent via Twilio to ${PHONE}. SID: ${message.sid}`
+      );
       return message;
-      */
-
-      // Placeholder while Twilio is not configured
-      console.log(`📱 [TWILIO SMS] Would send to ${phoneNumber}:`);
-      return { sid: "placeholder-sid" };
     } catch (error) {
       console.error("❌ Error sending SMS via Twilio:", error);
+      console.error("Error details:", {
+        code: error.code,
+        moreInfo: error.moreInfo,
+        status: error.status,
+      });
       throw new Error(`Failed to send SMS: ${error.message}`);
     }
   }

@@ -1,5 +1,6 @@
 const supabase = require("../config/supabase");
 const multer = require('multer');
+const sharp = require('sharp');
 
 class ImageUploadService {
   static BUCKET_NAME = 'restaurant-images';
@@ -25,6 +26,42 @@ class ImageUploadService {
   }
 
   /**
+   * Convertir imagen a JPG si es WebP (para compatibilidad con MMS)
+   */
+  static async convertToJpgIfNeeded(buffer, mimetype) {
+    try {
+      // Si es WebP, convertir a JPG para compatibilidad con MMS
+      if (mimetype === 'image/webp') {
+        console.log('🔄 Converting WebP to JPG for MMS compatibility');
+        const jpgBuffer = await sharp(buffer)
+          .jpeg({ quality: 90 })
+          .toBuffer();
+        return {
+          buffer: jpgBuffer,
+          mimetype: 'image/jpeg',
+          extension: 'jpg'
+        };
+      }
+
+      // Para otros formatos, mantener el original
+      const ext = mimetype.split('/')[1] || 'jpg';
+      return {
+        buffer,
+        mimetype,
+        extension: ext === 'jpeg' ? 'jpg' : ext
+      };
+    } catch (error) {
+      console.error('❌ Error converting image:', error);
+      // Si falla la conversión, devolver el original
+      return {
+        buffer,
+        mimetype,
+        extension: mimetype.split('/')[1] || 'jpg'
+      };
+    }
+  }
+
+  /**
    * Subir imagen al storage de Supabase
    */
   static async uploadImage(file, path, userId) {
@@ -33,17 +70,22 @@ class ImageUploadService {
         throw new Error('No file provided');
       }
 
-      // Generar nombre único para el archivo
-      const fileExt = file.originalname.split('.').pop();
-      const fileName = `${path}_${userId}_${Date.now()}.${fileExt}`;
+      // Convertir a JPG si es necesario (para compatibilidad MMS)
+      const { buffer, mimetype, extension } = await this.convertToJpgIfNeeded(
+        file.buffer,
+        file.mimetype
+      );
 
-      console.log('📤 Uploading image:', fileName);
+      // Generar nombre único para el archivo
+      const fileName = `${path}_${userId}_${Date.now()}.${extension}`;
+
+      console.log('📤 Uploading image:', fileName, `(${mimetype})`);
 
       // Subir archivo al storage
       const { data, error } = await supabase.storage
         .from(this.BUCKET_NAME)
-        .upload(fileName, file.buffer, {
-          contentType: file.mimetype,
+        .upload(fileName, buffer, {
+          contentType: mimetype,
           cacheControl: '3600',
           upsert: false
         });
