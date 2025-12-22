@@ -1,7 +1,12 @@
 const userAdminPortalService = require('../services/userAdminPortalService');
 const supabase = require('../config/supabase');
+const SubscriptionService = require('../services/subscriptionService');
 
 class UserAdminPortalController {
+  constructor() {
+    this.subscriptionService = new SubscriptionService();
+  }
+
   // ===============================================
   // ENDPOINTS DE INVITACIONES
   // ===============================================
@@ -276,6 +281,29 @@ class UserAdminPortalController {
         name: name.trim(),
         description: description || 'Descripción de tu restaurante - agrega información sobre tu cocina, especialidades y ambiente'
       });
+
+      // Create basic plan subscription automatically for new restaurant
+      try {
+        const subscriptionData = {
+          restaurant_id: restaurant.id,
+          plan_type: 'basico',
+          status: 'active',
+          start_date: new Date().toISOString(),
+          price_paid: 0,
+          currency: 'MXN',
+          auto_renew: true
+        };
+
+        const subscription = await this.subscriptionService.createSubscription(subscriptionData);
+        console.log('✅ Basic plan subscription created for new restaurant:', restaurant.id);
+
+        // Include subscription info in response
+        restaurant.subscription = subscription;
+      } catch (subscriptionError) {
+        console.error('⚠️ Warning: Failed to create basic plan subscription:', subscriptionError);
+        // Don't fail restaurant creation if subscription creation fails
+        restaurant.subscription_warning = 'Basic plan subscription could not be created automatically. Please contact support.';
+      }
 
       res.status(201).json({
         success: true,

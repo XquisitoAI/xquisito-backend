@@ -173,19 +173,41 @@ class EcartPayService {
       );
       return {
         success: false,
-        error: this.handleError(error),
+        error: error.response?.data?.message || error.message || 'Error al crear customer en EcartPay',
       };
     }
   }
 
   async getCustomers() {
     try {
-      console.log("📋 Fetching customers from eCartpay...");
-      const response = await this.makeAuthenticatedRequest("get", "/customers");
+      let allCustomers = [];
+      let page = 1;
+      let hasMorePages = true;
+
+      while (hasMorePages) {
+        const response = await this.makeAuthenticatedRequest("get", `/customers?page=${page}`);
+
+        const customers = response.data?.docs || [];
+        const totalPages = response.data?.pages || 1;
+
+        allCustomers = allCustomers.concat(customers);
+
+        hasMorePages = page < totalPages;
+        page++;
+
+        // Safety limit to prevent infinite loops
+        if (page > 100) {
+          break;
+        }
+      }
 
       return {
         success: true,
-        customers: response.data,
+        customers: {
+          docs: allCustomers,
+          count: allCustomers.length,
+          pages: page - 1
+        },
       };
     } catch (error) {
       console.error("❌ Failed to fetch customers:", error.response?.data);
@@ -198,7 +220,6 @@ class EcartPayService {
 
   async findCustomerByUserId(userId) {
     try {
-      console.log("🔍 Looking for customer with user_id:", userId);
       const customersResult = await this.getCustomers();
 
       if (!customersResult.success) {
@@ -207,16 +228,15 @@ class EcartPayService {
 
       // eCartpay returns data in { docs: [...], count: n, pages: n } format
       const customers = customersResult.customers?.docs || [];
+
       const customer = customers.find((c) => c.user_id === userId);
 
       if (customer) {
-        console.log("✅ Found existing customer:", customer.id);
         return {
           success: true,
           customer: customer,
         };
       }
-
       return {
         success: false,
         error: {
@@ -226,6 +246,40 @@ class EcartPayService {
       };
     } catch (error) {
       console.error("❌ Error searching customer:", error);
+      return {
+        success: false,
+        error: this.handleError(error),
+      };
+    }
+  }
+
+  async findCustomerByEmail(email) {
+    try {
+      const customersResult = await this.getCustomers();
+
+      if (!customersResult.success) {
+        return customersResult;
+      }
+
+      const customers = customersResult.customers?.docs || [];
+
+      const customer = customers.find((c) => c.email === email);
+
+      if (customer) {
+        return {
+          success: true,
+          customer: customer,
+        };
+      }
+      return {
+        success: false,
+        error: {
+          type: "not_found",
+          message: "Customer not found by email",
+        },
+      };
+    } catch (error) {
+      console.error("❌ Error searching customer by email:", error);
       return {
         success: false,
         error: this.handleError(error),

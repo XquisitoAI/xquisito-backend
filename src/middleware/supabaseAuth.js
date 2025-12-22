@@ -12,7 +12,7 @@ const authenticateSupabaseToken = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-
+        
     const {
       data: { user },
       error,

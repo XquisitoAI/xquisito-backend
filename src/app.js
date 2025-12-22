@@ -26,6 +26,7 @@ const pickAndGoRoutes = require("./routes/pickAndGoRoutes");
 const segmentsRoutes = require("./routes/segmentsRoutes");
 const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
+const subscriptionRoutes = require("./routes/subscriptionRoutes");
 
 const app = express();
 
@@ -91,6 +92,9 @@ app.use("/api/rewards/segments", segmentsRoutes);
 
 // Campaigns for Rewards System
 app.use("/api/campaigns", campaignsRoutes);
+
+// Subscription System
+app.use("/api/subscriptions", subscriptionRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
