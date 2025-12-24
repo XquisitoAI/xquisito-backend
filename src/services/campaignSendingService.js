@@ -374,11 +374,6 @@ class CampaignSendingService {
         to: PHONE,
       };
 
-      // Si hay una imagen, agregar mediaUrl para enviar MMS en lugar de SMS
-      if (imageUrl) {
-        messageData.mediaUrl = [imageUrl];
-      }
-
       const message = await client.messages.create(messageData);
 
       console.log(

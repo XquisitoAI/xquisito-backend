@@ -27,10 +27,12 @@ const pickAndGoController = require('../controllers/pickAndGoController');
  *
  * Body:
  * {
- *   "clerk_user_id": "user_123",
+ *   "user_id": "user_abc123",
  *   "customer_name": "Juan Pérez",
  *   "customer_phone": "5551234567",
  *   "customer_email": "juan@email.com",
+ *   "restaurant_id": 3,
+ *   "branch_number": 1,
  *   "session_data": {},
  *   "prep_metadata": {}
  * }
@@ -88,6 +90,28 @@ router.put('/orders/:orderId/payment-status', pickAndGoController.updatePaymentS
  */
 router.post('/orders/:orderId/items', pickAndGoController.addItemToOrder);
 
+/**
+ * Crear dish order vinculado a una orden Pick & Go
+ * POST /api/pick-and-go/orders/:orderId/dishes
+ *
+ * Este endpoint NO usa el sistema de mesas, inserta directamente en dish_order
+ * vinculado al pick_and_go_order_id
+ *
+ * Body:
+ * {
+ *   "item": "Hamburguesa Clásica",
+ *   "quantity": 2,
+ *   "price": 150.00,
+ *   "userId": "uuid-del-usuario" | null,
+ *   "guestId": "guest-12345" | null,
+ *   "guestName": "Nombre del invitado",
+ *   "images": ["url1.jpg", "url2.jpg"],
+ *   "customFields": {"size": "grande", "extras": ["queso", "bacon"]},
+ *   "extraPrice": 25.00
+ * }
+ */
+router.post('/orders/:orderId/dishes', pickAndGoController.createDishOrder);
+
 // ===================================
 // CONSULTAS POR USUARIO
 // ===================================
@@ -115,12 +139,26 @@ router.get('/user/:userId/orders', pickAndGoController.getUserOrders);
  *
  * Query params opcionales:
  * - order_status: active|confirmed|preparing|completed|abandoned
+ * - branch_number: filtrar por número de sucursal
  * - date_from: fecha de inicio (ISO string)
  * - date_to: fecha de fin (ISO string)
  *
- * Ejemplo: /api/pick-and-go/restaurant/3/orders?order_status=preparing&date_from=2025-11-18
+ * Ejemplo: /api/pick-and-go/restaurant/3/orders?order_status=preparing&branch_number=1&date_from=2025-11-18
  */
 router.get('/restaurant/:restaurantId/orders', pickAndGoController.getRestaurantOrders);
+
+/**
+ * Obtener órdenes de una sucursal específica
+ * GET /api/pick-and-go/restaurant/:restaurantId/branch/:branchNumber/orders
+ *
+ * Query params opcionales:
+ * - order_status: active|confirmed|preparing|completed|abandoned
+ * - date_from: fecha de inicio (ISO string)
+ * - date_to: fecha de fin (ISO string)
+ *
+ * Ejemplo: /api/pick-and-go/restaurant/3/branch/1/orders?order_status=preparing
+ */
+router.get('/restaurant/:restaurantId/branch/:branchNumber/orders', pickAndGoController.getBranchOrders);
 
 // ===================================
 // UTILIDADES

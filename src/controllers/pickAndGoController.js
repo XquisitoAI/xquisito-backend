@@ -14,15 +14,21 @@ class PickAndGoController {
         try {
             const {
                 clerk_user_id,
+                user_id, // Mantener compatibilidad temporal
                 customer_name,
                 customer_phone,
                 customer_email,
+                restaurant_id,
+                branch_number,
                 session_data,
                 prep_metadata
             } = req.body;
 
+            // Usar clerk_user_id si está disponible, sino user_id por compatibilidad
+            const finalUserId = clerk_user_id !== undefined ? clerk_user_id : user_id;
+
             // Validaciones básicas
-            if (!clerk_user_id) {
+            if (finalUserId === undefined && finalUserId === null) {
                 return res.status(400).json({
                     success: false,
                     error: 'clerk_user_id is required'
@@ -36,14 +42,30 @@ class PickAndGoController {
                 });
             }
 
+            if (!restaurant_id) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'restaurant_id is required'
+                });
+            }
+
+            if (!branch_number) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'branch_number is required'
+                });
+            }
+
             // Extraer total_amount del session_data si está disponible
             const totalAmount = session_data?.total_amount || 0;
 
             const orderData = {
-                clerk_user_id,
+                clerk_user_id: finalUserId,
                 customer_name,
                 customer_phone,
                 customer_email,
+                restaurant_id: parseInt(restaurant_id),
+                branch_number: parseInt(branch_number),
                 total_amount: totalAmount,
                 session_data: session_data || {},
                 prep_metadata: prep_metadata || {}
@@ -311,7 +333,7 @@ class PickAndGoController {
     async getRestaurantOrders(req, res) {
         try {
             const { restaurantId } = req.params;
-            const { order_status, date_from, date_to } = req.query;
+            const { order_status, branch_number, date_from, date_to } = req.query;
 
             if (!restaurantId) {
                 return res.status(400).json({
@@ -322,6 +344,7 @@ class PickAndGoController {
 
             const filters = {
                 order_status,
+                branch_number: branch_number ? parseInt(branch_number) : null,
                 date_from,
                 date_to
             };
@@ -336,6 +359,56 @@ class PickAndGoController {
 
         } catch (error) {
             console.error('💥 Error in getRestaurantOrders controller:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    }
+
+    /**
+     * Obtener órdenes de una sucursal específica
+     * GET /api/pick-and-go/restaurant/:restaurantId/branch/:branchNumber/orders
+     */
+    async getBranchOrders(req, res) {
+        try {
+            const { restaurantId, branchNumber } = req.params;
+            const { order_status, date_from, date_to } = req.query;
+
+            if (!restaurantId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'restaurantId is required'
+                });
+            }
+
+            if (!branchNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'branchNumber is required'
+                });
+            }
+
+            const filters = {
+                order_status,
+                date_from,
+                date_to
+            };
+
+            const result = await pickAndGoService.getBranchOrders(
+                parseInt(restaurantId),
+                parseInt(branchNumber),
+                filters
+            );
+
+            if (!result.success) {
+                return res.status(500).json(result);
+            }
+
+            res.json(result);
+
+        } catch (error) {
+            console.error('💥 Error in getBranchOrders controller:', error);
             res.status(500).json({
                 success: false,
                 error: 'Internal server error'
@@ -375,6 +448,75 @@ class PickAndGoController {
 
         } catch (error) {
             console.error('💥 Error in estimatePrepTime controller:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    }
+
+    /**
+     * Crear dish order vinculado a una orden Pick & Go
+     * POST /api/pick-and-go/orders/:orderId/dishes
+     */
+    async createDishOrder(req, res) {
+        try {
+            const { orderId } = req.params;
+            const {
+                item,
+                quantity = 1,
+                price,
+                userId,
+                guestId,
+                guestName,
+                images = [],
+                customFields = null,
+                extraPrice = 0
+            } = req.body;
+
+            // Validaciones básicas
+            if (!orderId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'orderId is required'
+                });
+            }
+
+            if (!item || !price) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'item and price are required'
+                });
+            }
+
+            if (!userId && !guestName) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'userId or guestName is required'
+                });
+            }
+
+            const result = await pickAndGoService.createDishOrder(
+                orderId,
+                item,
+                quantity,
+                parseFloat(price),
+                userId,
+                guestId,
+                guestName,
+                images,
+                customFields,
+                parseFloat(extraPrice)
+            );
+
+            if (!result.success) {
+                return res.status(500).json(result);
+            }
+
+            res.status(201).json(result);
+
+        } catch (error) {
+            console.error('💥 Error in createDishOrder controller:', error);
             res.status(500).json({
                 success: false,
                 error: 'Internal server error'

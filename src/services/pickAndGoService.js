@@ -9,11 +9,13 @@ class PickAndGoService {
     /**
      * Crear una nueva orden Pick & Go
      * @param {Object} orderData - Datos de la orden
-     * @param {string} orderData.clerk_user_id - ID del usuario en Clerk
+     * @param {string} orderData.clerk_user_id - ID del usuario en Supabase Auth
      * @param {string} orderData.customer_name - Nombre del cliente
      * @param {string} orderData.customer_phone - Teléfono del cliente
      * @param {string} orderData.customer_email - Email del cliente
      * @param {number} orderData.total_amount - Monto total
+     * @param {number} orderData.restaurant_id - ID del restaurante
+     * @param {number} orderData.branch_number - Número de sucursal donde recoger
      * @param {Object} orderData.session_data - Datos de sesión
      * @param {Object} orderData.prep_metadata - Metadatos de preparación
      * @returns {Promise<Object>} Orden creada
@@ -30,6 +32,8 @@ class PickAndGoService {
                     customer_phone: orderData.customer_phone,
                     customer_email: orderData.customer_email,
                     total_amount: orderData.total_amount || 0,
+                    restaurant_id: orderData.restaurant_id,
+                    branch_number: orderData.branch_number,
                     payment_status: 'pending',
                     order_status: 'active',
                     session_data: orderData.session_data || {},
@@ -277,7 +281,6 @@ class PickAndGoService {
         try {
             console.log('🏪 Getting restaurant orders for:', restaurantId);
 
-            // Por ahora retornamos todas las órdenes, en el futuro agregamos restaurant_id
             let query = supabase
                 .from('pick_and_go_orders')
                 .select(`
@@ -286,11 +289,16 @@ class PickAndGoService {
                         id, item, quantity, price, status, payment_status
                     )
                 `)
+                .eq('restaurant_id', restaurantId)
                 .order('created_at', { ascending: false });
 
             // Aplicar filtros
             if (filters.order_status) {
                 query = query.eq('order_status', filters.order_status);
+            }
+
+            if (filters.branch_number) {
+                query = query.eq('branch_number', filters.branch_number);
             }
 
             if (filters.date_from) {
@@ -313,6 +321,58 @@ class PickAndGoService {
 
         } catch (error) {
             console.error('💥 Error in getRestaurantOrders:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Obtener órdenes por sucursal específica
+     * @param {number} restaurantId - ID del restaurante
+     * @param {number} branchNumber - Número de sucursal
+     * @param {Object} filters - Filtros opcionales
+     * @returns {Promise<Object>} Lista de órdenes de la sucursal
+     */
+    async getBranchOrders(restaurantId, branchNumber, filters = {}) {
+        try {
+            console.log(`🏢 Getting branch orders for restaurant ${restaurantId}, branch ${branchNumber}`);
+
+            let query = supabase
+                .from('pick_and_go_orders')
+                .select(`
+                    *,
+                    dish_order!inner(
+                        id, item, quantity, price, status, payment_status
+                    )
+                `)
+                .eq('restaurant_id', restaurantId)
+                .eq('branch_number', branchNumber)
+                .order('created_at', { ascending: false });
+
+            // Aplicar filtros
+            if (filters.order_status) {
+                query = query.eq('order_status', filters.order_status);
+            }
+
+            if (filters.date_from) {
+                query = query.gte('created_at', filters.date_from);
+            }
+
+            if (filters.date_to) {
+                query = query.lte('created_at', filters.date_to);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error('❌ Error getting branch orders:', error);
+                throw error;
+            }
+
+            console.log('✅ Retrieved', data?.length || 0, 'branch orders');
+            return { success: true, data: data || [] };
+
+        } catch (error) {
+            console.error('💥 Error in getBranchOrders:', error);
             return { success: false, error: error.message };
         }
     }
@@ -351,6 +411,66 @@ class PickAndGoService {
 
         } catch (error) {
             console.error('💥 Error in calculateEstimatedPrepTime:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Crear dish order vinculado directamente a una orden Pick & Go
+     * Este método NO usa el sistema de mesas
+     * @param {string} pickAndGoOrderId - ID de la orden Pick & Go
+     * @param {string} item - Nombre del platillo
+     * @param {number} quantity - Cantidad
+     * @param {number} price - Precio del platillo
+     * @param {string} userId - ID del usuario (UUID o null)
+     * @param {string} guestId - ID del invitado
+     * @param {string} guestName - Nombre del invitado
+     * @param {Array} images - URLs de imágenes
+     * @param {Object} customFields - Campos personalizados
+     * @param {number} extraPrice - Precio extra
+     * @returns {Promise<Object>} Dish order creado
+     */
+    async createDishOrder(pickAndGoOrderId, item, quantity, price, userId, guestId, guestName, images, customFields, extraPrice) {
+        try {
+            console.log('🍽️ Creating Pick & Go dish order:', {
+                pickAndGoOrderId,
+                item,
+                quantity,
+                userId,
+                guestId,
+                guestName
+            });
+
+            // Insertar directamente en dish_order sin pasar por el sistema de mesas
+            // NOTA: user_id, guest_id, guest_name NO se insertan aquí porque ya están en pick_and_go_orders
+            const { data, error } = await supabase
+                .from('dish_order')
+                .insert([{
+                    pick_and_go_order_id: pickAndGoOrderId,
+                    item: item,
+                    quantity: quantity,
+                    price: price,
+                    status: 'pending',
+                    payment_status: 'not_paid',
+                    images: images || [],
+                    custom_fields: customFields || {},
+                    extra_price: extraPrice || 0,
+                    // user_order_id es null porque Pick & Go no usa el sistema de mesas
+                    user_order_id: null
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('❌ Error creating Pick & Go dish order:', error);
+                throw error;
+            }
+
+            console.log('✅ Pick & Go dish order created successfully:', data.id);
+            return { success: true, data };
+
+        } catch (error) {
+            console.error('💥 Error in createDishOrder:', error);
             return { success: false, error: error.message };
         }
     }
