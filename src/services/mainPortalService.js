@@ -38,6 +38,81 @@ const deleteUserFromClerk = async (clerkUserId) => {
   }
 };
 
+const deletePendingInvitationsFromClerk = async (email) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    console.log(`🔍 Buscando invitaciones pendientes para: ${email}`);
+
+    // Obtener todas las invitaciones
+    const invitationsList = await adminPortalClerk.invitations.getInvitationList();
+
+    console.log('📋 Respuesta de Clerk invitations:', {
+      type: typeof invitationsList,
+      isArray: Array.isArray(invitationsList),
+      hasData: !!invitationsList?.data,
+      keys: Object.keys(invitationsList || {}),
+      totalCount: invitationsList?.totalCount
+    });
+
+    // Verificar diferentes formatos de respuesta posibles
+    let invitationsArray = [];
+
+    if (Array.isArray(invitationsList)) {
+      // Si la respuesta es directamente un array
+      invitationsArray = invitationsList;
+    } else if (invitationsList && Array.isArray(invitationsList.data)) {
+      // Si la respuesta tiene estructura { data: [...] }
+      invitationsArray = invitationsList.data;
+    } else if (invitationsList && invitationsList.invitations && Array.isArray(invitationsList.invitations)) {
+      // Si la respuesta tiene estructura { invitations: [...] }
+      invitationsArray = invitationsList.invitations;
+    } else {
+      console.warn('⚠️ Formato inesperado de respuesta de invitations:', invitationsList);
+      return 0;
+    }
+
+    console.log(`📊 Total invitaciones encontradas: ${invitationsArray.length}`);
+
+    // Buscar invitaciones para este email
+    const pendingInvitations = invitationsArray.filter(inv => {
+      const emailMatch = inv.emailAddress === email;
+      const isPending = inv.status === 'pending';
+
+      if (emailMatch) {
+        console.log(`🔍 Invitación encontrada para ${email}: status=${inv.status}, id=${inv.id}`);
+      }
+
+      return emailMatch && isPending;
+    });
+
+    console.log(`📧 Invitaciones pendientes para ${email}: ${pendingInvitations.length}`);
+
+    let deletedCount = 0;
+    for (const invitation of pendingInvitations) {
+      try {
+        console.log(`🗑️ Revocando invitación: ${invitation.id}`);
+        await adminPortalClerk.invitations.revokeInvitation(invitation.id);
+        console.log(`✅ Invitación revocada para ${email}: ${invitation.id}`);
+        deletedCount++;
+      } catch (revokeError) {
+        console.error(`❌ Error revocando invitación ${invitation.id}:`, revokeError.message);
+      }
+    }
+
+    console.log(`✅ ${deletedCount} invitaciones pendientes eliminadas para ${email}`);
+    return deletedCount;
+  } catch (error) {
+    console.error('❌ Error eliminando invitaciones pendientes de Clerk:', error.message);
+    console.error('Stack trace:', error.stack);
+    return 0;
+  }
+};
+
 // ===============================================
 // SERVICIOS PARA CLIENTES
 // ===============================================
@@ -184,6 +259,25 @@ const deleteClient = async (id) => {
 
     console.log(`📧 Cliente a eliminar: ${clientToDelete.name} (${clientToDelete.email})`);
 
+    // 2. Eliminar invitaciones pendientes de la whitelist de Supabase
+    try {
+      const { data: deletedInvitations, error: invitationError } = await supabase
+        .from('pending_invitations')
+        .delete()
+        .eq('client_id', id)
+        .select();
+
+      if (deletedInvitations && deletedInvitations.length > 0) {
+        console.log(`✅ ${deletedInvitations.length} invitaciones eliminadas de la whitelist`);
+      }
+    } catch (invitationError) {
+      console.warn(`⚠️ Error eliminando de whitelist de invitaciones:`, invitationError.message);
+    }
+
+    // 3. Eliminar invitaciones pendientes de Clerk
+    const deletedClerkInvitations = await deletePendingInvitationsFromClerk(clientToDelete.email);
+
+    // 4. Buscar y eliminar usuario registrado de Clerk
     const clerkUserId = await findClerkUserIdByEmail(clientToDelete.email);
 
     if (clerkUserId) {
@@ -194,7 +288,7 @@ const deleteClient = async (id) => {
       if (clerkDeleteSuccess) {
         console.log(`✅ Usuario eliminado exitosamente de Clerk`);
       } else {
-        console.warn(`⚠️ No se pudo eliminar de Clerk, continuando con Supabase`);
+        console.warn(`⚠️ No se pudo eliminar usuario de Clerk, continuando con Supabase`);
       }
     } else {
       console.log(`ℹ️ No se encontró usuario registrado en admin-portal para: ${clientToDelete.email}`);
@@ -212,7 +306,17 @@ const deleteClient = async (id) => {
     }
 
     console.log(`✅ Cliente eliminado completamente: ${data.name}`);
-    return data;
+
+    // Retornar información detallada de la eliminación
+    return {
+      ...data,
+      deletionSummary: {
+        clerkInvitationsRevoked: deletedClerkInvitations,
+        clerkUserDeleted: clerkUserId ? true : false,
+        supabaseDeleted: true,
+        whitelistCleaned: true
+      }
+    };
   } catch (error) {
     console.error('❌ Error in deleteClient:', error.message);
     throw error;
