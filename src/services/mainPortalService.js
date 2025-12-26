@@ -51,14 +51,6 @@ const deletePendingInvitationsFromClerk = async (email) => {
     // Obtener todas las invitaciones
     const invitationsList = await adminPortalClerk.invitations.getInvitationList();
 
-    console.log('📋 Respuesta de Clerk invitations:', {
-      type: typeof invitationsList,
-      isArray: Array.isArray(invitationsList),
-      hasData: !!invitationsList?.data,
-      keys: Object.keys(invitationsList || {}),
-      totalCount: invitationsList?.totalCount
-    });
-
     // Verificar diferentes formatos de respuesta posibles
     let invitationsArray = [];
 
