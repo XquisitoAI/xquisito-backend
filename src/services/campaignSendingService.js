@@ -362,7 +362,6 @@ class CampaignSendingService {
   async sendViaTwilio(phoneNumber, messageBody, imageUrl = null) {
     try {
       const twilio = require("twilio");
-      const PHONE = "+524949423431";
       const client = twilio(
         process.env.TWILIO_ACCOUNT_SID,
         process.env.TWILIO_AUTH_TOKEN
@@ -371,7 +370,7 @@ class CampaignSendingService {
       const messageData = {
         body: messageBody,
         from: process.env.TWILIO_PHONE_NUMBER,
-        to: PHONE,
+        to: phoneNumber,
       };
 
       const message = await client.messages.create(messageData);

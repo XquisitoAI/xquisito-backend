@@ -154,7 +154,96 @@ const getRestaurantBranches = async (req, res) => {
   }
 };
 
-// Validar que restaurante, sucursal y mesa existen
+// Validar solo restaurante (Pick & Go)
+const validateRestaurant = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+
+    console.log(`🔍 Validating restaurant ${restaurantId}`);
+
+    // 1. Verificar restaurante
+    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    if (!restaurant) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+      });
+    }
+
+    // 2. Verificar que tenga sucursales activas
+    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    if (branches.length === 0) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "NO_BRANCHES" }
+      });
+    }
+
+    console.log(`✅ Restaurant validation successful`);
+    res.json({
+      success: true,
+      data: { valid: true }
+    });
+  } catch (error) {
+    console.error("❌ Error validating restaurant:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "server_error",
+      message: error.message,
+    });
+  }
+};
+
+// Validar restaurante y sucursal (Pick & Go)
+const validateRestaurantAndBranch = async (req, res) => {
+  try {
+    const { restaurantId, branchNumber } = req.params;
+
+    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}`);
+
+    // 1. Verificar restaurante
+    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    if (!restaurant) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+      });
+    }
+
+    // 2. Obtener sucursales
+    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    if (branches.length === 0) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "NO_BRANCHES" }
+      });
+    }
+
+    // 3. Verificar que la sucursal existe
+    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    if (!branch) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "BRANCH_NOT_FOUND" }
+      });
+    }
+
+    console.log(`✅ Restaurant and branch validation successful`);
+    res.json({
+      success: true,
+      data: { valid: true }
+    });
+  } catch (error) {
+    console.error("❌ Error validating restaurant and branch:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "server_error",
+      message: error.message,
+    });
+  }
+};
+
+// Validar que restaurante, sucursal y mesa existen (Tap Order & Pay)
 const validateRestaurantBranchTable = async (req, res) => {
   try {
     const { restaurantId, branchNumber, tableNumber } = req.params;
@@ -252,6 +341,8 @@ module.exports = {
   getRestaurantWithMenu,
   getAllRestaurants,
   getRestaurantBranches,
+  validateRestaurant,
+  validateRestaurantAndBranch,
   validateRestaurantBranchTable,
   getRestaurantMenuByBranch,
 };

@@ -20,7 +20,13 @@ router.get("/:id/complete", restaurantController.getRestaurantWithMenu);
 // GET /api/restaurants/:id/branches - Obtener sucursales de un restaurante
 router.get("/:id/branches", restaurantController.getRestaurantBranches);
 
-// GET /api/restaurants/:restaurantId/:branchNumber/:tableNumber/validate - Validar restaurante, sucursal y mesa
+// GET /api/restaurants/:restaurantId/validate - Validar restaurante (Pick & Go)
+router.get("/:restaurantId/validate", restaurantController.validateRestaurant);
+
+// GET /api/restaurants/:restaurantId/branches/:branchNumber/validate - Validar restaurante y sucursal (Pick & Go)
+router.get("/:restaurantId/branches/:branchNumber/validate", restaurantController.validateRestaurantAndBranch);
+
+// GET /api/restaurants/:restaurantId/:branchNumber/:tableNumber/validate - Validar restaurante, sucursal y mesa (Tap Order & Pay)
 router.get("/:restaurantId/:branchNumber/:tableNumber/validate", restaurantController.validateRestaurantBranchTable);
 
 // GET /api/restaurants/:id/:branchNumber/menu - Obtener menú de un restaurante específico por sucursal
