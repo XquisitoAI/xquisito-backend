@@ -8,6 +8,7 @@ class CartService {
     quantity = 1,
     customFields = [],
     extraPrice = 0,
+    price = null,
     restaurantId = null,
     branchNumber = null
   ) {
@@ -21,6 +22,7 @@ class CartService {
         p_quantity: quantity,
         p_custom_fields: customFields,
         p_extra_price: extraPrice,
+        p_price: price,
         p_restaurant_id: restaurantId,
         p_branch_number: branchNumber,
       });

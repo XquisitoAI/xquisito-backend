@@ -10,6 +10,7 @@ const addToCart = async (req, res) => {
       quantity,
       custom_fields,
       extra_price,
+      price,
       restaurant_id,
       branch_number,
     } = req.body;
@@ -55,6 +56,7 @@ const addToCart = async (req, res) => {
       quantity || 1,
       custom_fields || [],
       extra_price || 0,
+      price || null,
       restaurant_id || null,
       branch_number || null
     );
