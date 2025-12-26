@@ -64,7 +64,6 @@ const createClient = async (req, res) => {
   try {
     const { sendInvitation = true, ...clientData } = req.body;
 
-    // Validaciones básicas
     if (!clientData.name || !clientData.owner_name || !clientData.email || !clientData.phone) {
       return res.status(400).json({
         success: false,
@@ -97,18 +96,20 @@ const createClient = async (req, res) => {
       // 2b. Enviar invitación por email usando Clerk
       try {
         // Obtener configuración específica del admin portal para enviar invitaciones
-        const adminPortalConfig = getClerkConfig('adminPortal');
+        const adminPortalConfig = getClerkConfig('adminPortal');        
 
         const adminPortalClerk = createClerkClient({
           secretKey: adminPortalConfig.secretKey
         });
 
         const invitationUrl = `${process.env.ADMIN_PORTAL_URL}/sign-up?invited=true&email=${encodeURIComponent(client.email)}`;
-        console.log('🔗 Invitation URL:', invitationUrl);
 
         const invitationData = {
           emailAddress: client.email,
           redirectUrl: invitationUrl,
+          templateSlug: 'invitation',
+          expiresInDays: 7, // 7 días de validez (vs 30 por defecto)
+          notify: true, 
           publicMetadata: {
             client_id: client.id,
             client_name: client.name,
@@ -206,13 +207,38 @@ const deleteClient = async (req, res) => {
     const { id } = req.params;
     console.log('🗑️ Deleting client:', id);
 
-    const client = await mainPortalService.deleteClient(id);
+    const result = await mainPortalService.deleteClient(id);
 
-    console.log('✅ Client deleted successfully:', client.name);
+    console.log('✅ Client deleted successfully:', result.name);
+
+    // Construir mensaje detallado
+    let message = `Client '${result.name}' deleted successfully`;
+
+    if (result.deletionSummary) {
+      const summary = result.deletionSummary;
+      let details = [];
+
+      if (summary.clerkUserDeleted) {
+        details.push('Clerk user deleted');
+      }
+
+      if (summary.clerkInvitationsRevoked > 0) {
+        details.push(`${summary.clerkInvitationsRevoked} pending invitations revoked`);
+      }
+
+      if (summary.whitelistCleaned) {
+        details.push('invitation whitelist cleaned');
+      }
+
+      if (details.length > 0) {
+        message += ` (${details.join(', ')})`;
+      }
+    }
+
     res.json({
       success: true,
-      data: client,
-      message: 'Client and all associated branches deleted successfully'
+      data: result,
+      message
     });
   } catch (error) {
     console.error('❌ Error deleting client:', error.message);
