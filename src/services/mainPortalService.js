@@ -175,6 +175,7 @@ const createNewClient = async (clientData) => {
         email: clientData.email,
         services: clientData.services || [],
         table_count: clientData.table_count || 0,
+        room_count: clientData.room_count || 0,
         active: clientData.active !== undefined ? clientData.active : true
       }])
       .select()
@@ -205,6 +206,7 @@ const updateClient = async (id, clientData) => {
     if (clientData.email !== undefined) updateData.email = clientData.email;
     if (clientData.services !== undefined) updateData.services = clientData.services;
     if (clientData.table_count !== undefined) updateData.table_count = clientData.table_count;
+    if (clientData.room_count !== undefined) updateData.room_count = clientData.room_count;
     if (clientData.active !== undefined) updateData.active = clientData.active;
 
     const { data, error } = await supabase
