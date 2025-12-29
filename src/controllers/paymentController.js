@@ -901,14 +901,15 @@ class PaymentController {
       if (
         !transactionData.id_table_order &&
         !transactionData.id_tap_orders_and_pay &&
-        !transactionData.pick_and_go_order_id
+        !transactionData.pick_and_go_order_id &&
+        !transactionData.id_room_order
       ) {
         return res.status(400).json({
           success: false,
           error: {
             type: "validation_error",
             message:
-              "Either id_table_order, id_tap_orders_and_pay, or pick_and_go_order_id is required",
+              "Either id_table_order, id_tap_orders_and_pay, pick_and_go_order_id, or id_room_order is required",
           },
         });
       }

@@ -18,6 +18,7 @@ const menuAdminPortalRoutes = require("./routes/menuAdminPortalRoutes");
 const imageUploadRoutes = require("./routes/imageUploadRoutes");
 const analyticsRoutes = require("./routes/analytics");
 const tapOrderRoutes = require("./routes/tapOrderRoutes");
+const roomOrderRoutes = require("./routes/roomOrderRoutes");
 const mainPortalRoutes = require("./routes/mainPortalRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
 const aiAgentRoutes = require("./routes/aiAgentRoutes");
@@ -71,6 +72,9 @@ app.use("/api/analytics", analyticsRoutes);
 
 // Tap Order and Pay
 app.use("/api", tapOrderRoutes);
+
+// Room Service
+app.use("/api", roomOrderRoutes);
 
 // Main Portal
 app.use("/api/main-portal", mainPortalRoutes);

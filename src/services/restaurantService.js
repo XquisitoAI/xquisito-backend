@@ -193,6 +193,30 @@ class RestaurantService {
     }
   }
 
+  async validateRoom(branchId, roomNumber) {
+    try {
+      const { error } = await supabase
+        .from("rooms")
+        .select("id")
+        .eq("branch_id", branchId)
+        .eq("room_number", roomNumber)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") {
+          // No se encontró la habitación
+          return false;
+        }
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`Error validating room: ${error.message}`);
+      return false;
+    }
+  }
+
   //Parsear custom_fields de JSON string a array
   parseCustomFields(customFields) {
     try {

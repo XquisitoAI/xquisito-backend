@@ -29,6 +29,9 @@ router.get("/:restaurantId/branches/:branchNumber/validate", restaurantControlle
 // GET /api/restaurants/:restaurantId/:branchNumber/:tableNumber/validate - Validar restaurante, sucursal y mesa (Tap Order & Pay)
 router.get("/:restaurantId/:branchNumber/:tableNumber/validate", restaurantController.validateRestaurantBranchTable);
 
+// GET /api/restaurants/:restaurantId/:branchNumber/room/:roomNumber/validate - Validar restaurante, sucursal y habitación (Room Service)
+router.get("/:restaurantId/:branchNumber/room/:roomNumber/validate", restaurantController.validateRestaurantBranchRoom);
+
 // GET /api/restaurants/:id/:branchNumber/menu - Obtener menú de un restaurante específico por sucursal
 router.get("/:id/:branchNumber/menu", restaurantController.getRestaurantMenuByBranch);
 

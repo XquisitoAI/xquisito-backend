@@ -301,6 +301,64 @@ const validateRestaurantBranchTable = async (req, res) => {
   }
 };
 
+// Validar restaurante, sucursal y habitación (Room Service)
+const validateRestaurantBranchRoom = async (req, res) => {
+  try {
+    const { restaurantId, branchNumber, roomNumber } = req.params;
+
+    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, room ${roomNumber}`);
+
+    // 1. Verificar restaurante
+    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    if (!restaurant) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+      });
+    }
+
+    // 2. Obtener sucursales
+    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    if (branches.length === 0) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "NO_BRANCHES" }
+      });
+    }
+
+    // 3. Verificar que la sucursal existe
+    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    if (!branch) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "BRANCH_NOT_FOUND" }
+      });
+    }
+
+    // 4. Validar que la habitación existe en la tabla 'rooms'
+    const roomExists = await restaurantService.validateRoom(branch.id, parseInt(roomNumber));
+    if (!roomExists) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "ROOM_NOT_FOUND" }
+      });
+    }
+
+    console.log(`✅ Room validation successful`);
+    res.json({
+      success: true,
+      data: { valid: true }
+    });
+  } catch (error) {
+    console.error("❌ Error validating room:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "server_error",
+      message: error.message,
+    });
+  }
+};
+
 // Obtener menú de un restaurante por número de sucursal
 const getRestaurantMenuByBranch = async (req, res) => {
   try {
@@ -344,5 +402,6 @@ module.exports = {
   validateRestaurant,
   validateRestaurantAndBranch,
   validateRestaurantBranchTable,
+  validateRestaurantBranchRoom,
   getRestaurantMenuByBranch,
 };

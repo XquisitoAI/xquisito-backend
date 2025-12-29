@@ -418,6 +418,7 @@ class UserController {
           id_table_order,
           id_tap_orders_and_pay,
           id_pick_and_go_order,
+          id_room_order,
           base_amount,
           tip_amount,
           total_amount_charged,
@@ -462,6 +463,11 @@ class UserController {
           transactions.map((tx) => tx.id_pick_and_go_order).filter(Boolean)
         ),
       ];
+      const roomOrderIds = [
+        ...new Set(
+          transactions.map((tx) => tx.id_room_order).filter(Boolean)
+        ),
+      ];
       const restaurantIds = [
         ...new Set(transactions.map((tx) => tx.restaurant_id).filter(Boolean)),
       ];
@@ -472,7 +478,7 @@ class UserController {
       ];
 
       console.log(
-        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders`
+        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders, ${roomOrderIds.length} room_orders`
       );
 
       // ========================================
@@ -678,7 +684,72 @@ class UserController {
       }
 
       // ========================================
-      // 5. Consultar Restaurants
+      // 5. Consultar Room Orders (Room Service)
+      // ========================================
+      let roomOrdersMap = {};
+      if (roomOrderIds.length > 0) {
+        const { data: roomOrders } = await supabase
+          .from("room_orders")
+          .select(
+            `
+            id,
+            payment_status,
+            order_status,
+            created_at,
+            total_amount,
+            rooms!inner(
+              room_number,
+              restaurant_id
+            )
+          `
+          )
+          .in("id", roomOrderIds);
+
+        if (roomOrders) {
+          console.log(
+            `✅ Fetched ${roomOrders.length} room_orders (Room Service)`
+          );
+          roomOrders.forEach((order) => {
+            roomOrdersMap[order.id] = order;
+          });
+        }
+
+        // Obtener dish_orders de estos room_orders
+        const { data: roomDishes } = await supabase
+          .from("dish_order")
+          .select(
+            `
+            id,
+            room_order_id,
+            item,
+            quantity,
+            price,
+            status,
+            payment_status,
+            images,
+            custom_fields,
+            extra_price
+          `
+          )
+          .in("room_order_id", roomOrderIds)
+          .not("room_order_id", "is", null);
+
+        if (roomDishes) {
+          // Agregar dishes a cada room_order
+          roomDishes.forEach((dish) => {
+            const roomOrderId = dish.room_order_id;
+            if (roomOrdersMap[roomOrderId]) {
+              if (!roomOrdersMap[roomOrderId].dishes) {
+                roomOrdersMap[roomOrderId].dishes = [];
+              }
+              roomOrdersMap[roomOrderId].dishes.push(dish);
+            }
+          });
+        }
+      }
+
+      // ========================================
+      // 6. Consultar Restaurants
       // ========================================
       let restaurantsMap = {};
       if (restaurantIds.length > 0) {
@@ -718,9 +789,11 @@ class UserController {
         const isFlexBill = tx.id_table_order != null;
         const isTapOrder = tx.id_tap_orders_and_pay != null;
         const isPickOrder = tx.id_pick_and_go_order != null;
+        const isRoomOrder = tx.id_room_order != null;
 
         let orderData = null;
         let tableNumber = null;
+        let roomNumber = null;
         let orderStatus = null;
         let orderType = null;
         let dishes = [];
@@ -741,6 +814,12 @@ class UserController {
           orderData = pickAndGoOrdersMap[tx.id_pick_and_go_order];
           orderType = "pick-and-go";
           tableNumber = null; // Pick & Go no tiene mesa
+          orderStatus = orderData?.order_status;
+          dishes = orderData?.dishes || [];
+        } else if (isRoomOrder) {
+          orderData = roomOrdersMap[tx.id_room_order];
+          orderType = "room-service";
+          roomNumber = orderData?.rooms?.room_number;
           orderStatus = orderData?.order_status;
           dishes = orderData?.dishes || [];
         }
@@ -769,8 +848,10 @@ class UserController {
           tableOrderId:
             tx.id_table_order ||
             tx.id_tap_orders_and_pay ||
-            tx.id_pick_and_go_order,
+            tx.id_pick_and_go_order ||
+            tx.id_room_order,
           tableNumber,
+          roomNumber,
           tableOrderStatus: orderStatus,
           tableOrderDate: orderData?.created_at || tx.created_at,
 
