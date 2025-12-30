@@ -25,6 +25,9 @@ router.post('/change-plan', SubscriptionController.changePlan);
 // Cancel subscription
 router.put('/cancel/:subscriptionId', SubscriptionController.cancelSubscription);
 
+// Get feature usage stats
+router.get('/restaurant/:restaurantId/feature/:feature/usage', SubscriptionController.getFeatureUsage);
+
 // Check feature access
 router.get('/restaurant/:restaurantId/feature/:feature/access', SubscriptionController.checkFeatureAccess);
 
