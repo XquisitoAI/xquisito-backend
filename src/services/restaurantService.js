@@ -217,6 +217,58 @@ class RestaurantService {
     }
   }
 
+  // Obtener menú filtrado por sucursal
+  async getRestaurantMenuByBranch(restaurantId, branchId) {
+    try {
+      // Primero verificar que el restaurante existe
+      const restaurant = await this.getRestaurantById(restaurantId);
+
+      if (!restaurant) {
+        throw new Error("Restaurant not found");
+      }
+
+      // Usar la función SQL get_menu_by_branch
+      const { data, error } = await supabase.rpc("get_menu_by_branch", {
+        p_restaurant_id: restaurantId,
+        p_branch_id: branchId,
+      });
+
+      if (error) throw error;
+
+      // Parse custom_fields for each item
+      const menu = (data || []).map((section) => ({
+        ...section,
+        items: (section.items || []).map((item) => ({
+          ...item,
+          custom_fields: this.parseCustomFields(item.custom_fields),
+        })),
+      }));
+
+      return menu;
+    } catch (error) {
+      throw new Error(
+        `Error getting restaurant menu by branch: ${error.message}`
+      );
+    }
+  }
+
+  // Obtener restaurante con su menú filtrado por sucursal
+  async getRestaurantWithMenuByBranch(restaurantId, branchId) {
+    try {
+      const restaurant = await this.getRestaurantById(restaurantId);
+      const menu = await this.getRestaurantMenuByBranch(restaurantId, branchId);
+
+      return {
+        restaurant,
+        menu,
+      };
+    } catch (error) {
+      throw new Error(
+        `Error getting restaurant with menu by branch: ${error.message}`
+      );
+    }
+  }
+
   //Parsear custom_fields de JSON string a array
   parseCustomFields(customFields) {
     try {

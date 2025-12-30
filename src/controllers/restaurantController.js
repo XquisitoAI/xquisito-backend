@@ -366,16 +366,106 @@ const getRestaurantMenuByBranch = async (req, res) => {
 
     console.log(`🔍 Getting menu for restaurant ${id}, branch ${branchNumber}`);
 
-    const menu = await restaurantService.getRestaurantMenu(parseInt(id));
+    // Obtener todas las sucursales para encontrar el branch_id por branch_number
+    const branches = await restaurantService.getRestaurantBranches(parseInt(id));
+
+    if (branches.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "not_found",
+        message: "No branches found for this restaurant",
+      });
+    }
+
+    // Buscar la sucursal por branch_number
+    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        error: "not_found",
+        message: "Branch not found",
+      });
+    }
+
+    // Obtener el menú filtrado por sucursal
+    const menu = await restaurantService.getRestaurantMenuByBranch(
+      parseInt(id),
+      branch.id
+    );
 
     console.log(`✅ Menu retrieved successfully with ${menu.length} sections`);
     res.json({
       success: true,
       data: menu,
       branch: parseInt(branchNumber),
+      branchId: branch.id,
     });
   } catch (error) {
     console.error("❌ Error getting restaurant menu:", error.message);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        error: "not_found",
+        message: "Restaurant or branch not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "server_error",
+      message: error.message,
+    });
+  }
+};
+
+// Obtener restaurante con menú completo filtrado por sucursal
+const getRestaurantWithMenuByBranch = async (req, res) => {
+  try {
+    const { id, branchNumber } = req.params;
+
+    console.log(`🔍 Getting restaurant with menu for restaurant ${id}, branch ${branchNumber}`);
+
+    // Obtener todas las sucursales para encontrar el branch_id por branch_number
+    const branches = await restaurantService.getRestaurantBranches(parseInt(id));
+
+    if (branches.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "not_found",
+        message: "No branches found for this restaurant",
+      });
+    }
+
+    // Buscar la sucursal por branch_number
+    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        error: "not_found",
+        message: "Branch not found",
+      });
+    }
+
+    // Obtener restaurante con menú filtrado
+    const data = await restaurantService.getRestaurantWithMenuByBranch(
+      parseInt(id),
+      branch.id
+    );
+
+    console.log(`✅ Restaurant and branch-filtered menu retrieved successfully`);
+    res.json({
+      success: true,
+      data: {
+        ...data,
+        branchNumber: parseInt(branchNumber),
+        branchId: branch.id,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error getting restaurant with menu by branch:", error.message);
 
     if (error.message.includes("not found")) {
       return res.status(404).json({
@@ -404,4 +494,5 @@ module.exports = {
   validateRestaurantBranchTable,
   validateRestaurantBranchRoom,
   getRestaurantMenuByBranch,
+  getRestaurantWithMenuByBranch,
 };

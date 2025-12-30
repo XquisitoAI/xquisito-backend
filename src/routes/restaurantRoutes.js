@@ -35,6 +35,9 @@ router.get("/:restaurantId/:branchNumber/room/:roomNumber/validate", restaurantC
 // GET /api/restaurants/:id/:branchNumber/menu - Obtener menú de un restaurante específico por sucursal
 router.get("/:id/:branchNumber/menu", restaurantController.getRestaurantMenuByBranch);
 
+// GET /api/restaurants/:id/:branchNumber/complete - Obtener restaurante con menú filtrado por sucursal (todo en una petición)
+router.get("/:id/:branchNumber/complete", restaurantController.getRestaurantWithMenuByBranch);
+
 // ===============================================
 // RUTAS DE REVIEWS
 // ===============================================
