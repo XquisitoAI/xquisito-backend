@@ -476,6 +476,35 @@ class SubscriptionController {
         }
     }
 
+    // Get feature usage stats
+    async getFeatureUsage(req, res) {
+        try {
+            const { restaurantId, feature } = req.params;
+
+            if (!restaurantId || !feature) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Restaurant ID y feature name son requeridos'
+                });
+            }
+
+            const subscriptionService = new SubscriptionService();
+            const usage = await subscriptionService.getFeatureUsage(parseInt(restaurantId), feature);
+
+            res.json({
+                success: true,
+                data: usage
+            });
+
+        } catch (error) {
+            console.error('Error getting feature usage:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Error al obtener uso de funcionalidad'
+            });
+        }
+    }
+
     // Check feature access
     async checkFeatureAccess(req, res) {
         try {
@@ -803,6 +832,7 @@ module.exports = {
     createSubscription: subscriptionController.createSubscription.bind(subscriptionController),
     changePlan: subscriptionController.changePlan.bind(subscriptionController),
     cancelSubscription: subscriptionController.cancelSubscription.bind(subscriptionController),
+    getFeatureUsage: subscriptionController.getFeatureUsage.bind(subscriptionController),
     checkFeatureAccess: subscriptionController.checkFeatureAccess.bind(subscriptionController),
     handleSubscriptionWebhook: subscriptionController.handleSubscriptionWebhook.bind(subscriptionController)
 };

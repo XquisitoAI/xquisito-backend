@@ -1,5 +1,6 @@
 const campaignsService = require('../services/campaignsService');
 const campaignSendingService = require('../services/campaignSendingService');
+const SubscriptionService = require('../services/subscriptionService');
 
 class CampaignsController {
     /**
@@ -126,7 +127,25 @@ class CampaignsController {
                 });
             }
 
+            // Check subscription limits before creating campaign
+            const subscriptionService = new SubscriptionService();
+            const canCreateCampaign = await subscriptionService.checkFeatureAccess(
+                campaignData.restaurant_id,
+                'campaigns_per_month'
+            );
+
+            if (!canCreateCampaign) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Has alcanzado el límite de campañas de tu plan actual. Actualiza tu plan para crear más campañas.',
+                    error_code: 'CAMPAIGN_LIMIT_EXCEEDED',
+                    timestamp: new Date().toISOString()
+                });
+            }
+
             const campaign = await campaignsService.createCampaign(campaignData, userId);
+
+            // Note: No need to increment usage since we count directly from campaigns table
 
             res.status(201).json({
                 success: true,

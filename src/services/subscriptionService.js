@@ -154,6 +154,12 @@ class SubscriptionService {
 
     // Check feature access using RPC (Remote Procedure Call)
     async checkFeatureAccess(restaurantId, featureName) {
+        // For campaigns, use our updated logic directly to avoid RPC inconsistencies
+        if (featureName === 'campaigns_per_month') {
+            console.log('🎯 Using direct campaign counting method for accuracy');
+            return await this.checkFeatureAccessFallback(restaurantId, featureName);
+        }
+
         try {
             const { data, error } = await this.supabase
                 .rpc('check_restaurant_feature_access', {
@@ -195,33 +201,143 @@ class SubscriptionService {
             // If unlimited (limit = -1)
             if (planConfig.feature_limit === -1) return true;
 
-            // Check current usage for limited features
-            const currentMonth = new Date();
-            currentMonth.setDate(1);
-            currentMonth.setHours(0, 0, 0, 0);
+            // Check current usage based on actual data, not plan_usage table
+            let currentUsage = 0;
 
-            const nextMonth = new Date(currentMonth);
-            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            if (featureName === 'campaigns_per_month') {
+                // Count actual campaigns created this month
+                const currentMonth = new Date();
+                currentMonth.setDate(1);
+                currentMonth.setHours(0, 0, 0, 0);
 
-            const { data: usage, error: usageError } = await this.supabase
-                .from('plan_usage')
-                .select('usage_count')
-                .eq('subscription_id', subscription.id)
-                .eq('feature_type', featureName)
-                .gte('period_start', currentMonth.toISOString())
-                .lt('period_end', nextMonth.toISOString())
-                .single();
+                const nextMonth = new Date(currentMonth);
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-            if (usageError && usageError.code !== 'PGRST116') {
-                console.error('Error checking usage:', usageError);
-                return false;
+                const { data: campaigns, error: campaignsError } = await this.supabase
+                    .from('campaigns')
+                    .select('id')
+                    .eq('restaurant_id', restaurantId)
+                    .gte('created_at', currentMonth.toISOString())
+                    .lt('created_at', nextMonth.toISOString());
+
+                if (campaignsError) {
+                    console.error('Error counting campaigns:', campaignsError);
+                    return false;
+                }
+
+                currentUsage = campaigns ? campaigns.length : 0;
+                console.log(`📊 Campaign usage check: ${currentUsage}/${planConfig.feature_limit} (${subscription.plan_type} plan)`);
+            } else {
+                // For other features, fallback to plan_usage table
+                const currentMonth = new Date();
+                currentMonth.setDate(1);
+                currentMonth.setHours(0, 0, 0, 0);
+
+                const nextMonth = new Date(currentMonth);
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+                const { data: usage, error: usageError } = await this.supabase
+                    .from('plan_usage')
+                    .select('usage_count')
+                    .eq('subscription_id', subscription.id)
+                    .eq('feature_type', featureName)
+                    .gte('period_start', currentMonth.toISOString())
+                    .lt('period_end', nextMonth.toISOString())
+                    .single();
+
+                if (usageError && usageError.code !== 'PGRST116') {
+                    console.error('Error checking usage:', usageError);
+                    return false;
+                }
+
+                currentUsage = usage ? usage.usage_count : 0;
             }
 
-            const currentUsage = usage ? usage.usage_count : 0;
-            return currentUsage < planConfig.feature_limit;
+            const hasAccess = currentUsage < planConfig.feature_limit;
+            console.log(`🔓 Feature access result: ${hasAccess} (usage: ${currentUsage}, limit: ${planConfig.feature_limit})`);
+
+            return hasAccess;
         } catch (error) {
             console.error('Error in feature access fallback:', error);
             return false;
+        }
+    }
+
+    // Get feature usage for current period
+    async getFeatureUsage(restaurantId, featureName) {
+        try {
+            const subscription = await this.getCurrentSubscription(restaurantId);
+            if (!subscription) {
+                return { usage: 0, limit: 0, percentage: 0 };
+            }
+
+            // Get plan configuration
+            const { data: planConfig, error } = await this.supabase
+                .from('plan_configurations')
+                .select('feature_limit')
+                .eq('plan_type', subscription.plan_type)
+                .eq('feature_name', featureName)
+                .single();
+
+            if (error) {
+                console.error('Error getting plan config:', error);
+                return { usage: 0, limit: 0, percentage: 0 };
+            }
+
+            const limit = planConfig.feature_limit;
+            let currentUsage = 0;
+
+            // Get current usage based on actual data
+            if (featureName === 'campaigns_per_month') {
+                // Count actual campaigns created this month
+                const currentMonth = new Date();
+                currentMonth.setDate(1);
+                currentMonth.setHours(0, 0, 0, 0);
+
+                const nextMonth = new Date(currentMonth);
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+                const { data: campaigns, error: campaignsError } = await this.supabase
+                    .from('campaigns')
+                    .select('id')
+                    .eq('restaurant_id', restaurantId)
+                    .gte('created_at', currentMonth.toISOString())
+                    .lt('created_at', nextMonth.toISOString());
+
+                currentUsage = campaigns ? campaigns.length : 0;
+            } else {
+                // For other features, use plan_usage table
+                const currentMonth = new Date();
+                currentMonth.setDate(1);
+                currentMonth.setHours(0, 0, 0, 0);
+
+                const nextMonth = new Date(currentMonth);
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+                const { data: usage, error: usageError } = await this.supabase
+                    .from('plan_usage')
+                    .select('usage_count')
+                    .eq('subscription_id', subscription.id)
+                    .eq('feature_type', featureName)
+                    .gte('period_start', currentMonth.toISOString())
+                    .lt('period_end', nextMonth.toISOString())
+                    .single();
+
+                currentUsage = usage ? usage.usage_count : 0;
+            }
+
+            const percentage = limit > 0 ? Math.round((currentUsage / limit) * 100) : 0;
+
+            return {
+                usage: currentUsage,
+                limit: limit,
+                percentage: percentage,
+                unlimited: limit === -1,
+                disabled: limit === 0
+            };
+        } catch (error) {
+            console.error('Error getting feature usage:', error);
+            return { usage: 0, limit: 0, percentage: 0 };
         }
     }
 
