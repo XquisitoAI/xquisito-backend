@@ -243,12 +243,13 @@ const validateRestaurantAndBranch = async (req, res) => {
   }
 };
 
-// Validar que restaurante, sucursal y mesa existen (Tap Order & Pay)
+// Validar que restaurante, sucursal y mesa existen (Tap Order & Pay, Flex Bill, Pick-n-Go)
 const validateRestaurantBranchTable = async (req, res) => {
   try {
     const { restaurantId, branchNumber, tableNumber } = req.params;
+    const { service } = req.query; // Obtener el servicio desde query params
 
-    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, table ${tableNumber}`);
+    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, table ${tableNumber}, service: ${service || 'not specified'}`);
 
     // 1. Verificar restaurante
     const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
@@ -286,6 +287,17 @@ const validateRestaurantBranchTable = async (req, res) => {
       });
     }
 
+    // 5. Validar que el cliente tiene habilitado el servicio específico (si se proporciona)
+    if (service) {
+      const hasService = await restaurantService.validateClientService(restaurant.client_id, service);
+      if (!hasService) {
+        return res.json({
+          success: true,
+          data: { valid: false, error: "SERVICE_NOT_AVAILABLE" }
+        });
+      }
+    }
+
     console.log(`✅ Validation successful`);
     res.json({
       success: true,
@@ -305,8 +317,9 @@ const validateRestaurantBranchTable = async (req, res) => {
 const validateRestaurantBranchRoom = async (req, res) => {
   try {
     const { restaurantId, branchNumber, roomNumber } = req.params;
+    const { service } = req.query; // Obtener el servicio desde query params
 
-    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, room ${roomNumber}`);
+    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, room ${roomNumber}, service: ${service || 'room-service'}`);
 
     // 1. Verificar restaurante
     const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
@@ -341,6 +354,16 @@ const validateRestaurantBranchRoom = async (req, res) => {
       return res.json({
         success: true,
         data: { valid: false, error: "ROOM_NOT_FOUND" }
+      });
+    }
+
+    // 5. Validar que el cliente tiene habilitado el servicio específico (si se proporciona, por defecto "room-service")
+    const serviceToValidate = service || "room-service";
+    const hasService = await restaurantService.validateClientService(restaurant.client_id, serviceToValidate);
+    if (!hasService) {
+      return res.json({
+        success: true,
+        data: { valid: false, error: "SERVICE_NOT_AVAILABLE" }
       });
     }
 

@@ -217,6 +217,47 @@ class RestaurantService {
     }
   }
 
+  // Validar que un cliente tiene habilitado un servicio específico
+  async validateClientService(clientId, serviceName) {
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("services")
+        .eq("id", clientId)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") {
+          return false;
+        }
+        throw error;
+      }
+
+      if (!data || !data.services) {
+        return false;
+      }
+
+      // Parsear servicios desde JSON
+      let services = [];
+      if (typeof data.services === "string") {
+        try {
+          services = JSON.parse(data.services);
+        } catch (e) {
+          console.error("Error parsing services JSON:", e);
+          return false;
+        }
+      } else if (Array.isArray(data.services)) {
+        services = data.services;
+      }
+
+      // Verificar si el servicio está en el array
+      return services.includes(serviceName);
+    } catch (error) {
+      console.error(`Error validating client service: ${error.message}`);
+      return false;
+    }
+  }
+
   // Obtener menú filtrado por sucursal
   async getRestaurantMenuByBranch(restaurantId, branchId) {
     try {
