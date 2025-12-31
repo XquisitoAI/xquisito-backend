@@ -180,6 +180,65 @@ class MenuAdminPortalService {
   // ===============================================
 
   /**
+   * Obtener todos los platillos del restaurante del usuario filtrados por sucursal
+   */
+  async getAllItemsByBranch(clerkUserId, branchId = null) {
+    try {
+      // Obtener restaurant_id del usuario
+      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      if (!restaurant) {
+        // Usuario sin restaurante, devolver array vacío en lugar de error
+        console.log('ℹ️ User has no restaurant, returning empty items array');
+        return [];
+      }
+
+      if (branchId) {
+        // Usar la función SQL que filtra por sucursal
+        const { data, error } = await supabase.rpc('get_menu_by_branch', {
+          p_restaurant_id: restaurant.id,
+          p_branch_id: branchId
+        });
+
+        if (error) throw error;
+
+        // Extraer los items de todas las secciones
+        const items = [];
+        if (data) {
+          data.forEach(section => {
+            if (section.items) {
+              section.items.forEach(item => {
+                // CRITICAL FIX: section_id is missing from get_menu_by_branch response
+                // Add it manually from the parent section
+                if (!item.section_id && section.id) {
+                  item.section_id = section.id;
+                }
+
+                // Parse custom_fields si existe
+                if (item.custom_fields) {
+                  try {
+                    item.custom_fields = typeof item.custom_fields === 'string'
+                      ? JSON.parse(item.custom_fields)
+                      : item.custom_fields;
+                  } catch (e) {
+                    item.custom_fields = [];
+                  }
+                }
+                items.push(item);
+              });
+            }
+          });
+        }
+        return items;
+      } else {
+        // Si no hay filtro de sucursal, devolver todos los items
+        return this.getAllItems(clerkUserId);
+      }
+    } catch (error) {
+      throw new Error(`Error getting menu items by branch: ${error.message}`);
+    }
+  }
+
+  /**
    * Obtener todos los platillos del restaurante del usuario
    */
   async getAllItems(clerkUserId, filters = {}) {
@@ -295,7 +354,8 @@ class MenuAdminPortalService {
         base_price,
         discount = 0,
         custom_fields = [],
-        display_order = 0
+        display_order = 0,
+        availableBranches = [] // Array de branch IDs donde estará disponible
       } = itemData;
 
       const { data, error } = await supabase
@@ -330,6 +390,28 @@ class MenuAdminPortalService {
         data.custom_fields = this.parseCustomFields(data.custom_fields);
       }
 
+      // Set branch availability if branches are specified
+      if (availableBranches && availableBranches.length >= 0) {
+        try {
+          const restaurantId = data.menu_sections.restaurant_id;
+
+          // Call the PostgreSQL function to set branch availability
+          const { error: branchError } = await supabase.rpc('set_item_branch_availability', {
+            p_item_id: data.id,
+            p_restaurant_id: restaurantId,
+            p_selected_branch_ids: availableBranches
+          });
+
+          if (branchError) {
+            console.error('Error setting branch availability:', branchError);
+            // Don't throw error here to avoid breaking item creation if branch availability fails
+          }
+        } catch (branchError) {
+          console.error('❌ Exception setting branch availability:', branchError);
+          // Continue without throwing error
+        }
+      }
+
       return data;
     } catch (error) {
       throw new Error(`Error creating menu item: ${error.message}`);
@@ -357,7 +439,8 @@ class MenuAdminPortalService {
         discount,
         custom_fields,
         is_available,
-        display_order
+        display_order,
+        availableBranches // Array de branch IDs donde estará disponible
       } = itemData;
 
       const updateData = {};
@@ -399,6 +482,28 @@ class MenuAdminPortalService {
       // Parse custom_fields from JSON string to array
       if (data) {
         data.custom_fields = this.parseCustomFields(data.custom_fields);
+      }
+
+      // Set branch availability if branches are specified
+      if (availableBranches !== undefined) {
+        try {
+          const restaurantId = data.menu_sections.restaurant_id;
+
+          // Call the PostgreSQL function to set branch availability
+          const { error: branchError } = await supabase.rpc('set_item_branch_availability', {
+            p_item_id: data.id,
+            p_restaurant_id: restaurantId,
+            p_selected_branch_ids: availableBranches
+          });
+
+          if (branchError) {
+            console.error('Error updating branch availability:', branchError);
+            // Don't throw error here to avoid breaking item update
+          }
+        } catch (branchError) {
+          console.error('Error updating branch availability:', branchError);
+          // Continue without throwing error
+        }
       }
 
       return data;
