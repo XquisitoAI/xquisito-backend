@@ -286,6 +286,76 @@ const migrateGuestCart = async (req, res) => {
   }
 };
 
+// Actualizar branch_number de los items del carrito
+const updateCartBranch = async (req, res) => {
+  try {
+    const { user_id, guest_id, restaurant_id, new_branch_number } = req.body;
+
+    console.log("🔄 Updating cart branch:", {
+      user_id,
+      guest_id,
+      restaurant_id,
+      new_branch_number,
+    });
+
+    // Validaciones
+    if (!user_id && !guest_id) {
+      return res.status(400).json({
+        success: false,
+        error: "validation_error",
+        message: "Either user_id or guest_id is required",
+      });
+    }
+
+    if (user_id && guest_id) {
+      return res.status(400).json({
+        success: false,
+        error: "validation_error",
+        message: "Cannot provide both user_id and guest_id",
+      });
+    }
+
+    if (!restaurant_id) {
+      return res.status(400).json({
+        success: false,
+        error: "validation_error",
+        message: "restaurant_id is required",
+      });
+    }
+
+    if (!new_branch_number) {
+      return res.status(400).json({
+        success: false,
+        error: "validation_error",
+        message: "new_branch_number is required",
+      });
+    }
+
+    const userId = { user_id, guest_id };
+    const itemsUpdated = await cartService.updateCartBranch(
+      userId,
+      restaurant_id,
+      new_branch_number
+    );
+
+    console.log(`✅ Cart branch updated: ${itemsUpdated} items updated`);
+    res.status(200).json({
+      success: true,
+      data: {
+        message: "Cart branch updated successfully",
+        items_updated: itemsUpdated,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error updating cart branch:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "server_error",
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   addToCart,
   getCart,
@@ -294,4 +364,5 @@ module.exports = {
   clearCart,
   getCartTotals,
   migrateGuestCart,
+  updateCartBranch,
 };

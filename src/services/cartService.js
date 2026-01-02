@@ -222,6 +222,45 @@ class CartService {
       return [];
     }
   }
+
+  // Actualizar branch_number del carrito en la tabla carts
+  async updateCartBranch(userId, restaurantId, newBranchNumber) {
+    try {
+      const { user_id, guest_id } = userId;
+
+      console.log("🔄 Updating cart branch in DB:", {
+        user_id,
+        guest_id,
+        restaurantId,
+        newBranchNumber,
+      });
+
+      // Actualizar el branch_number en la tabla carts (no en cart_items)
+      let query = supabase
+        .from("carts")
+        .update({ branch_number: newBranchNumber })
+        .eq("restaurant_id", restaurantId);
+
+      // Aplicar filtro según el tipo de usuario
+      if (user_id) {
+        query = query.eq("user_id", user_id);
+      } else if (guest_id) {
+        query = query.eq("guest_id", guest_id);
+      }
+
+      const { data, error, count } = await query.select("id", { count: "exact" });
+
+      if (error) throw error;
+
+      const cartsUpdated = count || 0;
+      console.log(`✅ Updated ${cartsUpdated} cart(s) to branch ${newBranchNumber}`);
+
+      return cartsUpdated;
+    } catch (error) {
+      console.error("❌ Error updating cart branch:", error);
+      throw new Error(`Error updating cart branch: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new CartService();
