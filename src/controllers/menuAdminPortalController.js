@@ -208,6 +208,40 @@ class MenuAdminPortalController {
   // ===============================================
 
   /**
+   * Obtener todos los items del restaurante del usuario filtrados por sucursal
+   * GET /api/admin-portal/menu/items/by-branch
+   * GET /api/admin-portal/menu/items/by-branch/:branchId
+   */
+  async getAllItemsByBranch(req, res) {
+    try {
+      const clerkUserId = req.auth?.userId;
+      const branchId = req.params.branchId || req.query.branchId || null;
+
+      if (!clerkUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      console.log(`🔍 Getting items by branch: ${branchId || 'all'} for user: ${clerkUserId}`);
+      const items = await menuAdminPortalService.getAllItemsByBranch(clerkUserId, branchId);
+
+      res.status(200).json({
+        success: true,
+        data: items,
+        filter: branchId ? { branchId } : { branchId: 'all' }
+      });
+    } catch (error) {
+      console.error('❌ Error getting items by branch:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  /**
    * Obtener todos los items del restaurante del usuario
    * GET /api/admin-portal/menu/items
    */

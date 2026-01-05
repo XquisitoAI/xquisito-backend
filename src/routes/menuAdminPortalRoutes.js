@@ -26,6 +26,10 @@ router.delete('/sections/:id', adminPortalAuth, menuAdminPortalController.delete
 // RUTAS DE ITEMS DEL MENÚ
 // ===============================================
 
+// Obtener items filtrados por sucursal (debe ir ANTES de las rutas con parámetros)
+router.get('/items/by-branch', adminPortalAuth, menuAdminPortalController.getAllItemsByBranch);
+router.get('/items/by-branch/:branchId', adminPortalAuth, menuAdminPortalController.getAllItemsByBranch);
+
 // Obtener todos los items del restaurante del usuario
 router.get('/items', adminPortalAuth, menuAdminPortalController.getAllItems);
 
