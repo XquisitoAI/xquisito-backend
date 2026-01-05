@@ -29,6 +29,12 @@ router.post(
   paymentController.createPaymentTransaction
 );
 
+// Guest Payment Methods Migration
+router.post(
+  "/payment-methods/migrate-from-guest",
+  paymentController.migrateGuestPaymentMethods
+);
+
 // Guest Data Cleanup
 router.post("/payments/cleanup-guest", paymentController.cleanupGuestData);
 

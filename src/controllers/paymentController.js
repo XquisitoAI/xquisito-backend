@@ -1035,6 +1035,79 @@ class PaymentController {
       });
     }
   }
+
+  /**
+   * Migrate guest payment methods to authenticated user
+   * POST /payment-methods/migrate-from-guest
+   * Body: { guestId: string }
+   */
+  async migrateGuestPaymentMethods(req, res) {
+    try {
+      const userId = req.user?.id;
+      const isGuest = req.isGuest || req.user?.isGuest;
+      const { guestId } = req.body;
+
+      console.log("🔄 Migration request received:", {
+        userId,
+        isGuest,
+        guestId,
+      });
+
+      // Validar que el usuario esté autenticado
+      if (!userId || isGuest) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            type: "authentication_error",
+            message:
+              "User must be authenticated to migrate payment methods",
+          },
+        });
+      }
+
+      // Validar que se proporcione el guestId
+      if (!guestId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: "Guest ID is required",
+          },
+        });
+      }
+
+      // Llamar al servicio para migrar los métodos de pago
+      const result = await paymentService.migrateGuestPaymentMethods(
+        guestId,
+        userId
+      );
+
+      if (!result.success) {
+        console.error("❌ Migration failed:", result.error);
+        return res.status(500).json(result);
+      }
+
+      console.log(
+        `✅ Successfully migrated ${result.migratedCount} payment methods from guest ${guestId} to user ${userId}`
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          migratedCount: result.migratedCount,
+        },
+      });
+    } catch (error) {
+      console.error("❌ Error in migrateGuestPaymentMethods:", error);
+      res.status(500).json({
+        success: false,
+        error: {
+          type: "internal_error",
+          message: "Failed to migrate payment methods",
+        },
+      });
+    }
+  }
 }
 
 module.exports = new PaymentController();

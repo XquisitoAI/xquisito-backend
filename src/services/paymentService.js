@@ -649,6 +649,150 @@ class PaymentService {
 
     return "unknown";
   }
+
+  /**
+   * Migrate guest payment methods to authenticated user
+   * @param {string} guestId - ID del guest
+   * @param {string} userId - ID del usuario autenticado (Supabase UUID)
+   * @returns {Promise<{success: boolean, migratedCount?: number, error?: object}>}
+   */
+  async migrateGuestPaymentMethods(guestId, userId) {
+    try {
+      console.log(
+        `🔄 Starting migration from guest ${guestId} to user ${userId}`
+      );
+
+      // 1. Obtener todos los payment methods del guest
+      const { data: guestPaymentMethods, error: fetchError } = await supabase
+        .from("guest_payment_methods")
+        .select("*")
+        .eq("guest_id", guestId)
+        .eq("is_active", true);
+
+      if (fetchError) {
+        console.error("❌ Error fetching guest payment methods:", fetchError);
+        return {
+          success: false,
+          error: {
+            type: "database_error",
+            message: "Failed to fetch guest payment methods",
+          },
+        };
+      }
+
+      if (!guestPaymentMethods || guestPaymentMethods.length === 0) {
+        console.log("ℹ️ No guest payment methods found to migrate");
+        return {
+          success: true,
+          migratedCount: 0,
+        };
+      }
+
+      console.log(
+        `📋 Found ${guestPaymentMethods.length} payment methods to migrate`
+      );
+
+      // 2. Verificar cuáles ya existen para evitar duplicados
+      const { data: existingMethods } = await supabase
+        .from("user_payment_methods")
+        .select("ecartpay_token")
+        .eq("user_id", userId);
+
+      const existingTokens = new Set(
+        (existingMethods || []).map((m) => m.ecartpay_token)
+      );
+
+      // Filtrar solo los que no existen
+      const methodsToMigrate = guestPaymentMethods.filter(
+        (gpm) => !existingTokens.has(gpm.ecartpay_token)
+      );
+
+      if (methodsToMigrate.length === 0) {
+        console.log("ℹ️ All payment methods already migrated");
+        return {
+          success: true,
+          migratedCount: 0,
+        };
+      }
+
+      console.log(
+        `💳 ${methodsToMigrate.length} new payment methods to migrate (${guestPaymentMethods.length - methodsToMigrate.length} already exist)`
+      );
+
+      // 3. Convertir cada payment method de guest a user
+      const userPaymentMethods = methodsToMigrate.map((gpm) => ({
+        user_id: userId, // UUID del usuario autenticado
+        ecartpay_token: gpm.ecartpay_token,
+        ecartpay_customer_id: gpm.ecartpay_customer_id,
+        last_four_digits: gpm.last_four_digits,
+        card_type: gpm.card_type,
+        card_brand: gpm.card_brand,
+        expiry_month: parseInt(gpm.expiry_month), // Asegurar que sea número
+        expiry_year: parseInt(gpm.expiry_year), // Asegurar que sea número
+        cardholder_name: gpm.cardholder_name,
+        billing_country: gpm.billing_country,
+        billing_postal_code: gpm.billing_postal_code,
+        is_active: true,
+        is_default: gpm.is_default, // Preservar el estado de default
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      console.log(
+        "📝 Payment methods to insert:",
+        JSON.stringify(userPaymentMethods, null, 2)
+      );
+
+      // 4. Insertar los payment methods en la tabla de usuario
+      const { data: insertedMethods, error: insertError } = await supabase
+        .from("user_payment_methods")
+        .insert(userPaymentMethods)
+        .select();
+
+      if (insertError) {
+        console.error("❌ Error inserting user payment methods:", insertError);
+        return {
+          success: false,
+          error: {
+            type: "database_error",
+            message: "Failed to insert user payment methods",
+          },
+        };
+      }
+
+      console.log(
+        `✅ Successfully inserted ${insertedMethods.length} payment methods`
+      );
+
+      // 5. Marcar los payment methods del guest como inactivos (NO eliminar)
+      const { error: deactivateError } = await supabase
+        .from("guest_payment_methods")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("guest_id", guestId);
+
+      if (deactivateError) {
+        console.warn(
+          "⚠️ Warning: Could not deactivate guest payment methods:",
+          deactivateError
+        );
+        // No es crítico, continuar
+      }
+
+      return {
+        success: true,
+        migratedCount: insertedMethods.length,
+      };
+    } catch (error) {
+      console.error("❌ Error in migrateGuestPaymentMethods:", error);
+      return {
+        success: false,
+        error: {
+          type: "internal_error",
+          message: error.message || "Failed to migrate payment methods",
+        },
+      };
+    }
+  }
 }
 
 module.exports = new PaymentService();
