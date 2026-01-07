@@ -327,7 +327,16 @@ const getAllBranches = async () => {
     const { data, error } = await supabase
       .from('branches')
       .select(`
-        *,
+        id,
+        client_id,
+        restaurant_id,
+        name,
+        address,
+        tables,
+        branch_number,
+        active,
+        created_at,
+        updated_at,
         client:clients(id, name, owner_name, email, phone)
       `)
       .order('created_at', { ascending: false });
@@ -346,11 +355,22 @@ const getAllBranches = async () => {
 // Obtener sucursales por cliente
 const getBranchesByClient = async (clientId) => {
   console.log(clientId);
-  
+
   try {
     const { data, error } = await supabase
       .from('branches')
-      .select('*')
+      .select(`
+        id,
+        client_id,
+        restaurant_id,
+        name,
+        address,
+        tables,
+        branch_number,
+        active,
+        created_at,
+        updated_at
+      `)
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
 

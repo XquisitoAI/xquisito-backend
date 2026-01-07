@@ -20,6 +20,8 @@ const analyticsRoutes = require("./routes/analytics");
 const tapOrderRoutes = require("./routes/tapOrderRoutes");
 const roomOrderRoutes = require("./routes/roomOrderRoutes");
 const mainPortalRoutes = require("./routes/mainPortalRoutes");
+const qrCodeRoutes = require("./routes/qrCodeRoutes");
+const qrResolverRoutes = require("./routes/qrResolverRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
 const aiAgentRoutes = require("./routes/aiAgentRoutes");
 const flexBillStatisticsRoutes = require("./routes/flexBillRoutes");
@@ -78,6 +80,12 @@ app.use("/api", roomOrderRoutes);
 
 // Main Portal
 app.use("/api/main-portal", mainPortalRoutes);
+
+// QR Code Management (Main Portal)
+app.use("/api/main-portal", qrCodeRoutes);
+
+// QR Code Resolver (Public)
+app.use("/api/qr", qrResolverRoutes);
 
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/ai-agent", aiAgentRoutes);
