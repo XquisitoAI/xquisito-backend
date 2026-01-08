@@ -103,6 +103,8 @@ router.get('/info', optionalMainPortalAuth, (req, res) => {
           name: 'string (required)',
           address: 'string (required)',
           tables: 'integer (default: 1)',
+          rooms: 'integer (default: 0, DEPRECATED - use room_ranges)',
+          room_ranges: 'jsonb array (format: [{"start": 100, "end": 129}])',
           active: 'boolean (default: true)',
           created_at: 'timestamp (auto-generated)',
           updated_at: 'timestamp (auto-updated)'

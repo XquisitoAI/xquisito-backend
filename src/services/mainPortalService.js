@@ -321,6 +321,173 @@ const deleteClient = async (id) => {
 // SERVICIOS PARA SUCURSALES
 // ===============================================
 
+// Función auxiliar para sincronizar tablas (tables) de una sucursal
+const syncBranchTables = async (branchId, restaurantId, desiredTableCount) => {
+  try {
+    console.log(`🔄 Syncing tables for branch ${branchId}: target count = ${desiredTableCount}`);
+
+    // 1. Obtener las tablas existentes para esta sucursal
+    const { data: existingTables, error: fetchError } = await supabase
+      .from('tables')
+      .select('id, table_number')
+      .eq('branch_id', branchId)
+      .order('table_number', { ascending: true });
+
+    if (fetchError) {
+      console.error('❌ Error fetching existing tables:', fetchError.message);
+      throw new Error(`Error fetching tables: ${fetchError.message}`);
+    }
+
+    const existingTableNumbers = existingTables.map(t => t.table_number);
+    const maxExisting = existingTableNumbers.length > 0 ? Math.max(...existingTableNumbers) : 0;
+
+    console.log(`📊 Existing tables: ${existingTableNumbers.join(', ') || 'none'}`);
+
+    // 2. Si necesitamos crear tablas nuevas
+    if (desiredTableCount > maxExisting) {
+      const tablesToCreate = [];
+      for (let i = maxExisting + 1; i <= desiredTableCount; i++) {
+        tablesToCreate.push({
+          branch_id: branchId,
+          restaurant_id: restaurantId,
+          table_number: i,
+          is_occupied: false
+        });
+      }
+
+      if (tablesToCreate.length > 0) {
+        const { error: insertError } = await supabase
+          .from('tables')
+          .insert(tablesToCreate);
+
+        if (insertError) {
+          console.error('❌ Error creating tables:', insertError.message);
+          throw new Error(`Error creating tables: ${insertError.message}`);
+        }
+
+        console.log(`✅ Created ${tablesToCreate.length} new tables (${maxExisting + 1} to ${desiredTableCount})`);
+      }
+    }
+
+    // 3. Si necesitamos eliminar tablas sobrantes
+    if (desiredTableCount < maxExisting) {
+      const { error: deleteError } = await supabase
+        .from('tables')
+        .delete()
+        .eq('branch_id', branchId)
+        .gt('table_number', desiredTableCount);
+
+      if (deleteError) {
+        console.error('❌ Error deleting tables:', deleteError.message);
+        throw new Error(`Error deleting tables: ${deleteError.message}`);
+      }
+
+      const deletedCount = maxExisting - desiredTableCount;
+      console.log(`🗑️ Deleted ${deletedCount} tables (${desiredTableCount + 1} to ${maxExisting})`);
+    }
+
+    console.log(`✅ Tables synced successfully for branch ${branchId}`);
+  } catch (error) {
+    console.error('❌ Error in syncBranchTables:', error.message);
+    throw error;
+  }
+};
+
+// Función auxiliar para sincronizar habitaciones (rooms) de una sucursal con rangos
+const syncBranchRooms = async (branchId, restaurantId, roomRanges) => {
+  try {
+    console.log(`🔄 Syncing rooms for branch ${branchId}`);
+    console.log(`📋 Room ranges:`, JSON.stringify(roomRanges));
+
+    // Si no hay rangos de habitaciones, eliminar todas las existentes
+    if (!roomRanges || roomRanges.length === 0) {
+      const { error: deleteError } = await supabase
+        .from('rooms')
+        .delete()
+        .eq('branch_id', branchId);
+
+      if (deleteError) {
+        console.error('❌ Error deleting all rooms:', deleteError.message);
+        throw new Error(`Error deleting rooms: ${deleteError.message}`);
+      }
+
+      console.log(`🗑️ Deleted all rooms for branch ${branchId}`);
+      return;
+    }
+
+    // 1. Calcular todos los números de habitación deseados desde los rangos
+    const desiredRoomNumbers = [];
+    for (const range of roomRanges) {
+      for (let i = range.start; i <= range.end; i++) {
+        desiredRoomNumbers.push(i);
+      }
+    }
+
+    console.log(`📊 Desired room numbers (${desiredRoomNumbers.length} total): ${desiredRoomNumbers.slice(0, 10).join(', ')}${desiredRoomNumbers.length > 10 ? '...' : ''}`);
+
+    // 2. Obtener las habitaciones existentes para esta sucursal
+    const { data: existingRooms, error: fetchError } = await supabase
+      .from('rooms')
+      .select('id, room_number')
+      .eq('branch_id', branchId)
+      .order('room_number', { ascending: true });
+
+    if (fetchError) {
+      console.error('❌ Error fetching existing rooms:', fetchError.message);
+      throw new Error(`Error fetching rooms: ${fetchError.message}`);
+    }
+
+    const existingRoomNumbers = existingRooms.map(r => r.room_number);
+    console.log(`📊 Existing room numbers (${existingRoomNumbers.length} total): ${existingRoomNumbers.slice(0, 10).join(', ')}${existingRoomNumbers.length > 10 ? '...' : ''}`);
+
+    // 3. Determinar qué habitaciones crear y cuáles eliminar
+    const roomsToCreate = desiredRoomNumbers.filter(num => !existingRoomNumbers.includes(num));
+    const roomsToDelete = existingRoomNumbers.filter(num => !desiredRoomNumbers.includes(num));
+
+    // 4. Crear habitaciones nuevas
+    if (roomsToCreate.length > 0) {
+      const roomRecords = roomsToCreate.map(roomNum => ({
+        branch_id: branchId,
+        restaurant_id: restaurantId,
+        room_number: roomNum,
+        status: 'available'
+      }));
+
+      const { error: insertError } = await supabase
+        .from('rooms')
+        .insert(roomRecords);
+
+      if (insertError) {
+        console.error('❌ Error creating rooms:', insertError.message);
+        throw new Error(`Error creating rooms: ${insertError.message}`);
+      }
+
+      console.log(`✅ Created ${roomsToCreate.length} new rooms: ${roomsToCreate.slice(0, 10).join(', ')}${roomsToCreate.length > 10 ? '...' : ''}`);
+    }
+
+    // 5. Eliminar habitaciones sobrantes
+    if (roomsToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('rooms')
+        .delete()
+        .eq('branch_id', branchId)
+        .in('room_number', roomsToDelete);
+
+      if (deleteError) {
+        console.error('❌ Error deleting rooms:', deleteError.message);
+        throw new Error(`Error deleting rooms: ${deleteError.message}`);
+      }
+
+      console.log(`🗑️ Deleted ${roomsToDelete.length} rooms: ${roomsToDelete.slice(0, 10).join(', ')}${roomsToDelete.length > 10 ? '...' : ''}`);
+    }
+
+    console.log(`✅ Rooms synced successfully for branch ${branchId} - Total: ${desiredRoomNumbers.length} rooms`);
+  } catch (error) {
+    console.error('❌ Error in syncBranchRooms:', error.message);
+    throw error;
+  }
+};
+
 // Obtener todas las sucursales
 const getAllBranches = async () => {
   try {
@@ -333,13 +500,15 @@ const getAllBranches = async () => {
         name,
         address,
         tables,
+        rooms,
+        room_ranges,
         branch_number,
         active,
         created_at,
         updated_at,
         client:clients(id, name, owner_name, email, phone)
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
 
     if (error) {
       throw new Error(`Error getting branches: ${error.message}`);
@@ -366,6 +535,8 @@ const getBranchesByClient = async (clientId) => {
         name,
         address,
         tables,
+        rooms,
+        room_ranges,
         branch_number,
         active,
         created_at,
@@ -437,6 +608,8 @@ const createBranch = async (branchData) => {
         name: branchData.name,
         address: branchData.address,
         tables: branchData.tables || 1,
+        rooms: branchData.rooms || 0,
+        room_ranges: branchData.room_ranges || [],
         active: branchData.active !== undefined ? branchData.active : true
       }])
       .select(`
@@ -450,6 +623,17 @@ const createBranch = async (branchData) => {
         throw new Error('Client or restaurant not found');
       }
       throw new Error(`Error creating branch: ${error.message}`);
+    }
+
+    // Sincronizar tablas y habitaciones después de crear la sucursal
+    await syncBranchTables(data.id, restaurant.id, data.tables);
+
+    // Sincronizar habitaciones usando rangos (si existen) o el conteo legacy
+    if (data.room_ranges && data.room_ranges.length > 0) {
+      await syncBranchRooms(data.id, restaurant.id, data.room_ranges);
+    } else if (data.rooms > 0) {
+      // Backward compatibility: convertir rooms a un solo rango [1, rooms]
+      await syncBranchRooms(data.id, restaurant.id, [{ start: 1, end: data.rooms }]);
     }
 
     return data;
@@ -488,7 +672,12 @@ const updateBranch = async (id, branchData) => {
     if (branchData.name !== undefined) updateData.name = branchData.name;
     if (branchData.address !== undefined) updateData.address = branchData.address;
     if (branchData.tables !== undefined) updateData.tables = branchData.tables;
+    if (branchData.rooms !== undefined) updateData.rooms = branchData.rooms;
+    if (branchData.room_ranges !== undefined) updateData.room_ranges = branchData.room_ranges;
     if (branchData.active !== undefined) updateData.active = branchData.active;
+
+    console.log('🔍 updateData antes de guardar:', JSON.stringify(updateData, null, 2));
+    console.log('🔍 room_ranges en updateData:', updateData.room_ranges);
 
     const { data, error } = await supabase
       .from('branches')
@@ -508,6 +697,24 @@ const updateBranch = async (id, branchData) => {
         throw new Error('Client not found');
       }
       throw new Error(`Error updating branch: ${error.message}`);
+    }
+
+    // Sincronizar tablas si se modificaron
+    if (branchData.tables !== undefined) {
+      await syncBranchTables(data.id, data.restaurant_id, data.tables);
+    }
+
+    // Sincronizar habitaciones si se modificaron room_ranges o rooms
+    if (branchData.room_ranges !== undefined) {
+      // Prioridad a room_ranges
+      await syncBranchRooms(data.id, data.restaurant_id, data.room_ranges);
+    } else if (branchData.rooms !== undefined) {
+      // Backward compatibility: convertir rooms a un solo rango [1, rooms]
+      if (data.rooms > 0) {
+        await syncBranchRooms(data.id, data.restaurant_id, [{ start: 1, end: data.rooms }]);
+      } else {
+        await syncBranchRooms(data.id, data.restaurant_id, []);
+      }
     }
 
     return data;
@@ -554,7 +761,7 @@ const getMainPortalStats = async () => {
 
     const { data: branchStats, error: branchError } = await supabase
       .from('branches')
-      .select('id, active, tables');
+      .select('id, active, tables, rooms');
 
     if (clientError || branchError) {
       throw new Error(`Error getting stats: ${clientError?.message || branchError?.message}`);
@@ -565,6 +772,7 @@ const getMainPortalStats = async () => {
     const totalBranches = branchStats.length;
     const activeBranches = branchStats.filter(b => b.active).length;
     const totalTables = branchStats.reduce((sum, branch) => sum + (branch.tables || 0), 0);
+    const totalRooms = branchStats.reduce((sum, branch) => sum + (branch.rooms || 0), 0);
 
     return {
       clients: {
@@ -579,6 +787,9 @@ const getMainPortalStats = async () => {
       },
       tables: {
         total: totalTables
+      },
+      rooms: {
+        total: totalRooms
       }
     };
   } catch (error) {

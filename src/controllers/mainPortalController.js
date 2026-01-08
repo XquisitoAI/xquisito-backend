@@ -369,6 +369,8 @@ const updateBranch = async (req, res) => {
     const { id } = req.params;
     const branchData = req.body;
     console.log('🔄 Updating branch:', id);
+    console.log('📥 Branch data received:', JSON.stringify(branchData, null, 2));
+    console.log('📥 room_ranges received:', branchData.room_ranges);
 
     const branch = await mainPortalService.updateBranch(id, branchData);
 
