@@ -1,0 +1,486 @@
+const tapPayService = require("../services/tapPayService");
+
+class TapPayController {
+  // Health check
+  async healthCheck(req, res) {
+    try {
+      res.json({
+        success: true,
+        message: "Tap & Pay API is running",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener orden activa por mesa
+  async getActiveOrderByTable(req, res) {
+    try {
+      const { restaurantId, branchNumber, tableNumber } = req.params;
+
+      const order = await tapPayService.getActiveOrderByTable(
+        parseInt(restaurantId),
+        parseInt(branchNumber),
+        parseInt(tableNumber)
+      );
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: `No hay orden activa para la mesa ${tableNumber}`,
+        });
+      }
+
+      res.json({
+        success: true,
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error getting active order:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener orden por ID
+  async getOrderById(req, res) {
+    try {
+      const { orderId } = req.params;
+
+      const order = await tapPayService.getOrderById(orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: "Orden no encontrada",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error getting order by ID:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener items de una orden
+  async getOrderItems(req, res) {
+    try {
+      const { orderId } = req.params;
+
+      const items = await tapPayService.getOrderItems(orderId);
+
+      res.json({
+        success: true,
+        data: items,
+      });
+    } catch (error) {
+      console.error("Error getting order items:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Crear nueva orden (usado por POS)
+  async createOrder(req, res) {
+    try {
+      const {
+        restaurantId,
+        branchNumber,
+        tableNumber,
+        customerName,
+        customerPhone,
+        customerEmail,
+        userId,
+        guestId,
+        items, // Array de platillos
+      } = req.body;
+
+      // Validaciones
+      if (!restaurantId || !branchNumber || !tableNumber || !customerName) {
+        return res.status(400).json({
+          success: false,
+          message: "restaurantId, branchNumber, tableNumber y customerName son requeridos",
+        });
+      }
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Se requiere al menos un item",
+        });
+      }
+
+      const order = await tapPayService.createOrder({
+        restaurantId: parseInt(restaurantId),
+        branchNumber: parseInt(branchNumber),
+        tableNumber: parseInt(tableNumber),
+        customerName,
+        customerPhone,
+        customerEmail,
+        userId,
+        guestId,
+        items,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error creating order:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Procesar pago completo
+  async processPayment(req, res) {
+    try {
+      const { orderId } = req.params;
+      const {
+        paymentType, // 'full-bill', 'select-items', 'equal-shares', 'choose-amount'
+        amount,
+        tipAmount,
+        paymentMethodId,
+        selectedItems, // Array de dish_order IDs
+        userId,
+        guestName,
+      } = req.body;
+
+      // Validaciones
+      if (!paymentType || !paymentMethodId) {
+        return res.status(400).json({
+          success: false,
+          message: "paymentType y paymentMethodId son requeridos",
+        });
+      }
+
+      const result = await tapPayService.processPayment({
+        orderId,
+        paymentType,
+        amount: amount ? parseFloat(amount) : null,
+        tipAmount: tipAmount ? parseFloat(tipAmount) : 0,
+        paymentMethodId,
+        selectedItems: selectedItems || [],
+        userId,
+        guestName,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error processing payment:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Pagar un platillo individual
+  async payDishOrder(req, res) {
+    try {
+      const { dishId } = req.params;
+      const { paymentMethodId } = req.body;
+
+      const success = await tapPayService.payDishOrder(dishId, paymentMethodId || null);
+
+      if (success) {
+        res.json({
+          success: true,
+          message: "Platillo pagado exitosamente",
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "No se pudo procesar el pago",
+        });
+      }
+    } catch (error) {
+      console.error("Error paying dish order:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Pagar monto específico de la orden
+  async payOrderAmount(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { amount, paymentMethodId, userId, guestName } = req.body;
+
+      if (!amount || !paymentMethodId) {
+        return res.status(400).json({
+          success: false,
+          message: "amount y paymentMethodId son requeridos",
+        });
+      }
+
+      const result = await tapPayService.payOrderAmount({
+        orderId,
+        amount: parseFloat(amount),
+        paymentMethodId,
+        userId,
+        guestName,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error paying order amount:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Inicializar división de cuenta
+  async initializeSplitBill(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { numberOfPeople, userIds, guestNames } = req.body;
+
+      if (!numberOfPeople || numberOfPeople < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "numberOfPeople debe ser al menos 2",
+        });
+      }
+
+      const result = await tapPayService.initializeSplitBill({
+        orderId,
+        numberOfPeople: parseInt(numberOfPeople),
+        userIds: userIds || [],
+        guestNames: guestNames || [],
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error initializing split bill:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Pagar parte de división
+  async paySplitAmount(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { userId, guestName, paymentMethodId } = req.body;
+
+      if (!paymentMethodId) {
+        return res.status(400).json({
+          success: false,
+          message: "paymentMethodId es requerido",
+        });
+      }
+
+      if (!userId && !guestName) {
+        return res.status(400).json({
+          success: false,
+          message: "Se requiere userId o guestName",
+        });
+      }
+
+      const result = await tapPayService.paySplitAmount({
+        orderId,
+        userId,
+        guestName,
+        paymentMethodId,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error paying split amount:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener estado de división
+  async getSplitPaymentStatus(req, res) {
+    try {
+      const { orderId } = req.params;
+
+      const status = await tapPayService.getSplitPaymentStatus(orderId);
+
+      res.json({
+        success: true,
+        data: status,
+      });
+    } catch (error) {
+      console.error("Error getting split payment status:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener usuarios activos
+  async getActiveUsers(req, res) {
+    try {
+      const { orderId } = req.params;
+
+      const users = await tapPayService.getActiveUsers(orderId);
+
+      res.json({
+        success: true,
+        data: users,
+      });
+    } catch (error) {
+      console.error("Error getting active users:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Actualizar estado de orden
+  async updateOrderStatus(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { orderStatus } = req.body;
+
+      if (!orderStatus) {
+        return res.status(400).json({
+          success: false,
+          message: "orderStatus es requerido",
+        });
+      }
+
+      const validStatuses = ['active', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled', 'abandoned'];
+      if (!validStatuses.includes(orderStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: `orderStatus debe ser uno de: ${validStatuses.join(', ')}`,
+        });
+      }
+
+      const result = await tapPayService.updateOrderStatus(orderId, orderStatus);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Actualizar estado de platillo
+  async updateDishStatus(req, res) {
+    try {
+      const { dishId } = req.params;
+      const { status } = req.body;
+
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: "status es requerido",
+        });
+      }
+
+      const validStatuses = ['pending', 'cooking', 'delivered'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `status debe ser uno de: ${validStatuses.join(', ')}`,
+        });
+      }
+
+      const result = await tapPayService.updateDishStatus(dishId, status);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error updating dish status:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Dashboard metrics
+  async getDashboardMetrics(req, res) {
+    try {
+      const {
+        restaurant_id,
+        branch_number,
+        time_range = 'daily',
+        start_date,
+        end_date
+      } = req.query;
+
+      if (!restaurant_id) {
+        return res.status(400).json({
+          success: false,
+          message: "restaurant_id es requerido",
+        });
+      }
+
+      const metrics = await tapPayService.getDashboardMetrics({
+        restaurantId: parseInt(restaurant_id),
+        branchNumber: branch_number ? parseInt(branch_number) : null,
+        timeRange: time_range,
+        startDate: start_date,
+        endDate: end_date,
+      });
+
+      res.json({
+        success: true,
+        data: metrics,
+      });
+    } catch (error) {
+      console.error("Error getting dashboard metrics:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+}
+
+module.exports = new TapPayController();

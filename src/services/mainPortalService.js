@@ -600,6 +600,15 @@ const createBranch = async (branchData) => {
 
     console.log('✅ Found restaurant_id:', restaurant.id, 'for client_id:', branchData.client_id);
 
+    // Calcular el número total de habitaciones desde los rangos
+    const roomRanges = branchData.room_ranges || [];
+    const totalRooms = roomRanges.reduce((total, range) => {
+      return total + (range.end - range.start + 1);
+    }, 0);
+
+    // Si no hay rangos, usar el valor legacy de rooms
+    const finalRooms = totalRooms > 0 ? totalRooms : (branchData.rooms || 0);
+
     const { data, error } = await supabase
       .from('branches')
       .insert([{
@@ -607,9 +616,9 @@ const createBranch = async (branchData) => {
         restaurant_id: restaurant.id, // ← AGREGADO: campo requerido
         name: branchData.name,
         address: branchData.address,
-        tables: branchData.tables || 1,
-        rooms: branchData.rooms || 0,
-        room_ranges: branchData.room_ranges || [],
+        tables: branchData.tables !== undefined ? branchData.tables : 0,
+        rooms: finalRooms,
+        room_ranges: roomRanges,
         active: branchData.active !== undefined ? branchData.active : true
       }])
       .select(`
@@ -672,12 +681,27 @@ const updateBranch = async (id, branchData) => {
     if (branchData.name !== undefined) updateData.name = branchData.name;
     if (branchData.address !== undefined) updateData.address = branchData.address;
     if (branchData.tables !== undefined) updateData.tables = branchData.tables;
-    if (branchData.rooms !== undefined) updateData.rooms = branchData.rooms;
-    if (branchData.room_ranges !== undefined) updateData.room_ranges = branchData.room_ranges;
+
+    // Manejar room_ranges y calcular rooms automáticamente
+    if (branchData.room_ranges !== undefined) {
+      updateData.room_ranges = branchData.room_ranges;
+
+      // Calcular el número total de habitaciones desde los rangos
+      const totalRooms = branchData.room_ranges.reduce((total, range) => {
+        return total + (range.end - range.start + 1);
+      }, 0);
+
+      updateData.rooms = totalRooms;
+    } else if (branchData.rooms !== undefined) {
+      // Si se envía rooms directamente (legacy), usarlo
+      updateData.rooms = branchData.rooms;
+    }
+
     if (branchData.active !== undefined) updateData.active = branchData.active;
 
     console.log('🔍 updateData antes de guardar:', JSON.stringify(updateData, null, 2));
     console.log('🔍 room_ranges en updateData:', updateData.room_ranges);
+    console.log('🔍 rooms calculado:', updateData.rooms);
 
     const { data, error } = await supabase
       .from('branches')

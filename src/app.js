@@ -26,6 +26,7 @@ const superAdminRoutes = require("./routes/superAdminRoutes");
 const aiAgentRoutes = require("./routes/aiAgentRoutes");
 const flexBillStatisticsRoutes = require("./routes/flexBillRoutes");
 const pickAndGoRoutes = require("./routes/pickAndGoRoutes");
+const tapPayRoutes = require("./routes/tapPayRoutes");
 const segmentsRoutes = require("./routes/segmentsRoutes");
 const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
@@ -95,6 +96,9 @@ app.use("/api/flex-bill", flexBillStatisticsRoutes);
 
 // Pick & Go
 app.use("/api/pick-and-go", pickAndGoRoutes);
+
+// Tap & Pay
+app.use("/api/tap-pay", tapPayRoutes);
 
 // SMS Templates
 app.use("/api/sms-templates", smsTemplateRoutes);

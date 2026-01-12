@@ -36,6 +36,7 @@ AS $$
 DECLARE
     new_user user_admin_portal;
     new_restaurant restaurants;
+    invitation_client_id UUID;
     result JSONB;
 BEGIN
     -- Verificar que el usuario no exista ya
@@ -64,12 +65,20 @@ BEGIN
     VALUES (p_clerk_user_id, p_email, p_first_name, p_last_name)
     RETURNING * INTO new_user;
 
-    -- Crear restaurante por defecto
-    INSERT INTO restaurants (user_id, name, description)
+    -- Buscar client_id desde pending_invitations usando el email
+    SELECT client_id INTO invitation_client_id
+    FROM pending_invitations
+    WHERE email = p_email
+    AND status = 'registered'
+    LIMIT 1;
+
+    -- Crear restaurante por defecto con client_id si existe
+    INSERT INTO restaurants (user_id, name, description, client_id)
     VALUES (
         new_user.id,
         p_restaurant_name,
-        'Descripción de tu restaurante - agrega información sobre tu cocina, especialidades y ambiente'
+        'Descripción de tu restaurante - agrega información sobre tu cocina, especialidades y ambiente',
+        invitation_client_id -- Puede ser NULL si no hay invitación
     )
     RETURNING * INTO new_restaurant;
 
