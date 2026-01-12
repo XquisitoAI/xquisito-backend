@@ -435,8 +435,8 @@ class TapPayService {
       }
 
       for (let i = 0; i < numberOfPeople; i++) {
-        await supabase.from("active_table_users").insert({
-          table_order_id: orderId,
+        await supabase.from("active_tap_pay_users").insert({
+          tap_pay_order_id: orderId,
           user_id: userIds[i] || null,
           guest_name: guestNames[i] || `Invitado ${i + 1}`,
           amount_paid: 0,
@@ -495,14 +495,54 @@ class TapPayService {
 
   async getActiveUsers(orderId) {
     try {
-      const { data, error } = await supabase
+      // Primero obtenemos los active users
+      const { data: activeUsers, error: activeUsersError } = await supabase
         .from("active_tap_pay_users")
         .select("*")
         .eq("tap_pay_order_id", orderId);
 
-      if (error) throw error;
+      if (activeUsersError) throw activeUsersError;
 
-      return data || [];
+      if (!activeUsers || activeUsers.length === 0) {
+        return [];
+      }
+
+      // Obtener los user_ids que no son null
+      const userIds = activeUsers
+        .filter(u => u.user_id)
+        .map(u => u.user_id);
+
+      let profiles = [];
+      if (userIds.length > 0) {
+        // Obtener los perfiles de los usuarios
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, phone")
+          .in("id", userIds);
+
+        if (!profilesError && profilesData) {
+          profiles = profilesData;
+        }
+      }
+
+      // Mapear los profiles a los active users
+      const formattedData = activeUsers.map(activeUser => {
+        const profile = profiles.find(p => p.id === activeUser.user_id);
+
+        return {
+          ...activeUser,
+          profile,
+          display_name: activeUser.guest_name ||
+                       (profile?.first_name && profile?.last_name
+                         ? `${profile.first_name} ${profile.last_name}`
+                         : profile?.first_name) ||
+                       profile?.email ||
+                       profile?.phone ||
+                       'Usuario',
+        };
+      });
+
+      return formattedData;
     } catch (error) {
       console.error("Error in getActiveUsers:", error);
       throw error;
@@ -619,9 +659,9 @@ class TapPayService {
   async addOrUpdateActiveUser(orderId, userId, guestName, amountPaid) {
     try {
       const { data: existing, error: findError } = await supabase
-        .from("active_table_users")
+        .from("active_tap_pay_users")
         .select("*")
-        .eq("table_order_id", orderId)
+        .eq("tap_pay_order_id", orderId)
         .eq(userId ? "user_id" : "guest_name", userId || guestName)
         .single();
 
@@ -631,12 +671,12 @@ class TapPayService {
 
       if (existing) {
         await supabase
-          .from("active_table_users")
+          .from("active_tap_pay_users")
           .update({ amount_paid: parseFloat(existing.amount_paid) + amountPaid })
           .eq("id", existing.id);
       } else {
-        await supabase.from("active_table_users").insert({
-          table_order_id: orderId,
+        await supabase.from("active_tap_pay_users").insert({
+          tap_pay_order_id: orderId,
           user_id: userId || null,
           guest_name: guestName || "Invitado",
           amount_paid: amountPaid,

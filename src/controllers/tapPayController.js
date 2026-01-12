@@ -371,6 +371,34 @@ class TapPayController {
     }
   }
 
+  // Agregar usuario activo
+  async addActiveUser(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { userId, guestName } = req.body;
+
+      if (!userId && !guestName) {
+        return res.status(400).json({
+          success: false,
+          message: "Se requiere userId o guestName",
+        });
+      }
+
+      await tapPayService.addOrUpdateActiveUser(orderId, userId, guestName, 0);
+
+      res.json({
+        success: true,
+        message: "Usuario agregado exitosamente",
+      });
+    } catch (error) {
+      console.error("Error adding active user:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
   // Actualizar estado de orden
   async updateOrderStatus(req, res) {
     try {

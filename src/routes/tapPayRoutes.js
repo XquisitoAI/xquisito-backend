@@ -24,6 +24,7 @@ router.post("/orders/:orderId/split-bill", tapPayController.initializeSplitBill)
 router.post("/orders/:orderId/pay-split", tapPayController.paySplitAmount);
 router.get("/orders/:orderId/split-status", tapPayController.getSplitPaymentStatus);
 router.get("/orders/:orderId/active-users", tapPayController.getActiveUsers);
+router.post("/orders/:orderId/active-users", tapPayController.addActiveUser);
 
 // Actualizar estados
 router.put("/orders/:orderId/status", tapPayController.updateOrderStatus);
