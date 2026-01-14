@@ -258,7 +258,7 @@ class TapPayService {
     }
   }
 
-  async payEqualShare(orderId, tipAmount, paymentMethodId, userId, guestName) {
+  async payEqualShare(orderId, tipAmount, paymentMethodId, userId, guestId, guestName) {
     try {
       const order = await this.getOrderById(orderId);
       if (!order) {
@@ -272,18 +272,20 @@ class TapPayService {
       const splitAmount = parseFloat(order.remaining_amount) / order.number_of_splits;
       const totalAmount = splitAmount + (tipAmount || 0);
 
-      const { data: transaction, error: transactionError } = await supabase
-        .from("payment_transactions")
-        .insert({
-          id_tap_pay_order: orderId,
-          total_amount_charged: totalAmount,
-          tip_amount: tipAmount || 0,
-          payment_method_id: paymentMethodId,
-        })
-        .select()
-        .single();
+      // TODO: Descomentar cuando se agregue restaurant_id al flujo
+      // const { data: transaction, error: transactionError } = await supabase
+      //   .from("payment_transactions")
+      //   .insert({
+      //     id_tap_pay_order: orderId,
+      //     total_amount_charged: totalAmount,
+      //     tip_amount: tipAmount || 0,
+      //     payment_method_id: paymentMethodId,
+      //     restaurant_id: restaurantId, // Falta este campo
+      //   })
+      //   .select()
+      //   .single();
 
-      if (transactionError) throw transactionError;
+      // if (transactionError) throw transactionError;
 
       const { error: updateError } = await supabase.rpc(
         "update_tap_pay_order_paid_amount",
@@ -295,7 +297,7 @@ class TapPayService {
 
       if (updateError) throw updateError;
 
-      await this.addOrUpdateActiveUser(orderId, userId, guestName, totalAmount);
+      await this.addOrUpdateActiveUser(orderId, userId, guestId, guestName, totalAmount);
 
       const { error: splitError } = await supabase
         .from("tap_pay_orders")
@@ -305,7 +307,7 @@ class TapPayService {
       if (splitError) throw splitError;
 
       return {
-        transaction_id: transaction.id,
+        transaction_id: `temp-${Date.now()}`, // Temporal hasta que se implemente correctamente
         amount_paid: totalAmount,
         split_amount: splitAmount,
       };
@@ -315,7 +317,7 @@ class TapPayService {
     }
   }
 
-  async payChooseAmount(orderId, amount, tipAmount, paymentMethodId, userId, guestName) {
+  async payChooseAmount(orderId, amount, tipAmount, paymentMethodId, userId, guestId, guestName) {
     try {
       if (!amount || amount <= 0) {
         throw new Error("Monto inválido");
@@ -323,18 +325,20 @@ class TapPayService {
 
       const totalAmount = parseFloat(amount) + (tipAmount || 0);
 
-      const { data: transaction, error: transactionError } = await supabase
-        .from("payment_transactions")
-        .insert({
-          id_tap_pay_order: orderId,
-          total_amount_charged: totalAmount,
-          tip_amount: tipAmount || 0,
-          payment_method_id: paymentMethodId,
-        })
-        .select()
-        .single();
+      // TODO: Descomentar cuando se agregue restaurant_id al flujo
+      // const { data: transaction, error: transactionError } = await supabase
+      //   .from("payment_transactions")
+      //   .insert({
+      //     id_tap_pay_order: orderId,
+      //     total_amount_charged: totalAmount,
+      //     tip_amount: tipAmount || 0,
+      //     payment_method_id: paymentMethodId,
+      //     restaurant_id: restaurantId, // Falta este campo
+      //   })
+      //   .select()
+      //   .single();
 
-      if (transactionError) throw transactionError;
+      // if (transactionError) throw transactionError;
 
       const { error: updateError } = await supabase.rpc(
         "update_tap_pay_order_paid_amount",
@@ -346,10 +350,10 @@ class TapPayService {
 
       if (updateError) throw updateError;
 
-      await this.addOrUpdateActiveUser(orderId, userId, guestName, totalAmount);
+      await this.addOrUpdateActiveUser(orderId, userId, guestId, guestName, totalAmount);
 
       return {
-        transaction_id: transaction.id,
+        transaction_id: `temp-${Date.now()}`, // Temporal hasta que se implemente correctamente
         amount_paid: totalAmount,
       };
     } catch (error) {
@@ -372,16 +376,18 @@ class TapPayService {
 
       const totalPrice = (parseFloat(dish.price) + parseFloat(dish.extra_price || 0)) * dish.quantity;
 
-      const { error: transactionError } = await supabase
-        .from("payment_transactions")
-        .insert({
-          id_tap_pay_order: dish.tap_pay_order_id,
-          total_amount_charged: totalPrice,
-          tip_amount: 0,
-          payment_method_id: paymentMethodId,
-        });
+      // TODO: Descomentar cuando se agregue restaurant_id al flujo
+      // const { error: transactionError } = await supabase
+      //   .from("payment_transactions")
+      //   .insert({
+      //     id_tap_pay_order: dish.tap_pay_order_id,
+      //     total_amount_charged: totalPrice,
+      //     tip_amount: 0,
+      //     payment_method_id: paymentMethodId,
+      //     restaurant_id: restaurantId, // Falta este campo
+      //   });
 
-      if (transactionError) throw transactionError;
+      // if (transactionError) throw transactionError;
 
       const { error: updateDishError } = await supabase
         .from("dish_order")
@@ -409,9 +415,9 @@ class TapPayService {
     }
   }
 
-  async payOrderAmount({ orderId, amount, paymentMethodId, userId, guestName }) {
+  async payOrderAmount({ orderId, amount, paymentMethodId, userId, guestId, guestName }) {
     try {
-      return await this.payChooseAmount(orderId, amount, 0, paymentMethodId, userId, guestName);
+      return await this.payChooseAmount(orderId, amount, 0, paymentMethodId, userId, guestId, guestName);
     } catch (error) {
       console.error("Error in payOrderAmount:", error);
       throw error;
@@ -454,9 +460,9 @@ class TapPayService {
     }
   }
 
-  async paySplitAmount({ orderId, userId, guestName, paymentMethodId }) {
+  async paySplitAmount({ orderId, userId, guestId, guestName, paymentMethodId }) {
     try {
-      return await this.payEqualShare(orderId, 0, paymentMethodId, userId, guestName);
+      return await this.payEqualShare(orderId, 0, paymentMethodId, userId, guestId, guestName);
     } catch (error) {
       console.error("Error in paySplitAmount:", error);
       throw error;
@@ -656,34 +662,47 @@ class TapPayService {
     }
   }
 
-  async addOrUpdateActiveUser(orderId, userId, guestName, amountPaid) {
+  async addOrUpdateActiveUser(orderId, userId, guestId, guestName, amountPaid) {
     try {
+      // Buscar por userId o guestId (preferir userId, luego guestId, luego guestName)
+      const searchKey = userId ? "user_id" : (guestId ? "guest_id" : "guest_name");
+      const searchValue = userId || guestId || guestName;
+
+      // Usar maybeSingle() para evitar errores si no existe o si hay múltiples
       const { data: existing, error: findError } = await supabase
         .from("active_tap_pay_users")
         .select("*")
         .eq("tap_pay_order_id", orderId)
-        .eq(userId ? "user_id" : "guest_name", userId || guestName)
-        .single();
+        .eq(searchKey, searchValue)
+        .maybeSingle();
 
-      if (findError && findError.code !== "PGRST116") {
+      if (findError) {
         console.error("Error finding active user:", findError);
+        // Continuar con el flujo normal - si hay error, intentar insertar
       }
 
       if (existing) {
+        // Usuario ya existe - actualizar amount_paid
         await supabase
           .from("active_tap_pay_users")
-          .update({ amount_paid: parseFloat(existing.amount_paid) + amountPaid })
+          .update({
+            amount_paid: parseFloat(existing.amount_paid) + amountPaid,
+            guest_name: guestName || existing.guest_name || "Invitado" // Actualizar nombre si cambió
+          })
           .eq("id", existing.id);
       } else {
+        // Usuario no existe - insertar nuevo
         await supabase.from("active_tap_pay_users").insert({
           tap_pay_order_id: orderId,
           user_id: userId || null,
+          guest_id: guestId || null,
           guest_name: guestName || "Invitado",
           amount_paid: amountPaid,
         });
       }
     } catch (error) {
       console.error("Error in addOrUpdateActiveUser:", error);
+      // No lanzar el error - esto es best-effort
     }
   }
 }

@@ -228,20 +228,24 @@ class TapPayController {
   async payOrderAmount(req, res) {
     try {
       const { orderId } = req.params;
-      const { amount, paymentMethodId, userId, guestName } = req.body;
+      const { amount, userId, guestId, guestName } = req.body;
 
-      if (!amount || !paymentMethodId) {
+      // NOTA: paymentMethodId ya NO es requerido
+      // Los endpoints de pago solo registran que se pagó (actualizan paid_amount)
+      // El cargo real se hace por separado con EcartPay cuando hay tarjeta real
+      if (!amount) {
         return res.status(400).json({
           success: false,
-          message: "amount y paymentMethodId son requeridos",
+          message: "amount es requerido",
         });
       }
 
       const result = await tapPayService.payOrderAmount({
         orderId,
         amount: parseFloat(amount),
-        paymentMethodId,
+        paymentMethodId: null, // Siempre null - no se usa en este endpoint
         userId,
+        guestId,
         guestName,
       });
 
@@ -295,27 +299,29 @@ class TapPayController {
   async paySplitAmount(req, res) {
     try {
       const { orderId } = req.params;
-      const { userId, guestName, paymentMethodId } = req.body;
+      const { userId, guestId, guestName, paymentMethodId } = req.body;
 
-      if (!paymentMethodId) {
+      // NOTA: paymentMethodId ya NO es requerido (igual que payOrderAmount)
+      // if (!paymentMethodId) {
+      //   return res.status(400).json({
+      //     success: false,
+      //     message: "paymentMethodId es requerido",
+      //   });
+      // }
+
+      if (!userId && !guestId && !guestName) {
         return res.status(400).json({
           success: false,
-          message: "paymentMethodId es requerido",
-        });
-      }
-
-      if (!userId && !guestName) {
-        return res.status(400).json({
-          success: false,
-          message: "Se requiere userId o guestName",
+          message: "Se requiere userId, guestId o guestName",
         });
       }
 
       const result = await tapPayService.paySplitAmount({
         orderId,
         userId,
+        guestId,
         guestName,
-        paymentMethodId,
+        paymentMethodId: null, // Siempre null - no se usa en este endpoint
       });
 
       res.json({
@@ -375,16 +381,17 @@ class TapPayController {
   async addActiveUser(req, res) {
     try {
       const { orderId } = req.params;
-      const { userId, guestName } = req.body;
+      const { userId, guestId, guestName } = req.body;
 
-      if (!userId && !guestName) {
+      if (!userId && !guestId && !guestName) {
         return res.status(400).json({
           success: false,
-          message: "Se requiere userId o guestName",
+          message: "Se requiere userId, guestId o guestName",
         });
       }
 
-      await tapPayService.addOrUpdateActiveUser(orderId, userId, guestName, 0);
+      // addOrUpdateActiveUser ya valida si existe antes de insertar
+      await tapPayService.addOrUpdateActiveUser(orderId, userId, guestId, guestName, 0);
 
       res.json({
         success: true,
