@@ -23,6 +23,9 @@ router.put('/clients/:id', mainPortalAuth, mainPortalController.updateClient);
 // DELETE /api/main-portal/clients/:id - Eliminar cliente
 router.delete('/clients/:id', mainPortalAuth, mainPortalController.deleteClient);
 
+// GET /api/main-portal/clients/:email/admin-portal-status - Verificar si cliente tiene cuenta en admin-portal
+router.get('/clients/:email/admin-portal-status', mainPortalAuth, mainPortalController.checkClientAdminPortalStatus);
+
 // ===============================================
 // RUTAS PARA SUCURSALES
 // ===============================================
