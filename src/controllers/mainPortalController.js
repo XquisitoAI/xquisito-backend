@@ -505,6 +505,45 @@ const getInvitationStatuses = async (req, res) => {
   }
 };
 
+// GET /api/main-portal/clients/:email/admin-portal-status
+const checkClientAdminPortalStatus = async (req, res) => {
+  try {
+    const { email } = req.params;
+    console.log(`🔍 Checking admin-portal status for email: ${email}`);
+
+    // Usar la función del servicio para buscar usuario en admin-portal
+    const adminUser = await mainPortalService.findAdminPortalUserByEmail(email);
+
+    if (adminUser) {
+      console.log(`✅ Found admin-portal user: ${adminUser.clerk_user_id}`);
+      res.json({
+        success: true,
+        data: {
+          hasAdminPortalAccount: true,
+          clerkUserId: adminUser.clerk_user_id,
+          adminUserEmail: adminUser.email,
+          adminUserName: `${adminUser.first_name || ''} ${adminUser.last_name || ''}`.trim()
+        }
+      });
+    } else {
+      console.log(`ℹ️ No admin-portal user found for email: ${email}`);
+      res.json({
+        success: true,
+        data: {
+          hasAdminPortalAccount: false
+        }
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error checking admin-portal status:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'server_error',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   // Clientes
   getAllClients,
@@ -512,6 +551,7 @@ module.exports = {
   createClient,
   updateClient,
   deleteClient,
+  checkClientAdminPortalStatus,
   // Sucursales
   getAllBranches,
   getBranchById,

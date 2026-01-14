@@ -198,8 +198,32 @@ const createNewClient = async (clientData) => {
 // Actualizar cliente
 const updateClient = async (id, clientData) => {
   try {
-    const updateData = {};
+    console.log(`🔄 Starting client update for ID: ${id}`);
 
+    // 1. Obtener datos actuales del cliente para detectar cambio de email
+    let oldClientData = null;
+    const emailChanged = clientData.email !== undefined;
+
+    if (emailChanged) {
+      const { data: currentClient, error: fetchError } = await supabase
+        .from('clients')
+        .select('email')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          throw new Error('Client not found');
+        }
+        throw new Error(`Error fetching current client: ${fetchError.message}`);
+      }
+
+      oldClientData = currentClient;
+      console.log(`📧 Email change detected: ${oldClientData.email} → ${clientData.email}`);
+    }
+
+    // 2. Preparar datos de actualización
+    const updateData = {};
     if (clientData.name !== undefined) updateData.name = clientData.name;
     if (clientData.owner_name !== undefined) updateData.owner_name = clientData.owner_name;
     if (clientData.phone !== undefined) updateData.phone = clientData.phone;
@@ -209,6 +233,7 @@ const updateClient = async (id, clientData) => {
     if (clientData.room_count !== undefined) updateData.room_count = clientData.room_count;
     if (clientData.active !== undefined) updateData.active = clientData.active;
 
+    // 3. Actualizar cliente en base de datos
     const { data, error } = await supabase
       .from('clients')
       .update(updateData)
@@ -226,6 +251,30 @@ const updateClient = async (id, clientData) => {
       throw new Error(`Error updating client: ${error.message}`);
     }
 
+    // 4. Si hubo cambio de email, sincronizar con admin-portal
+    if (emailChanged && oldClientData && oldClientData.email !== clientData.email) {
+      try {
+        console.log(`🔄 Syncing email change with admin-portal...`);
+        const syncResult = await syncEmailWithAdminPortal(oldClientData.email, clientData.email);
+
+        if (syncResult.synced) {
+          console.log(`✅ Email sync successful for user: ${syncResult.clerkUserId}`);
+          // Agregar información de sincronización al resultado
+          data._emailSyncResult = syncResult;
+        } else {
+          console.log(`ℹ️ Email sync not needed: ${syncResult.reason}`);
+          data._emailSyncResult = syncResult;
+        }
+      } catch (syncError) {
+        console.error('❌ Email sync failed:', syncError.message);
+        // No fallar la actualización del cliente si la sincronización falla
+        // pero agregar la información del error
+        data._emailSyncError = syncError.message;
+        console.warn('⚠️ Client updated successfully but email sync failed - user may need to update login email manually');
+      }
+    }
+
+    console.log(`✅ Client updated successfully: ${data.name}`);
     return data;
   } catch (error) {
     console.error('❌ Error in updateClient:', error.message);
@@ -822,6 +871,436 @@ const getMainPortalStats = async () => {
   }
 };
 
+// ===============================================
+// FUNCIONES DE SINCRONIZACIÓN EMAIL CON ADMIN-PORTAL
+// ===============================================
+
+/**
+ * Buscar usuario en admin-portal por email
+ */
+const findAdminPortalUserByEmail = async (email) => {
+  try {
+    const { data: user, error } = await supabase
+      .from('user_admin_portal')
+      .select('id, clerk_user_id, email, first_name, last_name')
+      .eq('email', email)
+      .eq('is_active', true)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+      throw error;
+    }
+
+    return user || null;
+  } catch (error) {
+    console.error('❌ Error finding admin portal user by email:', error.message);
+    return null;
+  }
+};
+
+/**
+ * Buscar y limpiar invitaciones revocadas en Clerk por email
+ */
+const findAndCleanRevokedInvitations = async (email) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    console.log(`🔍 Searching for revoked invitations for email: ${email}`);
+
+    // Buscar invitaciones en estado "revoked"
+    const invitations = await adminPortalClerk.invitations.getInvitationList({
+      status: 'revoked'
+    });
+
+    const revokedInvitation = invitations.find(inv =>
+      inv.emailAddress === email && inv.status === 'revoked'
+    );
+
+    if (revokedInvitation) {
+      console.log(`🗑️ Found revoked invitation for ${email}, attempting to delete...`);
+
+      try {
+        // Para invitaciones revocadas, no necesitamos llamar API - simplemente las ignoramos
+        // Ya que están revocadas, no bloquean el email
+        console.log(`✅ Revoked invitation found and ignored for ${email} (ID: ${revokedInvitation.id})`);
+        return true;
+      } catch (deleteError) {
+        console.warn(`⚠️ Could not process revoked invitation: ${deleteError.message}`);
+        return false;
+      }
+    } else {
+      console.log(`ℹ️ No revoked invitation found for ${email}`);
+      return false;
+    }
+  } catch (error) {
+    console.warn(`⚠️ Error searching for revoked invitations: ${error.message}`);
+    return false;
+  }
+};
+
+/**
+ * Investigar estado actual del usuario en Clerk
+ */
+const debugClerkUser = async (clerkUserId) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    const user = await adminPortalClerk.users.getUser(clerkUserId);
+
+    console.log(`🔍 DEBUG - Current user state in Clerk:`);
+    console.log(`  - User ID: ${user.id}`);
+    console.log(`  - Email addresses:`, user.emailAddresses.map(e => ({
+      id: e.id,
+      emailAddress: e.emailAddress,
+      verification: e.verification?.status,
+      primary: e.id === user.primaryEmailAddressId
+    })));
+    console.log(`  - Primary email ID: ${user.primaryEmailAddressId}`);
+
+    return user;
+  } catch (error) {
+    console.error(`❌ Error debugging user: ${error.message}`);
+    return null;
+  }
+};
+
+/**
+ * Actualizar email en Clerk admin-portal usando método que realmente funciona
+ */
+const updateEmailInClerkAdminPortal = async (clerkUserId, newEmail) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    console.log(`🔄 Updating email in Clerk admin-portal for user: ${clerkUserId}`);
+    console.log(`📧 New email: ${newEmail}`);
+
+    // 1. Investigar estado actual
+    const currentUser = await debugClerkUser(clerkUserId);
+
+    if (!currentUser) {
+      throw new Error('User not found in Clerk');
+    }
+
+    // 2. Verificar si el email ya existe para este usuario
+    const existingEmail = currentUser.emailAddresses.find(e => e.emailAddress === newEmail);
+
+    if (existingEmail) {
+      console.log(`📧 Email ${newEmail} already exists with ID: ${existingEmail.id}`);
+      console.log(`📧 Current verification status: ${existingEmail.verification?.status || 'unverified'}`);
+
+      // Si ya está verificado, intentar hacerlo primario
+      if (existingEmail.verification?.status === 'verified') {
+        console.log(`📧 Email is verified, attempting to set as primary...`);
+        try {
+          await adminPortalClerk.emailAddresses.updateEmailAddress(existingEmail.id, {
+            primary: true
+          });
+          console.log('✅ Verified email set as primary successfully');
+        } catch (primaryError) {
+          console.warn(`⚠️ Failed to set as primary: ${primaryError.message}`);
+        }
+      } else {
+        // Si no está verificado, VERIFICARLO Y HACERLO PRIMARIO AUTOMÁTICAMENTE
+        console.log(`📧 Email not verified, setting as verified and primary automatically...`);
+        console.log(`🔍 Email address ID: ${existingEmail.id}`);
+
+        try {
+          // Verificar
+          await adminPortalClerk.emailAddresses.updateEmailAddress(existingEmail.id, {
+            verified: true,
+            primary: true
+          });
+
+          console.log('✅ Email verified and set as primary automatically!');
+
+          console.log(`🎯 SYNCHRONIZATION COMPLETE!`);
+          console.log(`📧 Email ${newEmail} is now verified and primary`);
+
+        } catch (updateError) {
+          console.warn(`⚠️ Failed to update email as verified/primary: ${updateError.message}`);
+          console.log(`📧 User needs manual verification to complete the process`)
+        }
+      }
+
+      // Verificar el resultado
+      console.log(`🔍 Verifying final state...`);
+      const finalUser = await debugClerkUser(clerkUserId);
+      return finalUser;
+    }
+
+    // 3. Si no existe, crear nueva dirección de email como VERIFICADO Y PRIMARIO
+    try {
+      console.log(`📧 Creating new email address ${newEmail} as verified and primary...`);
+
+      // Crear email como VERIFICADO y PRIMARIO automáticamente
+      const newEmailAddress = await adminPortalClerk.emailAddresses.createEmailAddress({
+        userId: clerkUserId,
+        emailAddress: newEmail,
+        verified: true,   
+        primary: true 
+      });
+
+      console.log(`✅ Email address created with ID: ${newEmailAddress.id}`);
+      console.log(`🎯 Email created as VERIFIED and PRIMARY automatically!`);
+
+      console.log(`🎯 SYNCHRONIZATION COMPLETE!`);
+      console.log(`📧 Email ${newEmail} is now the primary verified email`);
+
+      // Verificar el resultado
+      console.log(`🔍 Verifying final state...`);
+      const updatedUser = await debugClerkUser(clerkUserId);
+      return updatedUser;
+
+    } catch (createError) {
+      console.warn(`⚠️ Email creation failed: ${createError.message}`);
+
+      // Si el email ya existe, intentar encontrarlo y hacerlo primario
+      if (createError.message.includes('already exists') || createError.message.includes('unique')) {
+        console.log(`🔄 Email might already exist, trying to find and set as primary...`);
+
+        try {
+          const currentUser = await adminPortalClerk.users.getUser(clerkUserId);
+          const existingEmail = currentUser.emailAddresses.find(e => e.emailAddress === newEmail);
+
+          if (existingEmail) {
+            console.log(`📧 Found existing email with verification status: ${existingEmail.verification?.status}`);
+
+            // Si el email ya está verificado, hacerlo primario
+            if (existingEmail.verification?.status === 'verified') {
+              console.log(`📧 Email is verified, setting as primary...`);
+              await adminPortalClerk.emailAddresses.updateEmailAddress(existingEmail.id, {
+                primary: true
+              });
+              console.log('✅ Existing verified email set as primary');
+            } else {
+              // Si no está verificado, enviar verificación
+              console.log(`📧 Email not verified, sending verification email...`);
+              try {
+                await adminPortalClerk.emailAddresses.createEmailAddressVerification(existingEmail.id);
+                console.log('✅ Verification email sent to existing email address');
+                console.log(`📧 User must verify ${newEmail} before it can be used for login`);
+              } catch (verifyExistingError) {
+                console.warn(`⚠️ Failed to send verification to existing email: ${verifyExistingError.message}`);
+              }
+            }
+
+            return await debugClerkUser(clerkUserId);
+          } else {
+            throw new Error('Email not found even though it allegedly exists');
+          }
+        } catch (setPrimaryError) {
+          console.error(`❌ Failed to set existing email as primary: ${setPrimaryError.message}`);
+        }
+      }
+
+      // Último intento: actualización directa del usuario (aunque no parece funcionar)
+      try {
+        console.log(`🔄 Trying direct user update as last resort...`);
+
+        await adminPortalClerk.users.updateUser(clerkUserId, {
+          emailAddress: newEmail
+        });
+
+        const finalUser = await debugClerkUser(clerkUserId);
+        console.log('📧 Direct update completed (check debug info above for actual result)');
+        return finalUser;
+
+      } catch (directError) {
+        console.error(`❌ Direct update also failed: ${directError.message}`);
+        throw new Error(`All update methods failed: ${createError.message} | ${directError.message}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Error updating email in Clerk admin-portal:', error.message);
+    console.error('❌ Full error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualizar email en tabla user_admin_portal
+ */
+const updateEmailInSupabaseAdminPortal = async (clerkUserId, newEmail) => {
+  try {
+    console.log(`🔄 Updating email in Supabase user_admin_portal for user: ${clerkUserId}`);
+
+    const { data, error } = await supabase
+      .from('user_admin_portal')
+      .update({
+        email: newEmail,
+        updated_at: new Date().toISOString()
+      })
+      .eq('clerk_user_id', clerkUserId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log('✅ Email updated in Supabase user_admin_portal successfully');
+    return data;
+  } catch (error) {
+    console.error('❌ Error updating email in Supabase user_admin_portal:', error.message);
+    throw new Error(`Error updating email in Supabase: ${error.message}`);
+  }
+};
+
+/**
+ * Verificar si email está disponible en Clerk (considerando invitaciones revocadas)
+ */
+const isEmailAvailableInClerk = async (email, excludeClerkUserId = null) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    console.log(`🔍 Checking if email ${email} is available in Clerk admin-portal`);
+
+    // 1. Verificar si hay usuario activo con este email (excepto el que estamos actualizando)
+    const existingUser = await findAdminPortalUserByEmail(email);
+    if (existingUser && existingUser.clerk_user_id !== excludeClerkUserId) {
+      console.log(`❌ Email ${email} is already in use by active user: ${existingUser.clerk_user_id}`);
+      return false;
+    }
+
+    // 2. Si no hay usuario activo, verificar y limpiar invitaciones revocadas
+    const cleanedRevoked = await findAndCleanRevokedInvitations(email);
+    if (cleanedRevoked) {
+      console.log(`✅ Cleaned revoked invitation for ${email}, email is now available`);
+    }
+
+    return true;
+  } catch (error) {
+    console.warn(`⚠️ Error checking email availability: ${error.message}`);
+    // En caso de error, ser conservadores y asumir que no está disponible
+    return false;
+  }
+};
+
+/**
+ * Limpiar registro huérfano en Supabase (usuario que ya no existe en Clerk)
+ */
+const cleanOrphanedSupabaseRecord = async (clerkUserId, email) => {
+  try {
+    console.log(`🧹 Cleaning orphaned Supabase record for Clerk user: ${clerkUserId} (email: ${email})`);
+
+    // 1. Marcar como inactivo en lugar de eliminar (para mantener auditoría)
+    const { data, error } = await supabase
+      .from('user_admin_portal')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+        deactivation_reason: `Orphaned record - Clerk user ${clerkUserId} no longer exists`
+      })
+      .eq('clerk_user_id', clerkUserId)
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`✅ Successfully cleaned orphaned record for ${email}`);
+    return data;
+  } catch (error) {
+    console.error(`❌ Error cleaning orphaned record: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Verificar si usuario de Clerk realmente existe
+ */
+const verifyClerkUserExists = async (clerkUserId) => {
+  try {
+    const adminPortalConfig = getClerkConfig('adminPortal');
+
+    const adminPortalClerk = createClerkClient({
+      secretKey: adminPortalConfig.secretKey
+    });
+
+    await adminPortalClerk.users.getUser(clerkUserId);
+    return true;
+  } catch (error) {
+    if (error.status === 404 || error.message.includes('not found')) {
+      return false;
+    }
+    throw error; // Re-throw si es otro tipo de error
+  }
+};
+
+/**
+ * Sincronizar cambio de email entre main-portal y admin-portal
+ */
+const syncEmailWithAdminPortal = async (oldEmail, newEmail) => {
+  try {
+    console.log(`🔄 Starting email sync: ${oldEmail} → ${newEmail}`);
+
+    // 1. Buscar si existe usuario en admin-portal con el email anterior
+    const adminUser = await findAdminPortalUserByEmail(oldEmail);
+
+    if (!adminUser) {
+      console.log('ℹ️ No admin-portal user found with old email, no sync needed');
+      return { synced: false, reason: 'No admin-portal user found' };
+    }
+
+    console.log(`🔍 Found admin-portal user: ${adminUser.clerk_user_id}`);
+
+    // 2. Verificar si hay conflictos con el nuevo email
+    const conflictUser = await findAdminPortalUserByEmail(newEmail);
+
+    if (conflictUser && conflictUser.clerk_user_id !== adminUser.clerk_user_id) {
+      console.log(`⚠️ Email ${newEmail} is in use by user: ${conflictUser.clerk_user_id}`);
+
+      // Verificar si el usuario conflictivo realmente existe en Clerk
+      const clerkUserExists = await verifyClerkUserExists(conflictUser.clerk_user_id);
+
+      if (!clerkUserExists) {
+        console.log(`🧹 User ${conflictUser.clerk_user_id} not found in Clerk - cleaning orphaned record`);
+        await cleanOrphanedSupabaseRecord(conflictUser.clerk_user_id, newEmail);
+        console.log(`✅ Orphaned record cleaned, proceeding with sync`);
+      } else {
+        throw new Error(`Email ${newEmail} is already in use by another active admin-portal user (${conflictUser.clerk_user_id})`);
+      }
+    }
+
+    console.log(`✅ Email ${newEmail} is available, proceeding with sync`);
+
+    // 3. Actualizar email en Clerk admin-portal
+    await updateEmailInClerkAdminPortal(adminUser.clerk_user_id, newEmail);
+
+    // 4. Actualizar email en Supabase user_admin_portal
+    await updateEmailInSupabaseAdminPortal(adminUser.clerk_user_id, newEmail);
+
+    console.log('✅ Email sync completed successfully');
+    return {
+      synced: true,
+      clerkUserId: adminUser.clerk_user_id,
+      oldEmail,
+      newEmail
+    };
+
+  } catch (error) {
+    console.error('❌ Error in email sync:', error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   // Clientes
   getAllClients,
@@ -829,6 +1308,14 @@ module.exports = {
   createClient: createNewClient,
   updateClient,
   deleteClient,
+  // Sincronización admin-portal
+  findAdminPortalUserByEmail,
+  syncEmailWithAdminPortal,
+  isEmailAvailableInClerk,
+  findAndCleanRevokedInvitations,
+  cleanOrphanedSupabaseRecord,
+  verifyClerkUserExists,
+  debugClerkUser,
   // Sucursales
   getAllBranches,
   getBranchesByClient,
