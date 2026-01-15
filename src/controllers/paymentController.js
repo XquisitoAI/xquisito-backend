@@ -904,17 +904,20 @@ class PaymentController {
         !transactionData.id_table_order &&
         !transactionData.id_tap_orders_and_pay &&
         !transactionData.pick_and_go_order_id &&
-        !transactionData.id_room_order
+        !transactionData.id_room_order &&
+        !transactionData.id_tap_pay_order
       ) {
         return res.status(400).json({
           success: false,
           error: {
             type: "validation_error",
             message:
-              "Either id_table_order, id_tap_orders_and_pay, pick_and_go_order_id, or id_room_order is required",
+              "Either id_table_order, id_tap_orders_and_pay, pick_and_go_order_id,, id_room_order or id_tap_pay_order is required",
           },
         });
       }
+
+      console.log("Exito hasta aqui");
 
       // Crear transacción
       const result = await paymentTransactionService.createTransaction(

@@ -12,6 +12,7 @@ DROP CONSTRAINT IF EXISTS check_single_payment_order_type;
 -- 2. id_tap_orders_and_pay (tap-order-and-pay)
 -- 3. id_pick_and_go_order (pick-and-go)
 -- 4. id_room_order (room-service)
+-- 5. id_tap_pay_order
 ALTER TABLE public.payment_transactions
 ADD CONSTRAINT check_single_payment_order_type CHECK (
   (
@@ -19,7 +20,8 @@ ADD CONSTRAINT check_single_payment_order_type CHECK (
     (CASE WHEN id_table_order IS NOT NULL THEN 1 ELSE 0 END) +
     (CASE WHEN id_tap_orders_and_pay IS NOT NULL THEN 1 ELSE 0 END) +
     (CASE WHEN id_pick_and_go_order IS NOT NULL THEN 1 ELSE 0 END) +
-    (CASE WHEN id_room_order IS NOT NULL THEN 1 ELSE 0 END)
+    (CASE WHEN id_room_order IS NOT NULL THEN 1 ELSE 0 END)+
+    (CASE WHEN id_tap_pay_order IS NOT NULL THEN 1 ELSE 0 END)
   ) = 1
 );
 

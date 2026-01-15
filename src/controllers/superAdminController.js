@@ -51,12 +51,13 @@ class SuperAdminController {
         "tap-order-pay",
         "pick-and-go",
         "room-service",
+        "tap-and-pay",
       ];
       if (!validServices.includes(filters.service)) {
         return res.status(400).json({
           success: false,
           error:
-            "Servicio inválido. Debe ser: todos, flex-bill, tap-order-pay, pick-and-go, o room-service",
+            "Servicio inválido. Debe ser: todos, flex-bill, tap-order-pay, pick-and-go, room-service o tap-and-pay",
         });
       }
 

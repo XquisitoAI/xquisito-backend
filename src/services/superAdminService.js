@@ -375,6 +375,7 @@ class SuperAdminService {
       let tapOrderCount = 0;
       let pickOrderCount = 0;
       let roomOrderCount = 0;
+      let tapPayOrderCount = 0;
 
       // Contar órdenes de flex-bill
       // user_order no tiene created_at, así que contamos desde table_order
@@ -525,7 +526,54 @@ class SuperAdminService {
         }
       }
 
-      return flexBillCount + tapOrderCount + pickOrderCount + roomOrderCount;
+      // Contar órdenes de tap & pay
+      if (service === "todos" || service === "tap-and-pay") {
+        try {
+          let tapPayQuery = supabase
+            .from("tap_pay_orders")
+            .select("id, restaurant_id", {
+              count: "exact",
+              head: true,
+            });
+
+          if (start_date) {
+            tapPayQuery = tapPayQuery.gte("created_at", start_date);
+          }
+
+          if (end_date) {
+            tapPayQuery = tapPayQuery.lt(
+              "created_at",
+              this.getEndDateInclusive(end_date)
+            );
+          }
+
+          if (restaurant_id && restaurant_id !== "todos") {
+            if (Array.isArray(restaurant_id)) {
+              tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
+            } else {
+              tapPayQuery = tapPayQuery.eq("restaurant_id", restaurant_id);
+            }
+          }
+
+          const { count, error } = await tapPayQuery;
+
+          if (error) {
+            console.error("Error in tap-and-pay orders query:", error);
+          } else {
+            tapPayOrderCount = count || 0;
+          }
+        } catch (err) {
+          console.error("Error querying tap-and-pay orders:", err);
+        }
+      }
+
+      return (
+        flexBillCount +
+        tapOrderCount +
+        pickOrderCount +
+        roomOrderCount +
+        tapPayOrderCount
+      );
     } catch (error) {
       console.error("Error getting successful orders:", error);
       return 0;
@@ -625,6 +673,7 @@ class SuperAdminService {
       let tapOrderVolume = 0;
       let pickAndGoVolume = 0;
       let roomServiceVolume = 0;
+      let tapPayVolume = 0;
 
       // Volumen de Flex Bill
       if (service === "todos" || service === "flex-bill") {
@@ -792,6 +841,46 @@ class SuperAdminService {
         });
       }
 
+      // Volumen de Tap & Pay
+      if (service === "todos" || service === "tap-and-pay") {
+        let tapAndPayQuery = supabase
+          .from("payment_transactions")
+          .select("total_amount_charged, id_tap_pay_order");
+
+        if (start_date)
+          tapAndPayQuery = tapAndPayQuery.gte("created_at", start_date);
+        if (end_date)
+          tapAndPayQuery = tapAndPayQuery.lt(
+            "created_at",
+            this.getEndDateInclusive(end_date)
+          );
+        if (restaurant_id && restaurant_id !== "todos") {
+          if (Array.isArray(restaurant_id)) {
+            tapAndPayQuery = tapAndPayQuery.in("restaurant_id", restaurant_id);
+          } else {
+            tapAndPayQuery = tapAndPayQuery.eq("restaurant_id", restaurant_id);
+          }
+        }
+        tapAndPayQuery = tapAndPayQuery.not("id_tap_pay_order", "is", null);
+
+        const tapAndPayResult = await tapAndPayQuery;
+        tapPayVolume = tapAndPayResult.data
+          ? tapAndPayResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
+              0
+            )
+          : 0;
+
+        console.log(
+          `💰 Tap & Pay Service Volume: ${tapPayVolume} (${tapAndPayResult.data?.length || 0} transactions)`
+        );
+
+        results.push({
+          service: "Tap & Pay",
+          volume: parseFloat(tapPayVolume.toFixed(2)),
+        });
+      }
+
       console.log("📊 Volume by Service Results:", results);
       return results;
     } catch (error) {
@@ -951,6 +1040,35 @@ class SuperAdminService {
         });
       }
 
+      // Órdenes de Tap & Pay
+      if (service === "todos" || service === "tap-and-pay") {
+        let tapPayQuery = supabase.from("tap_pay_orders").select("id", {
+          count: "exact",
+          head: true,
+        });
+
+        if (start_date) tapPayQuery = tapPayQuery.gte("created_at", start_date);
+        if (end_date)
+          tapPayQuery = tapPayQuery.lt(
+            "created_at",
+            this.getEndDateInclusive(end_date)
+          );
+        if (restaurant_id && restaurant_id !== "todos") {
+          if (Array.isArray(restaurant_id)) {
+            tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
+          } else {
+            tapPayQuery = tapPayQuery.eq("restaurant_id", restaurant_id);
+          }
+        }
+
+        const tapPayResult = await tapPayQuery;
+        console.log(`📦 Tap & Pay Service Orders: ${tapPayResult.count || 0}`);
+        results.push({
+          service: "Tap & Pay",
+          count: tapPayResult.count || 0,
+        });
+      }
+
       console.log("📊 Orders by Service Results:", results);
       return results;
     } catch (error) {
@@ -1098,6 +1216,35 @@ class SuperAdminService {
         });
       }
 
+      // Transacciones de Tap & Pay
+      if (service === "todos" || service === "tap-and-pay") {
+        let tapPayQuery = supabase
+          .from("payment_transactions")
+          .select("id", { count: "exact", head: true })
+          .not("id_tap_pay_order", "is", null);
+
+        if (start_date) tapPayQuery = tapPayQuery.gte("created_at", start_date);
+        if (end_date)
+          tapPayQuery = tapPayQuery.lt(
+            "created_at",
+            this.getEndDateInclusive(end_date)
+          );
+        if (restaurant_id && restaurant_id !== "todos") {
+          if (Array.isArray(restaurant_id)) {
+            tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
+          } else {
+            tapPayQuery = tapPayQuery.eq("restaurant_id", restaurant_id);
+          }
+        }
+
+        const tapPayResult = await tapPayQuery;
+        console.log(`💳 Tap & Pay Transactions: ${tapPayResult.count || 0}`);
+        results.push({
+          service: "Tap & Pay",
+          count: tapPayResult.count || 0,
+        });
+      }
+
       console.log("📊 Transactions by Service Results:", results);
       return results;
     } catch (error) {
@@ -1148,6 +1295,10 @@ class SuperAdminService {
         // Solo transacciones de Room Service (tienen id_room_order)
         console.log("✅ Filtering for Room Service");
         query = query.not("id_room_order", "is", null);
+      } else if (service === "tap-and-pay") {
+        // Solo transacciones de Tap & Pay (tienen id_tap_pay_order)
+        console.log("✅ Filtering for Tap & Pay");
+        query = query.not("id_tap_pay_order", "is", null);
       }
     } else {
       console.log("✅ No service filter (todos)");
@@ -1298,11 +1449,32 @@ class SuperAdminService {
         }
       }
 
+      // Obtener transacciones de Tap & Pay
+      let tapPayQuery = supabase
+        .from("payment_transactions")
+        .select("created_at, total_amount_charged, restaurant_id")
+        .not("id_tap_pay_order", "is", null);
+
+      if (start_date) tapPayQuery = tapPayQuery.gte("created_at", start_date);
+      if (end_date)
+        tapPayQuery = tapPayQuery.lt(
+          "created_at",
+          this.getEndDateInclusive(end_date)
+        );
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
+        } else {
+          tapPayQuery = tapPayQuery.eq("restaurant_id", restaurant_id);
+        }
+      }
+
       const [
         flexBillResult,
         tapOrderResult,
         pickAndGoResult,
         roomServiceResult,
+        tapPayResult,
       ] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
@@ -1316,6 +1488,9 @@ class SuperAdminService {
         service === "todos" || service === "room-service"
           ? roomServiceQuery
           : { data: [] },
+        service === "todos" || service === "tap-and-pay"
+          ? tapPayQuery
+          : { data: [] },
       ]);
 
       // Agrupar datos por período de tiempo
@@ -1324,6 +1499,7 @@ class SuperAdminService {
         tapOrderResult.data || [],
         pickAndGoResult.data || [],
         roomServiceResult.data || [],
+        tapPayResult.data || [],
         view_type,
         "volume",
         start_date,
@@ -1450,11 +1626,36 @@ class SuperAdminService {
         }
       }
 
+      // Obtener órdenes de Tap & Pay
+      let tapPayQuery = supabase
+        .from("tap_pay_orders")
+        .select(`created_at, id, restaurant_id`);
+
+      if (start_date) {
+        tapPayQuery = tapPayQuery.gte("created_at", start_date);
+      }
+
+      if (end_date) {
+        tapPayQuery = tapPayQuery.lt(
+          "created_at",
+          this.getEndDateInclusive(end_date)
+        );
+      }
+
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
+        } else {
+          tapPayQuery = tapPayQuery.eq("restaurant_id", restaurant_id);
+        }
+      }
+
       const [
         flexBillResult,
         tapOrderResult,
         pickAndGoResult,
         roomServiceResult,
+        tapPayResult,
       ] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
@@ -1468,6 +1669,9 @@ class SuperAdminService {
         service === "todos" || service === "room-service"
           ? roomServiceQuery
           : Promise.resolve({ data: [], error: null }),
+        service === "todos" || service === "tap-and-pay"
+          ? tapPayQuery
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       // Agrupar datos por período de tiempo
@@ -1476,6 +1680,7 @@ class SuperAdminService {
         tapOrderResult.data || [],
         pickAndGoResult.data || [],
         roomServiceResult.data || [],
+        tapPayResult.data || [],
         view_type,
         "orders",
         start_date,
@@ -1563,7 +1768,7 @@ class SuperAdminService {
         }
       }
 
-      // Obtener transacciones de Pick & Go
+      // Obtener transacciones de Room Service
       let roomServiceQuery = supabase
         .from("payment_transactions")
         .select("created_at, id, restaurant_id")
@@ -1590,11 +1795,32 @@ class SuperAdminService {
         }
       }
 
+      // Obtener transacciones de Tap & Pay
+      let tapPayQuery = supabase
+        .from("payment_transactions")
+        .select("created_at, id, restaurant_id")
+        .not("id_tap_pay_order", "is", null);
+
+      if (start_date) tapPayQuery = tapPayQuery.gte("created_at", start_date);
+      if (end_date)
+        tapPayQuery = tapPayQuery.lt(
+          "created_at",
+          this.getEndDateInclusive(end_date)
+        );
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
+        } else {
+          tapPayQuery = tapPayQuery.eq("restaurant_id", restaurant_id);
+        }
+      }
+
       const [
         flexBillResult,
         tapOrderResult,
         pickAndGoResult,
         roomServiceResult,
+        tapPayResult,
       ] = await Promise.all([
         service === "todos" || service === "flex-bill"
           ? flexBillQuery
@@ -1608,6 +1834,9 @@ class SuperAdminService {
         service === "todos" || service === "room-service"
           ? roomServiceQuery
           : { data: [] },
+        service === "todos" || service === "tap-and-pay"
+          ? tapPayQuery
+          : { data: [] },
       ]);
 
       // Agrupar datos por período de tiempo
@@ -1616,6 +1845,7 @@ class SuperAdminService {
         tapOrderResult.data || [],
         pickAndGoResult.data || [],
         roomServiceResult.data || [],
+        tapPayResult.data || [],
         view_type,
         "transactions",
         start_date,
@@ -1635,6 +1865,7 @@ class SuperAdminService {
     tapOrderData,
     pickAndGoData = [],
     roomServiceData,
+    tapPayData,
     viewType,
     dataType,
     filterStartDate,
@@ -1685,6 +1916,7 @@ class SuperAdminService {
           "Tap Order & Pay": 0,
           "Pick & Go": 0,
           "Room Service": 0,
+          "Tap & Pay": 0,
         };
       }
 
@@ -1707,6 +1939,7 @@ class SuperAdminService {
           "Tap Order & Pay": 0,
           "Pick & Go": 0,
           "Room Service": 0,
+          "Tap & Pay": 0,
         };
       }
 
@@ -1729,6 +1962,7 @@ class SuperAdminService {
           "Tap Order & Pay": 0,
           "Pick & Go": 0,
           "Room Service": 0,
+          "Tap & Pay": 0,
         };
       }
 
@@ -1741,7 +1975,7 @@ class SuperAdminService {
       }
     });
 
-    // Procesar datos de Pick & Go
+    // Procesar datos de Room service
     roomServiceData.forEach((item) => {
       const dateKey = getDateKey(item.created_at);
       if (!grouped[dateKey]) {
@@ -1760,6 +1994,29 @@ class SuperAdminService {
         );
       } else {
         grouped[dateKey]["Room Service"] += 1;
+      }
+    });
+
+    // Procesar datos de Tap & Pay
+    tapPayData.forEach((item) => {
+      const dateKey = getDateKey(item.created_at);
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: dateKey,
+          "Flex Bill": 0,
+          "Tap Order & Pay": 0,
+          "Pick & Go": 0,
+          "Room Service": 0,
+          "Tap & Pay": 0,
+        };
+      }
+
+      if (dataType === "volume") {
+        grouped[dateKey]["Tap & Pay"] += parseFloat(
+          item.total_amount_charged || 0
+        );
+      } else {
+        grouped[dateKey]["Tap & Pay"] += 1;
       }
     });
 
@@ -1793,6 +2050,7 @@ class SuperAdminService {
               "Tap Order & Pay": 0,
               "Pick & Go": 0,
               "Room Service": 0,
+              "Tap & Pay": 0,
             });
           }
 
@@ -1844,6 +2102,7 @@ class SuperAdminService {
               "Tap Order & Pay": 0,
               "Pick & Go": 0,
               "Room Service": 0,
+              "Tap & Pay": 0,
             });
           }
 
@@ -1878,6 +2137,7 @@ class SuperAdminService {
               "Tap Order & Pay": 0,
               "Pick & Go": 0,
               "Room Service": 0,
+              "Tap & Pay": 0,
             });
           }
 
@@ -1907,7 +2167,7 @@ class SuperAdminService {
       let query = supabase
         .from("payment_transactions")
         .select(
-          "created_at, id_table_order, id_tap_orders_and_pay, id_pick_and_go_order, id_room_order, restaurant_id, payment_method_id, card_type"
+          "created_at, id_table_order, id_tap_orders_and_pay, id_pick_and_go_order, id_room_order, id_tap_pay_order, restaurant_id, payment_method_id, card_type"
         );
 
       if (start_date) query = query.gte("created_at", start_date);
@@ -1931,6 +2191,8 @@ class SuperAdminService {
         query = query.not("id_pick_and_go_order", "is", null);
       } else if (service === "room-service") {
         query = query.not("id_room_order", "is", null);
+      } else if (service === "tap-and-pay") {
+        query = query.not("id_tap_pay_order", "is", null);
       }
 
       const { data, error } = await query;

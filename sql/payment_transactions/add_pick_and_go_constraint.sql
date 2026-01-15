@@ -15,14 +15,41 @@ DROP CONSTRAINT IF EXISTS chk_one_order_type;
 -- =============================================
 
 ALTER TABLE public.payment_transactions
-ADD CONSTRAINT chk_one_order_type CHECK (
-    -- Solo una de las tres opciones debe estar presente
+ADD CONSTRAINT chk_one_order_type
+CHECK (
     (
-        (id_table_order IS NOT NULL AND id_tap_orders_and_pay IS NULL AND id_pick_and_go_order IS NULL) OR
-        (id_table_order IS NULL AND id_tap_orders_and_pay IS NOT NULL AND id_pick_and_go_order IS NULL) OR
-        (id_table_order IS NULL AND id_tap_orders_and_pay IS NULL AND id_pick_and_go_order IS NOT NULL)
+        id_table_order IS NOT NULL AND
+        id_tap_orders_and_pay IS NULL AND
+        id_pick_and_go_order IS NULL AND
+        id_room_order IS NULL AND
+        id_tap_pay_order IS NULL
+    ) OR (
+        id_table_order IS NULL AND
+        id_tap_orders_and_pay IS NOT NULL AND
+        id_pick_and_go_order IS NULL AND
+        id_room_order IS NULL AND
+        id_tap_pay_order IS NULL
+    ) OR (
+        id_table_order IS NULL AND
+        id_tap_orders_and_pay IS NULL AND
+        id_pick_and_go_order IS NOT NULL AND
+        id_room_order IS NULL AND
+        id_tap_pay_order IS NULL
+    ) OR (
+        id_table_order IS NULL AND
+        id_tap_orders_and_pay IS NULL AND
+        id_pick_and_go_order IS NULL AND
+        id_room_order IS NOT NULL AND
+        id_tap_pay_order IS NULL
+    ) OR (
+        id_table_order IS NULL AND
+        id_tap_orders_and_pay IS NULL AND
+        id_pick_and_go_order IS NULL AND
+        id_room_order IS NULL AND
+        id_tap_pay_order IS NOT NULL
     )
 );
+
 
 -- 3. VERIFICACIÓN
 -- =============================================
