@@ -200,21 +200,21 @@ class TapPayController {
   async payDishOrder(req, res) {
     try {
       const { dishId } = req.params;
-      const { paymentMethodId } = req.body;
+      const { paymentMethodId, userId, guestId, guestName } = req.body;
 
-      const success = await tapPayService.payDishOrder(dishId, paymentMethodId || null);
+      const result = await tapPayService.payDishOrder({
+        dishId,
+        paymentMethodId: paymentMethodId || null,
+        userId: userId || null,
+        guestId: guestId || null,
+        guestName: guestName || null,
+      });
 
-      if (success) {
-        res.json({
-          success: true,
-          message: "Platillo pagado exitosamente",
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: "No se pudo procesar el pago",
-        });
-      }
+      res.json({
+        success: true,
+        message: "Platillo pagado exitosamente",
+        data: result,
+      });
     } catch (error) {
       console.error("Error paying dish order:", error);
       res.status(500).json({

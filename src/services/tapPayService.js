@@ -362,7 +362,7 @@ class TapPayService {
     }
   }
 
-  async payDishOrder(dishId, paymentMethodId) {
+  async payDishOrder({ dishId, paymentMethodId, userId, guestId, guestName }) {
     try {
       const { data: dish, error: dishError } = await supabase
         .from("dish_order")
@@ -406,9 +406,12 @@ class TapPayService {
 
       if (updateOrderError) throw updateOrderError;
 
+      // Registrar el pago en active_tap_pay_users
+      await this.addOrUpdateActiveUser(dish.tap_pay_order_id, userId, guestId, guestName, totalPrice);
+
       await this.checkAndCompleteOrder(dish.tap_pay_order_id);
 
-      return true;
+      return { dishId, amountPaid: totalPrice };
     } catch (error) {
       console.error("Error in payDishOrder:", error);
       throw error;
