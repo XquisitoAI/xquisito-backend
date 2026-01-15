@@ -228,6 +228,34 @@ class MenuAdminPortalService {
             }
           });
         }
+
+        // Obtener availableBranches para cada item
+        const itemIds = items.map(item => item.id);
+        if (itemIds.length > 0) {
+          const { data: branchData, error: branchError } = await supabase
+            .from('item_branch_availability')
+            .select('item_id, branch_id, is_available')
+            .in('item_id', itemIds);
+
+          if (!branchError && branchData) {
+            // Crear un mapa de item_id -> availableBranches
+            const branchMap = {};
+            branchData.forEach(row => {
+              if (row.is_available) {
+                if (!branchMap[row.item_id]) {
+                  branchMap[row.item_id] = [];
+                }
+                branchMap[row.item_id].push(row.branch_id);
+              }
+            });
+
+            // Asignar availableBranches a cada item
+            items.forEach(item => {
+              item.availableBranches = branchMap[item.id] || [];
+            });
+          }
+        }
+
         return items;
       } else {
         // Si no hay filtro de sucursal, devolver todos los items
@@ -260,6 +288,10 @@ class MenuAdminPortalService {
             name,
             is_active,
             restaurant_id
+          ),
+          item_branch_availability (
+            branch_id,
+            is_available
           )
         `)
         .eq("menu_sections.restaurant_id", restaurant.id)
@@ -283,11 +315,19 @@ class MenuAdminPortalService {
 
       if (error) throw error;
 
-      // Parse custom_fields from JSON string to array
-      const parsedData = (data || []).map(item => ({
-        ...item,
-        custom_fields: this.parseCustomFields(item.custom_fields)
-      }));
+      // Parse custom_fields and extract availableBranches
+      const parsedData = (data || []).map(item => {
+        // Extraer los IDs de sucursales donde el item está disponible
+        const availableBranches = (item.item_branch_availability || [])
+          .filter(iba => iba.is_available === true)
+          .map(iba => iba.branch_id);
+
+        return {
+          ...item,
+          custom_fields: this.parseCustomFields(item.custom_fields),
+          availableBranches: availableBranches
+        };
+      });
 
       return parsedData;
     } catch (error) {
@@ -395,7 +435,6 @@ class MenuAdminPortalService {
         try {
           const restaurantId = data.menu_sections.restaurant_id;
 
-          // Call the PostgreSQL function to set branch availability
           const { error: branchError } = await supabase.rpc('set_item_branch_availability', {
             p_item_id: data.id,
             p_restaurant_id: restaurantId,
@@ -404,11 +443,9 @@ class MenuAdminPortalService {
 
           if (branchError) {
             console.error('Error setting branch availability:', branchError);
-            // Don't throw error here to avoid breaking item creation if branch availability fails
           }
         } catch (branchError) {
-          console.error('❌ Exception setting branch availability:', branchError);
-          // Continue without throwing error
+          console.error('Exception setting branch availability:', branchError);
         }
       }
 
