@@ -897,6 +897,8 @@ class PaymentController {
         });
       }
 
+      console.log(missingFields);
+
       // Validar que exista al menos un tipo de orden
       if (
         !transactionData.id_table_order &&
@@ -1059,8 +1061,7 @@ class PaymentController {
           success: false,
           error: {
             type: "authentication_error",
-            message:
-              "User must be authenticated to migrate payment methods",
+            message: "User must be authenticated to migrate payment methods",
           },
         });
       }

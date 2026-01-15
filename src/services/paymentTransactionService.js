@@ -80,6 +80,7 @@ class PaymentTransactionService {
         restaurant_id,
         id_table_order = null,
         id_tap_orders_and_pay = null,
+        id_tap_pay_order = null, // Para Tap & Pay (tap_pay_orders)
         pick_and_go_order_id = null,
         id_room_order = null,
 
@@ -116,12 +117,12 @@ class PaymentTransactionService {
       }
 
       // Validar que exista al menos un tipo de orden
-      if (!id_table_order && !id_tap_orders_and_pay && !pick_and_go_order_id && !id_room_order) {
-        throw new Error("Se requiere id_table_order, id_tap_orders_and_pay, pick_and_go_order_id o id_room_order");
+      if (!id_table_order && !id_tap_orders_and_pay && !id_tap_pay_order && !pick_and_go_order_id && !id_room_order) {
+        throw new Error("Se requiere id_table_order, id_tap_orders_and_pay, id_tap_pay_order, pick_and_go_order_id o id_room_order");
       }
 
       // Validar que solo exista un tipo de orden
-      const orderTypes = [id_table_order, id_tap_orders_and_pay, pick_and_go_order_id, id_room_order].filter(Boolean);
+      const orderTypes = [id_table_order, id_tap_orders_and_pay, id_tap_pay_order, pick_and_go_order_id, id_room_order].filter(Boolean);
       if (orderTypes.length > 1) {
         throw new Error("Solo puede existir un tipo de orden");
       }
@@ -180,6 +181,7 @@ class PaymentTransactionService {
         restaurant_id,
         id_table_order,
         id_tap_orders_and_pay,
+        id_tap_pay_order, // Para Tap & Pay (tap_pay_orders)
         id_pick_and_go_order: pick_and_go_order_id, // Mapear para que coincida con el esquema de BD
         id_room_order, // Room service orders
         user_id: userId, // Clerk user ID (puede ser null para invitados)
