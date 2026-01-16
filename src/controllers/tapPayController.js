@@ -28,16 +28,11 @@ class TapPayController {
         parseInt(tableNumber)
       );
 
-      if (!order) {
-        return res.status(404).json({
-          success: false,
-          message: `No hay orden activa para la mesa ${tableNumber}`,
-        });
-      }
-
+      // Si no hay orden, retornamos success con data null
+      // Esto no es un error, simplemente no hay orden abierta para esta mesa
       res.json({
         success: true,
-        data: order,
+        data: order || null,
       });
     } catch (error) {
       console.error("Error getting active order:", error);

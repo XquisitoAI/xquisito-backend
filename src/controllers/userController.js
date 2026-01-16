@@ -419,6 +419,7 @@ class UserController {
           id_tap_orders_and_pay,
           id_pick_and_go_order,
           id_room_order,
+          id_tap_pay_order,
           base_amount,
           tip_amount,
           total_amount_charged,
@@ -464,8 +465,11 @@ class UserController {
         ),
       ];
       const roomOrderIds = [
+        ...new Set(transactions.map((tx) => tx.id_room_order).filter(Boolean)),
+      ];
+      const tapPayOrderIds = [
         ...new Set(
-          transactions.map((tx) => tx.id_room_order).filter(Boolean)
+          transactions.map((tx) => tx.id_tap_pay_order).filter(Boolean)
         ),
       ];
       const restaurantIds = [
@@ -478,7 +482,7 @@ class UserController {
       ];
 
       console.log(
-        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders, ${roomOrderIds.length} room_orders`
+        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders, ${roomOrderIds.length} room_orders, ${tapPayOrderIds.length} room_orders`
       );
 
       // ========================================
@@ -513,7 +517,10 @@ class UserController {
 
         // Obtener dish_orders de estas table_orders
         // Nota: No filtramos por user_id para mostrar todos los items de la transacción
-        console.log(`🔍 Fetching ALL user_orders for table_order_ids:`, tableOrderIds);
+        console.log(
+          `🔍 Fetching ALL user_orders for table_order_ids:`,
+          tableOrderIds
+        );
         const { data: userOrders, error: userOrdersError } = await supabase
           .from("user_order")
           .select(
@@ -539,7 +546,9 @@ class UserController {
         if (userOrdersError) {
           console.error("❌ Error fetching user_orders:", userOrdersError);
         }
-        console.log(`✅ Fetched ${userOrders?.length || 0} user_orders with dishes`);
+        console.log(
+          `✅ Fetched ${userOrders?.length || 0} user_orders with dishes`
+        );
 
         if (userOrders) {
           // Agregar dishes a cada table_order
@@ -749,7 +758,69 @@ class UserController {
       }
 
       // ========================================
-      // 6. Consultar Restaurants
+      // 6. Consultar Tap & Pay
+      // ========================================
+      let tapPayOrdersMap = {};
+      if (tapPayOrderIds.length > 0) {
+        const { data: tapPayOrders } = await supabase
+          .from("tap_pay_orders")
+          .select(
+            `
+            id,
+            order_status,
+            created_at,
+            total_amount,
+            tables!inner(
+              id,
+              table_number
+            )
+          `
+          )
+          .in("id", tapPayOrderIds);
+
+        if (tapPayOrders) {
+          console.log(`✅ Fetched ${tapPayOrders.length} Tap & Pay`);
+          tapPayOrders.forEach((order) => {
+            tapPayOrdersMap[order.id] = order;
+          });
+        }
+
+        // Obtener dish_orders de estos tap_pay_orders
+        const { data: tapPayDishes } = await supabase
+          .from("dish_order")
+          .select(
+            `
+            id,
+            tap_pay_order_id,
+            item,
+            quantity,
+            price,
+            status,
+            payment_status,
+            images,
+            custom_fields,
+            extra_price
+          `
+          )
+          .in("tap_pay_order_id", tapPayOrderIds)
+          .not("tap_pay_order_id", "is", null);
+
+        if (tapPayDishes) {
+          // Agregar dishes a cada tap_pay_order
+          tapPayDishes.forEach((dish) => {
+            const tapPayOrderId = dish.tap_pay_order_id;
+            if (tapPayOrdersMap[tapPayOrderId]) {
+              if (!tapPayOrdersMap[tapPayOrderId].dishes) {
+                tapPayOrdersMap[tapPayOrderId].dishes = [];
+              }
+              tapPayOrdersMap[tapPayOrderId].dishes.push(dish);
+            }
+          });
+        }
+      }
+
+      // ========================================
+      // 7. Consultar Restaurants
       // ========================================
       let restaurantsMap = {};
       if (restaurantIds.length > 0) {
@@ -766,7 +837,7 @@ class UserController {
       }
 
       // ========================================
-      // 6. Consultar Payment Methods
+      // 8. Consultar Payment Methods
       // ========================================
       let paymentMethodsMap = {};
       if (paymentMethodIds.length > 0) {
@@ -783,13 +854,14 @@ class UserController {
       }
 
       // ========================================
-      // 7. Construir historial agrupado por transacción
+      // 9. Construir historial agrupado por transacción
       // ========================================
       const orderHistory = transactions.map((tx) => {
         const isFlexBill = tx.id_table_order != null;
         const isTapOrder = tx.id_tap_orders_and_pay != null;
         const isPickOrder = tx.id_pick_and_go_order != null;
         const isRoomOrder = tx.id_room_order != null;
+        const isTapPayOrder = tx.id_tap_pay_order != null;
 
         let orderData = null;
         let tableNumber = null;
@@ -822,6 +894,12 @@ class UserController {
           roomNumber = orderData?.rooms?.room_number;
           orderStatus = orderData?.order_status;
           dishes = orderData?.dishes || [];
+        } else if (isTapPayOrder) {
+          orderData = tapPayOrdersMap[tx.id_tap_pay_order];
+          orderType = "tap-and-pay";
+          tableNumber = orderData?.tables?.table_number;
+          orderStatus = orderData?.order_status;
+          dishes = orderData?.dishes || [];
         }
 
         // El restaurant_id viene de la transacción (payment_transactions)
@@ -849,7 +927,8 @@ class UserController {
             tx.id_table_order ||
             tx.id_tap_orders_and_pay ||
             tx.id_pick_and_go_order ||
-            tx.id_room_order,
+            tx.id_room_order ||
+            tx.id_tap_pay_order,
           tableNumber,
           roomNumber,
           tableOrderStatus: orderStatus,

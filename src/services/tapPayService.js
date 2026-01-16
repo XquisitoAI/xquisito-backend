@@ -653,15 +653,36 @@ class TapPayService {
 
   async checkAndCompleteOrder(orderId) {
     try {
-      const { error } = await supabase.rpc("check_and_complete_tap_pay_order", {
+      const { data: wasCompleted, error } = await supabase.rpc("check_and_complete_tap_pay_order", {
         p_order_id: orderId,
       });
 
       if (error) {
         console.error("Error checking and completing order:", error);
+        return;
+      }
+
+      // Si la orden fue completada (pagada totalmente), limpiar usuarios activos
+      if (wasCompleted) {
+        await this.clearActiveUsers(orderId);
       }
     } catch (error) {
       console.error("Error in checkAndCompleteOrder:", error);
+    }
+  }
+
+  async clearActiveUsers(orderId) {
+    try {
+      const { error } = await supabase
+        .from("active_tap_pay_users")
+        .delete()
+        .eq("tap_pay_order_id", orderId);
+
+      if (error) {
+        console.error("Error clearing active users:", error);
+      }
+    } catch (error) {
+      console.error("Error in clearActiveUsers:", error);
     }
   }
 
