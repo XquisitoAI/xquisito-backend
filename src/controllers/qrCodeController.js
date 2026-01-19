@@ -149,8 +149,10 @@ exports.resolveQRCode = async (req, res) => {
         process.env.TAP_ORDER_PAY_URL || "https://taporderpay.xquisito.ai",
       "room-service":
         process.env.ROOM_SERVICE_URL || "https://room-service.xquisito.ai",
-      "pick-and-go":
+      "pick-n-go":
         process.env.PICK_AND_GO_URL || "https://pickandgo.xquisito.ai",
+      "tap-pay":
+        process.env.TAP_AND_PAY_GO_URL || "https://tapandpay.xquisito.ai",
     };
 
     const baseUrl = serviceUrls[service];
@@ -163,8 +165,11 @@ exports.resolveQRCode = async (req, res) => {
       case "room-service":
         redirectUrl = `${baseUrl}/${restaurant_id}/${branch_number}/menu?room=${room_number}`;
         break;
-      case "pick-and-go":
+      case "pick-n-go":
         redirectUrl = `${baseUrl}/${restaurant_id}/menu?branch=${branch_number}`;
+        break;
+      case "tap-pay":
+        redirectUrl = `${baseUrl}/${restaurant_id}/${branch_number}/order?table=${table_number}`;
         break;
       default:
         throw new Error(`Invalid service: ${service}`);
@@ -228,7 +233,8 @@ exports.createQRCode = async (req, res) => {
       "flex-bill",
       "tap-order-pay",
       "room-service",
-      "pick-and-go",
+      "pick-n-go",
+      "tap-pay",
     ];
     if (!validServices.includes(service)) {
       return res.status(400).json({
