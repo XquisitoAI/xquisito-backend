@@ -465,7 +465,7 @@ exports.createBatchQRCodes = async (req, res) => {
 exports.updateQRCode = async (req, res) => {
   try {
     const { id } = req.params;
-    const { service, qr_type, table_number, room_number, is_active } = req.body;
+    const { service, qr_type, table_number, room_number, is_active, branch_id, branch_number } = req.body;
 
     // Build update object with only provided fields
     const updates = {};
@@ -474,6 +474,8 @@ exports.updateQRCode = async (req, res) => {
     if (table_number !== undefined) updates.table_number = table_number;
     if (room_number !== undefined) updates.room_number = room_number;
     if (is_active !== undefined) updates.is_active = is_active;
+    if (branch_id !== undefined) updates.branch_id = branch_id;
+    if (branch_number !== undefined) updates.branch_number = branch_number;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({
