@@ -1,5 +1,23 @@
 const supabase = require('../config/supabase');
 
+// Mapeo de nombres de servicios: Frontend -> SQL
+const SERVICE_NAME_MAP = {
+    'flex-bill': 'flexbill',
+    'pick-n-go': 'pick_and_go',
+    'tap-order-pay': 'tap_order',
+    'tap-pay': 'tap_pay',
+    'room-service': 'room_service'
+};
+
+// Mapeo inverso: SQL -> Frontend
+const SERVICE_NAME_MAP_REVERSE = {
+    'flexbill': 'flex-bill',
+    'pick_and_go': 'pick-n-go',
+    'tap_order': 'tap-order-pay',
+    'tap_pay': 'tap-pay',
+    'room_service': 'room-service'
+};
+
 class AnalyticsService {
     /**
      * Obtiene métricas del dashboard con filtros aplicados
@@ -310,6 +328,142 @@ class AnalyticsService {
             console.error('Error fetching user restaurants:', error);
             throw new Error(`Error fetching user restaurants: ${error.message}`);
         }
+    }
+
+    /**
+     * Obtiene métricas del dashboard consolidando TODOS los servicios
+     * Usa la función get_dashboard_metrics_all_services que incluye:
+     * FlexBill, Pick&Go, Room Service, Tap Order, Tap Pay
+     *
+     * @param {Object} filters - Filtros para las métricas
+     * @param {number} filters.restaurant_id - ID del restaurante
+     * @param {string} filters.branch_id - UUID de la sucursal
+     * @param {string} filters.start_date - Fecha de inicio (ISO string)
+     * @param {string} filters.end_date - Fecha de fin (ISO string)
+     * @param {string} filters.granularity - Granularidad ('hora', 'dia', 'mes', 'ano')
+     * @param {string} filters.service_type - Tipo de servicio ('flex-bill', 'pick-n-go', 'tap-order-pay', 'tap-pay', 'room-service', o null para todos)
+     * @param {string} filters.gender - Género ('todos', 'hombre', 'mujer')
+     * @param {string} filters.age_range - Rango de edad ('todos', '14-17', '18-25', '26-35', '36-45', '46+')
+     * @returns {Promise<Object>} Métricas del dashboard de todos los servicios
+     */
+    async getDashboardMetricsAllServices(filters) {
+        const {
+            restaurant_id,
+            branch_id,
+            start_date,
+            end_date,
+            granularity = 'dia',
+            service_type = null,
+            gender = 'todos',
+            age_range = 'todos'
+        } = filters;
+
+        try {
+            // Mapear nombre de servicio del frontend al formato SQL
+            const sqlServiceType = service_type ? (SERVICE_NAME_MAP[service_type] || service_type) : null;
+
+            const { data, error } = await supabase.rpc('get_dashboard_metrics_all_services', {
+                p_restaurant_id: restaurant_id || null,
+                p_branch_id: branch_id || null,
+                p_start_date: start_date || null,
+                p_end_date: end_date || null,
+                p_granularity: granularity,
+                p_service_type: sqlServiceType,
+                p_gender: gender,
+                p_age_range: age_range
+            });
+
+            if (error) {
+                console.error('Error in getDashboardMetricsAllServices:', error);
+                throw error;
+            }
+
+            // Procesar y formatear los datos
+            const processedData = this.processAllServicesData(data, granularity);
+            return processedData;
+
+        } catch (error) {
+            console.error('Error fetching dashboard metrics (all services):', error);
+            throw new Error(`Error fetching dashboard metrics (all services): ${error.message}`);
+        }
+    }
+
+    /**
+     * Procesa y formatea los datos del dashboard de todos los servicios
+     * @param {Object} rawData - Datos crudos de la función SQL
+     * @param {string} granularity - Granularidad seleccionada
+     * @returns {Object} Datos procesados y formateados
+     */
+    processAllServicesData(rawData, granularity) {
+        if (!rawData) {
+            return this.getEmptyAllServicesData(granularity);
+        }
+
+        const {
+            metricas,
+            grafico,
+            desglose_por_servicio,
+            articulo_mas_vendido,
+            filtros_aplicados,
+            servicios_disponibles
+        } = rawData;
+
+        // Formatear métricas principales
+        const formattedMetrics = {
+            ventasTotales: parseFloat(metricas?.ventas_totales || 0),
+            propinasTotales: parseFloat(metricas?.propinas_totales || 0),
+            ingresosTotales: parseFloat(metricas?.ingresos_totales || 0),
+            totalTransacciones: parseInt(metricas?.total_transacciones || 0),
+            ticketPromedio: parseFloat(metricas?.ticket_promedio || 0)
+        };
+
+        // Formatear desglose por servicio (convertir nombres SQL a frontend)
+        const formattedBreakdown = {};
+        if (desglose_por_servicio) {
+            for (const [sqlName, data] of Object.entries(desglose_por_servicio)) {
+                const frontendName = SERVICE_NAME_MAP_REVERSE[sqlName] || sqlName;
+                formattedBreakdown[frontendName] = {
+                    ventas: parseFloat(data.ventas || 0),
+                    transacciones: parseInt(data.transacciones || 0)
+                };
+            }
+        }
+
+        // Formatear datos del gráfico
+        const formattedChart = this.formatChartData(grafico || [], granularity);
+
+        return {
+            metricas: formattedMetrics,
+            grafico: formattedChart,
+            desglose_por_servicio: formattedBreakdown,
+            articulo_mas_vendido: articulo_mas_vendido || { nombre: 'Sin datos', unidades_vendidas: 0 },
+            filtros_aplicados: filtros_aplicados || {},
+            servicios_disponibles: servicios_disponibles || [],
+            success: true
+        };
+    }
+
+    /**
+     * Retorna estructura de datos vacía para el dashboard de todos los servicios
+     * @param {string} granularity - Granularidad
+     * @returns {Object} Datos vacíos del dashboard
+     */
+    getEmptyAllServicesData(granularity) {
+        return {
+            metricas: {
+                ventasTotales: 0,
+                propinasTotales: 0,
+                ingresosTotales: 0,
+                totalTransacciones: 0,
+                ticketPromedio: 0
+            },
+            grafico: this.generateEmptyChartData(granularity),
+            desglose_por_servicio: {},
+            articulo_mas_vendido: { nombre: 'Sin datos', unidades_vendidas: 0 },
+            filtros_aplicados: {},
+            servicios_disponibles: ['flex-bill', 'tap-order-pay', 'pick-n-go', 'room-service', 'tap-pay'],
+            success: true
+        };
     }
 }
 

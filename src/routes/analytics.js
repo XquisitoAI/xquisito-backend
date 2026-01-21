@@ -88,4 +88,17 @@ router.get('/dashboard/top-selling-item', adminPortalAuth, analyticsController.g
  */
 router.get('/dashboard/summary/:restaurant_id', adminPortalAuth, analyticsController.getDashboardSummary);
 
+/**
+ * @route GET /api/analytics/dashboard/metrics-all-services
+ * @desc Get dashboard metrics consolidating ALL services (FlexBill, Pick&Go, Room Service, Tap Order, Tap Pay)
+ * @access Private
+ * @query {number} restaurant_id - Restaurant ID filter
+ * @query {string} branch_id - Branch UUID filter
+ * @query {string} start_date - Start date filter (ISO string)
+ * @query {string} end_date - End date filter (ISO string)
+ * @query {string} granularity - Time granularity (hora, dia, mes, ano)
+ * @query {string} service_type - Service type filter (flex-bill, pick-n-go, tap-order-pay, tap-pay, room-service, or null for all)
+ */
+router.get('/dashboard/metrics-all-services', adminPortalAuth, analyticsController.getDashboardMetricsAllServices);
+
 module.exports = router;

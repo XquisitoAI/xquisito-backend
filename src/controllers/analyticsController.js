@@ -315,6 +315,62 @@ class AnalyticsController {
     }
 
     /**
+     * Obtiene métricas del dashboard consolidando TODOS los servicios
+     * GET /api/analytics/dashboard/metrics-all-services
+     * Query params: restaurant_id, branch_id, start_date, end_date, granularity, service_type, gender, age_range
+     */
+    async getDashboardMetricsAllServices(req, res) {
+        try {
+            const filters = {
+                restaurant_id: req.query.restaurant_id ? parseInt(req.query.restaurant_id) : null,
+                branch_id: req.query.branch_id || null,
+                start_date: req.query.start_date || null,
+                end_date: req.query.end_date || null,
+                granularity: req.query.granularity || 'dia',
+                service_type: req.query.service_type || null,  // 'flex-bill', 'pick-n-go', 'tap-order-pay', 'tap-pay', 'room-service', o null para todos
+                gender: req.query.gender || 'todos',
+                age_range: req.query.age_range || 'todos'
+            };
+
+            // Validar granularidad
+            const validGranularities = ['hora', 'dia', 'mes', 'ano'];
+            if (!validGranularities.includes(filters.granularity)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Granularidad inválida. Debe ser: hora, dia, mes, o ano'
+                });
+            }
+
+            // Validar service_type si se proporciona
+            const validServiceTypes = ['flex-bill', 'pick-n-go', 'tap-order-pay', 'tap-pay', 'room-service', null];
+            if (filters.service_type && !validServiceTypes.includes(filters.service_type)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Tipo de servicio inválido. Debe ser: flex-bill, pick-n-go, tap-order-pay, tap-pay, room-service, o null para todos'
+                });
+            }
+
+            console.log('🎯 [getDashboardMetricsAllServices] Filtros recibidos:', JSON.stringify(filters, null, 2));
+
+            const data = await analyticsService.getDashboardMetricsAllServices(filters);
+
+            res.json({
+                success: true,
+                data: data,
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error in getDashboardMetricsAllServices controller:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    /**
      * Endpoint de debug para verificar datos del usuario
      * GET /api/analytics/debug/user-info
      */
