@@ -1160,6 +1160,37 @@ const updateEmailInSupabaseAdminPortal = async (clerkUserId, newEmail) => {
 };
 
 /**
+ * Actualizar email en tabla pending_invitations (solo registros con status 'registered')
+ * Esto es necesario para mantener la asociación usuario-cliente cuando se cambia el email
+ */
+const updateEmailInPendingInvitations = async (oldEmail, newEmail) => {
+  try {
+    console.log(`🔄 Updating email in pending_invitations from ${oldEmail} to ${newEmail}`);
+
+    const { data, error } = await supabase
+      .from('pending_invitations')
+      .update({
+        email: newEmail,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', oldEmail)
+      .eq('status', 'registered')
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    const updatedCount = data ? data.length : 0;
+    console.log(`✅ Updated ${updatedCount} record(s) in pending_invitations`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error updating email in pending_invitations:', error.message);
+    throw new Error(`Error updating email in pending_invitations: ${error.message}`);
+  }
+};
+
+/**
  * Verificar si email está disponible en Clerk (considerando invitaciones revocadas)
  */
 const isEmailAvailableInClerk = async (email, excludeClerkUserId = null) => {
@@ -1286,6 +1317,9 @@ const syncEmailWithAdminPortal = async (oldEmail, newEmail) => {
 
     // 4. Actualizar email en Supabase user_admin_portal
     await updateEmailInSupabaseAdminPortal(adminUser.clerk_user_id, newEmail);
+
+    // 5. Actualizar email en pending_invitations (para mantener asociación usuario-cliente)
+    await updateEmailInPendingInvitations(oldEmail, newEmail);
 
     console.log('✅ Email sync completed successfully');
     return {
