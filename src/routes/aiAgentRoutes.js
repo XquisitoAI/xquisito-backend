@@ -91,9 +91,7 @@ router.post("/chat", async (req, res) => {
 
 /**
  * POST /api/ai-agent/chat/stream
- * Endpoint con streaming simulado para respuestas en tiempo real
- * Obtiene la respuesta completa y la envía token por token
- * Body: { message: string, session_id?: string }
+ * Endpoint con streaming real desde la API externa
  */
 router.post("/chat/stream", async (req, res) => {
   try {
@@ -120,40 +118,74 @@ router.post("/chat/stream", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
 
-    // Obtener respuesta completa del agente
-    const response = await axios.post(
+    // Usar fetch nativo para streaming real
+    const response = await fetch(
       "https://ai-spine-api.up.railway.app/api/v1/agents/embed/chat",
       {
-        message,
-        session_id: session_id || null,
-      },
-      {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          message,
+          session_id: session_id || null,
+          stream: true,
+        }),
       }
     );
 
-    const { response: agentResponse, session_id: newSessionId } = response.data;
-
-    // Enviar session_id si existe
-    if (newSessionId) {
-      res.write(`data: ${JSON.stringify({ type: "session", session_id: newSessionId })}\n\n`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error de API externa: ${response.status}`, errorText);
+      if (!res.headersSent) {
+        return res.status(response.status).json({
+          error: "Error al comunicarse con el agente de AI",
+          details: errorText,
+        });
+      }
+      res.write(`data: ${JSON.stringify({ type: "error", content: "Error del agente" })}\n\n`);
+      res.end();
+      return;
     }
 
-    // Simular streaming: enviar la respuesta palabra por palabra
-    const words = agentResponse.split(/(\s+)/); // Mantener espacios
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-    for (const word of words) {
-      if (word) {
-        res.write(`data: ${JSON.stringify({ type: "token", content: word })}\n\n`);
-        // Pequeno delay para efecto visual (5-15ms por palabra)
-        await new Promise(resolve => setTimeout(resolve, 10));
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const event = JSON.parse(line.slice(6));
+            // Re-enviar el evento al cliente tal cual viene de la API
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+          } catch (e) {
+            // Si no es JSON válido, ignorar
+            console.warn("Error parseando evento de API externa:", line);
+          }
+        }
       }
     }
 
-    // Enviar evento de finalizacion
+    // Procesar cualquier dato restante en el buffer
+    if (buffer.startsWith("data: ")) {
+      try {
+        const event = JSON.parse(buffer.slice(6));
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      } catch (e) {
+        // Ignorar
+      }
+    }
+
+    // Enviar evento de finalizacion si no vino de la API
     res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
     res.end();
   } catch (error) {
