@@ -3,31 +3,66 @@ const axios = require("axios");
 const router = express.Router();
 
 /**
- * Función helper para obtener la API key según el contexto del mensaje
+ * Mapeo de servicios a sus API keys y nombres
+ */
+const SERVICE_CONFIG = {
+  flex_bill: {
+    apiKey: () => process.env.AI_AGENT_FLEX_BILL_API_KEY,
+    keyName: "AI_AGENT_FLEX_BILL_API_KEY",
+    agentType: "Flex Bill",
+  },
+  pick_and_go: {
+    apiKey: () => process.env.AI_AGENT_PICK_AND_GO_API_KEY,
+    keyName: "AI_AGENT_PICK_AND_GO_API_KEY",
+    agentType: "Pick & Go",
+  },
+  tap_and_pay: {
+    apiKey: () => process.env.AI_AGENT_TAP_AND_PAY_API_KEY,
+    keyName: "AI_AGENT_TAP_AND_PAY_API_KEY",
+    agentType: "Tap & Pay",
+  },
+  room_service: {
+    apiKey: () => process.env.AI_AGENT_ROOM_SERVICE_API_KEY,
+    keyName: "AI_AGENT_ROOM_SERVICE_API_KEY",
+    agentType: "Room Service",
+  },
+  tap_order_and_pay: {
+    apiKey: () => process.env.AI_AGENT_TAP_ORDER_AND_PAY_API_KEY,
+    keyName: "AI_AGENT_TAP_ORDER_AND_PAY_API_KEY",
+    agentType: "Tap, Order & Pay",
+  },
+  admin_portal: {
+    apiKey: () => process.env.AI_AGENT_ADMIN_API_KEY,
+    keyName: "AI_AGENT_ADMIN_API_KEY",
+    agentType: "Admin Portal",
+  },
+  support_dashboard: {
+    apiKey: () => process.env.AI_AGENT_SUPPORT_API_KEY,
+    keyName: "AI_AGENT_SUPPORT_API_KEY",
+    agentType: "Support Dashboard",
+  },
+};
+
+/**
+ * Función helper para obtener la API key según el servicio
  */
 function getApiKeyForContext(message) {
-  const isAdminPortal = message.includes("admin_portal=true");
-  const isSupportDashboard = message.includes("support_dashboard");
-
-  if (isAdminPortal) {
-    return {
-      apiKey: process.env.AI_AGENT_ADMIN_API_KEY,
-      keyName: "AI_AGENT_ADMIN_API_KEY",
-      agentType: "Admin Portal",
-    };
-  } else if (isSupportDashboard) {
-    return {
-      apiKey: process.env.AI_AGENT_SUPPORT_API_KEY,
-      keyName: "AI_AGENT_SUPPORT_API_KEY",
-      agentType: "Support Dashboard",
-    };
-  } else {
-    return {
-      apiKey: process.env.AI_AGENT_API_KEY,
-      keyName: "AI_AGENT_API_KEY",
-      agentType: "Frontend",
-    };
+  for (const [serviceId, config] of Object.entries(SERVICE_CONFIG)) {
+    if (message.includes(`service=${serviceId}`)) {
+      return {
+        apiKey: config.apiKey(),
+        keyName: config.keyName,
+        agentType: config.agentType,
+      };
+    }
   }
+
+  // Default: Flex Bill
+  return {
+    apiKey: SERVICE_CONFIG.flex_bill.apiKey(),
+    keyName: SERVICE_CONFIG.flex_bill.keyName,
+    agentType: SERVICE_CONFIG.flex_bill.agentType,
+  };
 }
 
 /**
