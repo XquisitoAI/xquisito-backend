@@ -69,6 +69,8 @@ class SuperAdminService {
         volumeByService,
         ordersByService,
         transactionsByService,
+        totalCampaigns,
+        activeCampaigns,
       ] = await Promise.all([
         this.getTransactionVolume(filters),
         this.getXquisitoIncome(filters),
@@ -80,6 +82,8 @@ class SuperAdminService {
         this.getVolumeByService(filters),
         this.getOrdersByService(filters),
         this.getTransactionsByService(filters),
+        this.getTotalCampaigns(filters),
+        this.getActiveCampaigns(filters),
       ]);
 
       // Ejecutar consultas para período anterior (solo si hay fechas)
@@ -92,6 +96,7 @@ class SuperAdminService {
           prevSuccessfulOrders,
           prevActiveAdmins,
           prevTotalTransactions,
+          prevTotalCampaigns,
         ] = await Promise.all([
           this.getTransactionVolume(previousFilters),
           this.getXquisitoIncome(previousFilters),
@@ -99,6 +104,7 @@ class SuperAdminService {
           this.getSuccessfulOrders(previousFilters),
           this.getActiveAdmins(previousFilters),
           this.getTotalTransactions(previousFilters),
+          this.getTotalCampaigns(previousFilters),
         ]);
 
         previousStats = {
@@ -108,6 +114,7 @@ class SuperAdminService {
           successful_orders: prevSuccessfulOrders,
           active_admins: prevActiveAdmins,
           total_transactions: prevTotalTransactions,
+          total_campaigns: prevTotalCampaigns,
         };
       }
 
@@ -138,6 +145,10 @@ class SuperAdminService {
               totalTransactions,
               previousStats.total_transactions
             ),
+            total_campaigns_change: this.calculateChange(
+              totalCampaigns,
+              previousStats.total_campaigns
+            ),
           }
         : {
             transaction_volume_change: 0,
@@ -146,6 +157,7 @@ class SuperAdminService {
             successful_orders_change: 0,
             active_admins_change: 0,
             total_transactions_change: 0,
+            total_campaigns_change: 0,
           };
 
       return {
@@ -159,6 +171,8 @@ class SuperAdminService {
           active_admins: activeAdmins,
           most_used_payment_method: mostUsedPaymentMethod,
           total_transactions: totalTransactions,
+          total_campaigns: totalCampaigns,
+          active_campaigns: activeCampaigns,
 
           // Cambios porcentuales
           ...changes,
@@ -1326,6 +1340,67 @@ class SuperAdminService {
     };
 
     return ranges[age_range] || null;
+  }
+
+  // Obtiene el total de campañas creadas
+  async getTotalCampaigns(filters) {
+    try {
+      const { start_date, end_date, restaurant_id } = filters;
+
+      let query = supabase
+        .from("campaigns")
+        .select("id", { count: "exact", head: true });
+
+      if (start_date) query = query.gte("created_at", start_date);
+      if (end_date) query = query.lt("created_at", this.getEndDateInclusive(end_date));
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          query = query.in("restaurant_id", restaurant_id);
+        } else {
+          query = query.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      const { count, error } = await query;
+
+      if (error) throw error;
+
+      return count || 0;
+    } catch (error) {
+      console.error("Error getting total campaigns:", error);
+      return 0;
+    }
+    
+  }
+
+  // Obtiene el número de campañas activas (status = 'scheduled' o 'running')
+  async getActiveCampaigns(filters) {
+    try {
+      const { restaurant_id } = filters;
+
+      let query = supabase
+        .from("campaigns")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["scheduled", "running"]);
+
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          query = query.in("restaurant_id", restaurant_id);
+        } else {
+          query = query.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      const { count, error } = await query;
+
+      if (error) throw error;
+
+      return count || 0;
+    } catch (error) {
+      console.error("Error getting active campaigns:", error);
+      return 0;
+    }
+
   }
 
   // Obtener todos los restaurantes del sistema
