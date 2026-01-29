@@ -101,4 +101,18 @@ router.get('/dashboard/summary/:restaurant_id', adminPortalAuth, analyticsContro
  */
 router.get('/dashboard/metrics-all-services', adminPortalAuth, analyticsController.getDashboardMetricsAllServices);
 
+/**
+ * @route GET /api/analytics/dashboard/recent-transactions
+ * @desc Get recent payment transactions with pagination
+ * @access Private
+ * @query {number} restaurant_id - Restaurant ID filter
+ * @query {string} branch_id - Branch UUID filter
+ * @query {string} service_type - Service type filter
+ * @query {string} start_date - Start date filter (ISO string)
+ * @query {string} end_date - End date filter (ISO string)
+ * @query {number} limit - Limit for pagination (default: 10)
+ * @query {number} offset - Offset for pagination (default: 0)
+ */
+router.get('/dashboard/recent-transactions', adminPortalAuth, analyticsController.getRecentTransactions);
+
 module.exports = router;

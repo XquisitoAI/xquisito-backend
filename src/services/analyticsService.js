@@ -414,6 +414,8 @@ class AnalyticsService {
             propinasTotales: parseFloat(metricas?.propinas_totales || 0),
             ingresosTotales: parseFloat(metricas?.ingresos_totales || 0),
             totalTransacciones: parseInt(metricas?.total_transacciones || 0),
+            totalOrdenes: parseInt(metricas?.total_ordenes || 0), // Mesas/órdenes atendidas
+            totalPedidos: parseInt(metricas?.total_pedidos || 0), // Comensales individuales
             ticketPromedio: parseFloat(metricas?.ticket_promedio || 0)
         };
 
@@ -455,6 +457,8 @@ class AnalyticsService {
                 propinasTotales: 0,
                 ingresosTotales: 0,
                 totalTransacciones: 0,
+                totalOrdenes: 0,
+                totalPedidos: 0,
                 ticketPromedio: 0
             },
             grafico: this.generateEmptyChartData(granularity),
@@ -464,6 +468,81 @@ class AnalyticsService {
             servicios_disponibles: ['flex-bill', 'tap-order-pay', 'pick-n-go', 'room-service', 'tap-pay'],
             success: true
         };
+    }
+
+    /**
+     * Obtiene transacciones recientes con paginación
+     * @param {Object} filters - Filtros para las transacciones
+     * @param {number} filters.restaurant_id - ID del restaurante
+     * @param {string} filters.branch_id - UUID de la sucursal
+     * @param {string} filters.service_type - Tipo de servicio
+     * @param {string} filters.start_date - Fecha de inicio
+     * @param {string} filters.end_date - Fecha de fin
+     * @param {number} filters.limit - Límite de resultados (default 10)
+     * @param {number} filters.offset - Offset para paginación (default 0)
+     * @returns {Promise<Object>} Transacciones paginadas
+     */
+    async getRecentTransactions(filters) {
+        const {
+            restaurant_id,
+            branch_id,
+            service_type,
+            start_date,
+            end_date,
+            limit = 10,
+            offset = 0
+        } = filters;
+
+        try {
+            // Convertir service_type de frontend a SQL si es necesario
+            const sqlServiceType = service_type ? (SERVICE_NAME_MAP[service_type] || service_type) : null;
+
+            const { data, error } = await supabase.rpc('get_recent_transactions', {
+                p_restaurant_id: restaurant_id || null,
+                p_branch_id: branch_id || null,
+                p_service_type: sqlServiceType,
+                p_start_date: start_date || null,
+                p_end_date: end_date || null,
+                p_limit: limit,
+                p_offset: offset
+            });
+
+            if (error) {
+                console.error('Error al obtener transacciones recientes:', error);
+                throw error;
+            }
+
+            // Formatear transacciones
+            const transactions = (data?.transactions || []).map(tx => ({
+                id: tx.id,
+                baseAmount: parseFloat(tx.base_amount || 0),
+                tipAmount: parseFloat(tx.tip_amount || 0),
+                totalAmount: parseFloat(tx.total_amount || 0),
+                createdAt: tx.created_at,
+                serviceType: SERVICE_NAME_MAP_REVERSE[tx.service_type] || tx.service_type,
+                orderIdentifier: tx.order_identifier,
+                orderStatus: tx.order_status || 'paid'
+            }));
+
+            return {
+                transactions,
+                pagination: {
+                    total: data?.pagination?.total || 0,
+                    limit: data?.pagination?.limit || limit,
+                    offset: data?.pagination?.offset || offset,
+                    hasMore: data?.pagination?.has_more || false
+                },
+                success: true
+            };
+        } catch (error) {
+            console.error('Error en getRecentTransactions:', error);
+            return {
+                transactions: [],
+                pagination: { total: 0, limit, offset, hasMore: false },
+                success: false,
+                error: error.message
+            };
+        }
     }
 }
 

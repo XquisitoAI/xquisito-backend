@@ -455,6 +455,65 @@ class AnalyticsController {
             });
         }
     }
+
+    /**
+     * Obtiene transacciones recientes con paginación
+     * GET /api/analytics/dashboard/recent-transactions
+     * Query params: restaurant_id, branch_id, service_type, start_date, end_date, limit, offset
+     */
+    async getRecentTransactions(req, res) {
+        try {
+            const filters = {
+                restaurant_id: req.query.restaurant_id ? parseInt(req.query.restaurant_id) : null,
+                branch_id: req.query.branch_id || null,
+                service_type: req.query.service_type || null,
+                start_date: req.query.start_date || null,
+                end_date: req.query.end_date || null,
+                limit: parseInt(req.query.limit) || 10,
+                offset: parseInt(req.query.offset) || 0
+            };
+
+            // Validar parámetros de paginación
+            if (filters.limit < 1 || filters.limit > 50) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El límite debe estar entre 1 y 50'
+                });
+            }
+
+            if (filters.offset < 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El offset debe ser mayor o igual a 0'
+                });
+            }
+
+            // Validar service_type si se proporciona
+            const validServiceTypes = ['flex-bill', 'pick-n-go', 'tap-order-pay', 'tap-pay', 'room-service', null];
+            if (filters.service_type && !validServiceTypes.includes(filters.service_type)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Tipo de servicio inválido'
+                });
+            }
+
+            const data = await analyticsService.getRecentTransactions(filters);
+
+            res.json({
+                success: true,
+                data: data,
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error in getRecentTransactions controller:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
 }
 
 module.exports = new AnalyticsController();
