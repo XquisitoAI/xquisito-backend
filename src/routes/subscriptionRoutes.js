@@ -31,6 +31,9 @@ router.get('/restaurant/:restaurantId/feature/:feature/usage', SubscriptionContr
 // Check feature access
 router.get('/restaurant/:restaurantId/feature/:feature/access', SubscriptionController.checkFeatureAccess);
 
+// Provision missing subscriptions (admin endpoint to fix existing restaurants)
+router.post('/provision-missing', SubscriptionController.provisionMissingSubscriptions);
+
 // Webhook endpoint (no authentication required)
 router.post('/webhook', (req, res, next) => {
     // Remove authentication for webhook endpoint
