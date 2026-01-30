@@ -115,4 +115,14 @@ router.get('/dashboard/metrics-all-services', adminPortalAuth, analyticsControll
  */
 router.get('/dashboard/recent-transactions', adminPortalAuth, analyticsController.getRecentTransactions);
 
+/**
+ * @route GET /api/analytics/dashboard/order-items
+ * @desc Get items for an order/transaction
+ * @access Private
+ * @query {string} id - Transaction or order ID (UUID)
+ * @query {string} orderStatus - Order status (paid, not_paid, partial, pending)
+ * @query {string} serviceType - Service type (flex-bill, tap-pay, etc.)
+ */
+router.get('/dashboard/order-items', adminPortalAuth, analyticsController.getOrderItems);
+
 module.exports = router;

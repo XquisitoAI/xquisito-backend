@@ -544,6 +544,37 @@ class AnalyticsService {
             };
         }
     }
+
+    async getOrderItems({ id, orderStatus, serviceType }) {
+        try {
+            const sqlServiceType = SERVICE_NAME_MAP[serviceType] || serviceType;
+
+            const { data, error } = await supabase.rpc('get_order_items', {
+                p_id: id,
+                p_order_status: orderStatus,
+                p_service_type: sqlServiceType
+            });
+
+            if (error) {
+                console.error('Error al obtener items de la orden:', error);
+                throw error;
+            }
+
+            const items = (data || []).map(item => ({
+                nombre: item.nombre,
+                cantidad: item.cantidad,
+                precio: parseFloat(item.precio || 0),
+                precioTotal: parseFloat(item.precio_total || 0),
+                estadoPago: item.estado_pago,
+                imagen: item.imagen || null
+            }));
+
+            return { items, success: true };
+        } catch (error) {
+            console.error('Error en getOrderItems:', error);
+            return { items: [], success: false, error: error.message };
+        }
+    }
 }
 
 module.exports = new AnalyticsService();
