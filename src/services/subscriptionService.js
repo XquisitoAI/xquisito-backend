@@ -179,9 +179,25 @@ class SubscriptionService {
     // Fallback method for feature access check
     async checkFeatureAccessFallback(restaurantId, featureName) {
         try {
+            console.log(`🔍 Checking feature access for restaurant ${restaurantId}, feature: ${featureName}`);
+
             // Get current subscription
             const subscription = await this.getCurrentSubscription(restaurantId);
-            if (!subscription || subscription.status !== 'active') {
+
+            if (!subscription) {
+                console.log(`❌ No subscription found for restaurant ${restaurantId}`);
+                return false;
+            }
+
+            console.log(`📋 Subscription found:`, {
+                id: subscription.id,
+                plan_type: subscription.plan_type,
+                status: subscription.status,
+                restaurant_id: subscription.restaurant_id
+            });
+
+            if (subscription.status !== 'active') {
+                console.log(`❌ Subscription status is '${subscription.status}', not 'active'`);
                 return false;
             }
 
@@ -193,7 +209,12 @@ class SubscriptionService {
                 .eq('feature_name', featureName)
                 .single();
 
-            if (error) return false;
+            if (error) {
+                console.log(`❌ Error getting plan config for plan '${subscription.plan_type}', feature '${featureName}':`, error);
+                return false;
+            }
+
+            console.log(`✅ Plan config found: limit = ${planConfig.feature_limit}`);
 
             // If feature is disabled (limit = 0)
             if (planConfig.feature_limit === 0) return false;
@@ -213,20 +234,25 @@ class SubscriptionService {
                 const nextMonth = new Date(currentMonth);
                 nextMonth.setMonth(nextMonth.getMonth() + 1);
 
+                console.log(`📅 Counting campaigns from ${currentMonth.toISOString()} to ${nextMonth.toISOString()}`);
+
                 const { data: campaigns, error: campaignsError } = await this.supabase
                     .from('campaigns')
-                    .select('id')
+                    .select('id, created_at, name')
                     .eq('restaurant_id', restaurantId)
                     .gte('created_at', currentMonth.toISOString())
                     .lt('created_at', nextMonth.toISOString());
 
                 if (campaignsError) {
-                    console.error('Error counting campaigns:', campaignsError);
+                    console.error('❌ Error counting campaigns:', campaignsError);
                     return false;
                 }
 
                 currentUsage = campaigns ? campaigns.length : 0;
                 console.log(`📊 Campaign usage check: ${currentUsage}/${planConfig.feature_limit} (${subscription.plan_type} plan)`);
+                if (campaigns && campaigns.length > 0) {
+                    console.log(`📋 Campaigns found this month:`, campaigns.map(c => ({ id: c.id, name: c.name, created_at: c.created_at })));
+                }
             } else {
                 // For other features, fallback to plan_usage table
                 const currentMonth = new Date();

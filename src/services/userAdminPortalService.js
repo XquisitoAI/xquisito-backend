@@ -1,6 +1,10 @@
 const supabase = require("../config/supabase");
+const SubscriptionService = require("./subscriptionService");
 
 class UserAdminPortalService {
+  constructor() {
+    this.subscriptionService = new SubscriptionService();
+  }
   // ===============================================
   // OPERACIONES DE USUARIOS ADMIN PORTAL
   // ===============================================
@@ -68,10 +72,38 @@ class UserAdminPortalService {
 
       console.log("✅ Restaurant created automatically:", restaurantData);
 
-      // Combinar resultado con el restaurante
+      // Crear suscripción básica automáticamente para el nuevo restaurante
+      const restaurantId = restaurantData?.restaurant?.id;
+      let subscription = null;
+
+      if (restaurantId) {
+        try {
+          const subscriptionData = {
+            restaurant_id: restaurantId,
+            plan_type: 'basico',
+            status: 'active',
+            start_date: new Date().toISOString(),
+            price_paid: 0,
+            currency: 'MXN',
+            auto_renew: true
+          };
+
+          subscription = await this.subscriptionService.createSubscription(subscriptionData);
+          console.log("✅ Basic subscription created automatically for restaurant:", restaurantId);
+        } catch (subscriptionError) {
+          console.error(
+            "⚠️ Error creating subscription (restaurant was created):",
+            subscriptionError
+          );
+          // No lanzar error, el restaurante ya fue creado
+        }
+      }
+
+      // Combinar resultado con el restaurante y la suscripción
       return {
         ...userData_result,
         restaurant: restaurantData?.restaurant || null,
+        subscription: subscription,
       };
     } catch (error) {
       console.error("❌ Error initializing user from Clerk:", error);
@@ -102,6 +134,37 @@ class UserAdminPortalService {
       if (error) throw error;
 
       console.log("✅ Restaurant created successfully:", data);
+
+      // Crear suscripción básica automáticamente para el nuevo restaurante
+      const restaurantId = data?.restaurant?.id;
+
+      if (restaurantId) {
+        try {
+          const subscriptionData = {
+            restaurant_id: restaurantId,
+            plan_type: 'basico',
+            status: 'active',
+            start_date: new Date().toISOString(),
+            price_paid: 0,
+            currency: 'MXN',
+            auto_renew: true
+          };
+
+          const subscription = await this.subscriptionService.createSubscription(subscriptionData);
+          console.log("✅ Basic subscription created automatically for restaurant:", restaurantId);
+
+          // Añadir suscripción al resultado
+          data.subscription = subscription;
+        } catch (subscriptionError) {
+          console.error(
+            "⚠️ Error creating subscription (restaurant was created):",
+            subscriptionError
+          );
+          // No lanzar error, el restaurante ya fue creado
+          data.subscription_warning = 'Basic plan subscription could not be created automatically.';
+        }
+      }
+
       return data;
     } catch (error) {
       console.error("❌ Error creating restaurant:", error);

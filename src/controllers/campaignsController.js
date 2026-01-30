@@ -129,16 +129,39 @@ class CampaignsController {
 
             // Check subscription limits before creating campaign
             const subscriptionService = new SubscriptionService();
+
+            console.log(`🎯 Checking campaign creation access for restaurant ${campaignData.restaurant_id}`);
+
             const canCreateCampaign = await subscriptionService.checkFeatureAccess(
                 campaignData.restaurant_id,
                 'campaigns_per_month'
             );
 
+            console.log(`🔓 Campaign creation access result: ${canCreateCampaign}`);
+
             if (!canCreateCampaign) {
+                // Get more details about why access was denied
+                const subscription = await subscriptionService.getCurrentSubscription(campaignData.restaurant_id);
+                const usage = await subscriptionService.getFeatureUsage(campaignData.restaurant_id, 'campaigns_per_month');
+
+                console.log(`❌ Campaign creation denied. Subscription:`, subscription ? {
+                    id: subscription.id,
+                    plan_type: subscription.plan_type,
+                    status: subscription.status
+                } : 'No subscription found');
+                console.log(`📊 Current usage:`, usage);
+
                 return res.status(403).json({
                     success: false,
                     error: 'Has alcanzado el límite de campañas de tu plan actual. Actualiza tu plan para crear más campañas.',
                     error_code: 'CAMPAIGN_LIMIT_EXCEEDED',
+                    details: {
+                        current_usage: usage.usage,
+                        limit: usage.limit,
+                        has_subscription: !!subscription,
+                        subscription_status: subscription?.status || null,
+                        plan_type: subscription?.plan_type || null
+                    },
                     timestamp: new Date().toISOString()
                 });
             }
