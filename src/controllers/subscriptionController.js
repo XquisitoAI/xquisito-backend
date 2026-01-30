@@ -821,119 +821,6 @@ class SubscriptionController {
         }
     }
 
-    /**
-     * Provisionar suscripciones básicas a todos los restaurantes que no tienen una
-     * POST /api/subscriptions/provision-missing
-     * Este endpoint es útil para arreglar restaurantes existentes que no tienen suscripción
-     */
-    async provisionMissingSubscriptions(req, res) {
-        try {
-            const { createClient } = require('@supabase/supabase-js');
-            const supabase = createClient(
-                process.env.SUPABASE_URL,
-                process.env.SUPABASE_SERVICE_ROLE_KEY
-            );
-
-            console.log('🔧 Starting provisioning of missing subscriptions...');
-
-            // Get all active restaurants
-            const { data: restaurants, error: restaurantsError } = await supabase
-                .from('restaurants')
-                .select('id, name')
-                .eq('is_active', true);
-
-            if (restaurantsError) {
-                throw new Error(`Error fetching restaurants: ${restaurantsError.message}`);
-            }
-
-            console.log(`📊 Found ${restaurants.length} active restaurants`);
-
-            // Get all existing subscriptions
-            const { data: subscriptions, error: subscriptionsError } = await supabase
-                .from('subscriptions')
-                .select('restaurant_id');
-
-            if (subscriptionsError) {
-                throw new Error(`Error fetching subscriptions: ${subscriptionsError.message}`);
-            }
-
-            const restaurantsWithSubscription = new Set(subscriptions.map(s => s.restaurant_id));
-            console.log(`📋 ${restaurantsWithSubscription.size} restaurants already have subscriptions`);
-
-            // Find restaurants without subscription
-            const restaurantsWithoutSubscription = restaurants.filter(r => !restaurantsWithSubscription.has(r.id));
-            console.log(`⚠️ ${restaurantsWithoutSubscription.length} restaurants need subscriptions`);
-
-            if (restaurantsWithoutSubscription.length === 0) {
-                return res.json({
-                    success: true,
-                    message: 'All restaurants already have subscriptions',
-                    data: {
-                        total_restaurants: restaurants.length,
-                        already_provisioned: restaurantsWithSubscription.size,
-                        newly_provisioned: 0,
-                        restaurants_provisioned: []
-                    }
-                });
-            }
-
-            // Create subscriptions for restaurants that don't have one
-            const subscriptionService = new SubscriptionService();
-            const results = [];
-            const errors = [];
-
-            for (const restaurant of restaurantsWithoutSubscription) {
-                try {
-                    const subscriptionData = {
-                        restaurant_id: restaurant.id,
-                        plan_type: 'basico',
-                        status: 'active',
-                        start_date: new Date().toISOString(),
-                        price_paid: 0,
-                        currency: 'MXN',
-                        auto_renew: true
-                    };
-
-                    const subscription = await subscriptionService.createSubscription(subscriptionData);
-                    console.log(`✅ Created subscription for restaurant ${restaurant.id} (${restaurant.name})`);
-                    results.push({
-                        restaurant_id: restaurant.id,
-                        restaurant_name: restaurant.name,
-                        subscription_id: subscription.id,
-                        status: 'created'
-                    });
-                } catch (error) {
-                    console.error(`❌ Failed to create subscription for restaurant ${restaurant.id}:`, error.message);
-                    errors.push({
-                        restaurant_id: restaurant.id,
-                        restaurant_name: restaurant.name,
-                        error: error.message
-                    });
-                }
-            }
-
-            console.log(`🏁 Provisioning complete. Created: ${results.length}, Errors: ${errors.length}`);
-
-            res.json({
-                success: true,
-                message: `Provisioned ${results.length} subscriptions`,
-                data: {
-                    total_restaurants: restaurants.length,
-                    already_provisioned: restaurantsWithSubscription.size,
-                    newly_provisioned: results.length,
-                    restaurants_provisioned: results,
-                    errors: errors.length > 0 ? errors : undefined
-                }
-            });
-
-        } catch (error) {
-            console.error('Error provisioning missing subscriptions:', error);
-            res.status(500).json({
-                success: false,
-                error: error.message || 'Error al provisionar suscripciones'
-            });
-        }
-    }
 }
 
 // Create instance and export methods for static access
@@ -948,6 +835,5 @@ module.exports = {
     cancelSubscription: subscriptionController.cancelSubscription.bind(subscriptionController),
     getFeatureUsage: subscriptionController.getFeatureUsage.bind(subscriptionController),
     checkFeatureAccess: subscriptionController.checkFeatureAccess.bind(subscriptionController),
-    handleSubscriptionWebhook: subscriptionController.handleSubscriptionWebhook.bind(subscriptionController),
-    provisionMissingSubscriptions: subscriptionController.provisionMissingSubscriptions.bind(subscriptionController)
+    handleSubscriptionWebhook: subscriptionController.handleSubscriptionWebhook.bind(subscriptionController)
 };
