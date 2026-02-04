@@ -514,6 +514,43 @@ class AnalyticsController {
             });
         }
     }
+    /**
+     * Obtiene items de una orden/transacción
+     * GET /api/analytics/dashboard/order-items
+     * Query params: id, orderStatus, serviceType
+     */
+    async getOrderItems(req, res) {
+        try {
+            const { id, orderStatus, serviceType } = req.query;
+
+            if (!id || !serviceType) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Se requiere id y serviceType'
+                });
+            }
+
+            const data = await analyticsService.getOrderItems({
+                id,
+                orderStatus: orderStatus || 'paid',
+                serviceType
+            });
+
+            res.json({
+                success: true,
+                data: data,
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error in getOrderItems controller:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
 }
 
 module.exports = new AnalyticsController();
