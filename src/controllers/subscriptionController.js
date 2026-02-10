@@ -1,6 +1,31 @@
 const SubscriptionService = require('../services/subscriptionService');
 const ecartpayService = require('../services/ecartpayService');
 
+/**
+ * Normaliza el status de EcartPay al status interno de la aplicacion
+ * EcartPay devuelve: 'paid', 'pending', 'failed', etc.
+ * Nuestro sistema usa: 'pending', 'completed', 'failed', 'cancelled'
+ */
+const normalizePaymentStatus = (ecartpayStatus) => {
+    const statusMap = {
+        'paid': 'completed',
+        'approved': 'completed',
+        'success': 'completed',
+        'completed': 'completed',
+        'pending': 'pending',
+        'processing': 'pending',
+        'failed': 'failed',
+        'declined': 'failed',
+        'rejected': 'failed',
+        'cancelled': 'cancelled',
+        'canceled': 'cancelled',
+        'refunded': 'cancelled'
+    };
+
+    const normalizedStatus = statusMap[ecartpayStatus?.toLowerCase()];
+    return normalizedStatus || 'pending'; // Default to pending if unknown status
+};
+
 class SubscriptionController {
     constructor() {
         this.subscriptionService = new SubscriptionService();
@@ -356,50 +381,79 @@ class SubscriptionController {
             }
 
             // Process payment using customer (created with Clerk data) + payment data from modal
-            // IMPORTANT: Payment data from modal is kept INTACT and not modified
+            // STEP 1: Save card for future automatic renewals
+            // STEP 2: Generate token and process payment
             let paymentResult;
             try {
                 console.log('💰 Processing payment for customer:', ecartpayCustomerId);
 
-                const paymentPayload = {
-                    amount: amount,
-                    currency: 'MXN',
-                    customer_id: ecartpayCustomerId,
-                    description: `Suscripción ${planType}`,
-                    metadata: {
-                        restaurant_id: restaurantId,
-                        plan_type: planType,
-                        subscription_type: 'monthly'
-                    }
-                };
-
-                // Use EXACT payment data from modal (user's input kept intact)
+                // STEP 1: Save card to EcartPay for automatic renewals
                 if (payment_data) {
-                    paymentPayload.card_data = {
-                        number: payment_data.cardNumber,      // Exact card number from modal
-                        exp_month: payment_data.expDate.split('/')[0],
-                        exp_year: '20' + payment_data.expDate.split('/')[1],
-                        cvc: payment_data.cvv,               // Exact CVV from modal
-                        name: payment_data.fullName          // Exact name from modal
-                    };
-                    console.log('💳 Using EXACT payment data from modal:', {
-                        cardEnding: payment_data.cardNumber.slice(-4),
-                        name: payment_data.fullName
+                    console.log('💳 Saving card for automatic renewals...');
+                    const cardResult = await ecartpayService.createPaymentMethod({
+                        customerId: ecartpayCustomerId,
+                        cardNumber: payment_data.cardNumber,
+                        cardholderName: payment_data.fullName,
+                        expMonth: payment_data.expDate.split('/')[0],
+                        expYear: '20' + payment_data.expDate.split('/')[1],
+                        cvv: payment_data.cvv
+                    });
+
+                    if (!cardResult.success) {
+                        console.error('❌ Failed to save card:', cardResult.error);
+                        throw new Error('Error al guardar tarjeta para renovacion automatica');
+                    }
+
+                    console.log('✅ Card saved successfully for customer:', ecartpayCustomerId);
+
+                    // STEP 2: Generate token with saved card and process payment
+                    const tokenResult = await ecartpayService.generateCardToken(
+                        ecartpayCustomerId,
+                        cardResult.paymentMethod.id,
+                        payment_data.fullName
+                    );
+
+                    if (!tokenResult.success) {
+                        console.error('❌ Failed to generate token:', tokenResult.error);
+                        throw new Error('Error al generar token de pago');
+                    }
+
+                    // STEP 3: Create order with token
+                    paymentResult = await ecartpayService.createOrderWithToken({
+                        customerId: ecartpayCustomerId,
+                        token: tokenResult.token,
+                        amount: amount,
+                        currency: 'MXN',
+                        description: `Suscripcion ${planType}`,
+                        items: [{
+                            name: `Suscripcion Plan ${planType}`,
+                            quantity: 1,
+                            price: amount
+                        }]
+                    });
+
+                    if (!paymentResult.success) {
+                        console.error('❌ Payment failed:', paymentResult.error);
+                        throw new Error('Error al procesar el pago');
+                    }
+
+                    paymentResult = paymentResult.order;
+                    console.log('✅ Payment processed successfully:', paymentResult?.id);
+                } else {
+                    // Fallback to old method if no payment_data (shouldn't happen for paid plans)
+                    paymentResult = await ecartpayService.createPayment({
+                        customerId: ecartpayCustomerId,
+                        amount: amount,
+                        currency: 'MXN',
+                        description: `Suscripcion ${planType}`,
+                        quantity: 1
                     });
                 }
-
-                paymentResult = await ecartpayService.createPayment({
-                    customerId: ecartpayCustomerId,
-                    amount: paymentPayload.amount,
-                    currency: paymentPayload.currency,
-                    description: paymentPayload.description,
-                    quantity: 1
-                });
             } catch (error) {
                 console.error('Error processing payment:', error);
                 return res.status(500).json({
                     success: false,
-                    error: 'Error al procesar el pago'
+                    error: error.message || 'Error al procesar el pago'
                 });
             }
 
@@ -414,8 +468,12 @@ class SubscriptionController {
                 ecartpay_customer_id: ecartpayCustomerId,
                 start_date: new Date().toISOString(),
                 end_date: endDate.toISOString(),
+                next_billing_date: endDate.toISOString(), // For automatic renewal
                 price_paid: amount,
-                currency: 'MXN'
+                currency: 'MXN',
+                auto_renew: auto_renew !== false, // Default to true unless explicitly false
+                renewal_attempts: 0,
+                renewal_reminder_sent: false
             };
 
             const subscription = await subscriptionService.createSubscription(subscriptionData);
@@ -427,7 +485,7 @@ class SubscriptionController {
                 transaction_type: 'payment',
                 amount: amount,
                 currency: 'MXN',
-                status: paymentResult.status || 'pending'
+                status: normalizePaymentStatus(paymentResult.status)
             };
 
             await subscriptionService.createTransaction(transactionData);
@@ -720,6 +778,7 @@ class SubscriptionController {
             }
 
             let paymentResult = null;
+            let ecartpayCustomerId = currentSubscription.ecartpay_customer_id;
 
             // Process payment if upgrading to paid plan
             if (newPlanPrice > 0) {
@@ -727,52 +786,94 @@ class SubscriptionController {
 
                 // Find or create EcartPay customer (using existing logic)
                 const ecartpayService = require('../services/ecartpayService');
-                let ecartpayCustomerId;
 
-                console.log('🔍 Checking if customer already exists in eCartpay for Clerk user:', clerkUserId);
-                const existingCustomer = await ecartpayService.findCustomerByUserId(clerkUserId);
+                if (!ecartpayCustomerId) {
+                    console.log('🔍 Checking if customer already exists in eCartpay for Clerk user:', clerkUserId);
+                    const existingCustomer = await ecartpayService.findCustomerByUserId(clerkUserId);
 
-                if (existingCustomer.success) {
-                    ecartpayCustomerId = existingCustomer.customer.id;
-                    console.log('✅ Found existing eCartpay customer:', ecartpayCustomerId);
-                } else {
-                    console.log('👤 Creating new EcartPay customer for plan upgrade');
+                    if (existingCustomer.success) {
+                        ecartpayCustomerId = existingCustomer.customer.id;
+                        console.log('✅ Found existing eCartpay customer:', ecartpayCustomerId);
+                    } else {
+                        console.log('👤 Creating new EcartPay customer for plan upgrade');
 
-                    const customerData = {
-                        name: user.full_name ||
-                              `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
-                              user.username ||
-                              'Admin Usuario',
-                        email: user.email,
-                        phone: user.phone || '1000000000',
-                        userId: clerkUserId
-                    };
+                        const customerData = {
+                            name: user.full_name ||
+                                  `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+                                  user.username ||
+                                  'Admin Usuario',
+                            email: user.email,
+                            phone: user.phone || '1000000000',
+                            userId: clerkUserId
+                        };
 
-                    const customerResult = await ecartpayService.createCustomer(customerData);
+                        const customerResult = await ecartpayService.createCustomer(customerData);
 
-                    if (!customerResult.success) {
-                        console.error('❌ Failed to create EcartPay customer:', customerResult.error);
-                        throw new Error(`Customer creation failed: ${customerResult.error?.message || 'Unknown error'}`);
+                        if (!customerResult.success) {
+                            console.error('❌ Failed to create EcartPay customer:', customerResult.error);
+                            throw new Error(`Customer creation failed: ${customerResult.error?.message || 'Unknown error'}`);
+                        }
+
+                        ecartpayCustomerId = customerResult.customer.id;
+                        console.log('✅ Successfully created new EcartPay customer:', ecartpayCustomerId);
+                    }
+                }
+
+                // STEP 1: Save card to EcartPay for automatic renewals
+                if (payment_data) {
+                    console.log('💳 Saving card for automatic renewals...');
+                    const cardResult = await ecartpayService.createPaymentMethod({
+                        customerId: ecartpayCustomerId,
+                        cardNumber: payment_data.cardNumber,
+                        cardholderName: payment_data.fullName,
+                        expMonth: payment_data.expDate.split('/')[0],
+                        expYear: '20' + payment_data.expDate.split('/')[1],
+                        cvv: payment_data.cvv
+                    });
+
+                    if (!cardResult.success) {
+                        console.error('❌ Failed to save card:', cardResult.error);
+                        throw new Error('Error al guardar tarjeta para renovacion automatica');
                     }
 
-                    ecartpayCustomerId = customerResult.customer.id;
-                    console.log('✅ Successfully created new EcartPay customer:', ecartpayCustomerId);
+                    console.log('✅ Card saved successfully for customer:', ecartpayCustomerId);
+
+                    // STEP 2: Generate token with saved card
+                    const tokenResult = await ecartpayService.generateCardToken(
+                        ecartpayCustomerId,
+                        cardResult.paymentMethod.id,
+                        payment_data.fullName
+                    );
+
+                    if (!tokenResult.success) {
+                        console.error('❌ Failed to generate token:', tokenResult.error);
+                        throw new Error('Error al generar token de pago');
+                    }
+
+                    // STEP 3: Create order with token
+                    const orderResult = await ecartpayService.createOrderWithToken({
+                        customerId: ecartpayCustomerId,
+                        token: tokenResult.token,
+                        amount: newPlanPrice,
+                        currency: 'MXN',
+                        description: `Upgrade a plan ${plan_type}`,
+                        items: [{
+                            name: `Upgrade a Plan ${plan_type}`,
+                            quantity: 1,
+                            price: newPlanPrice
+                        }]
+                    });
+
+                    if (!orderResult.success) {
+                        console.error('❌ Payment failed:', orderResult.error);
+                        throw new Error('Error al procesar el pago');
+                    }
+
+                    paymentResult = orderResult.order;
+                    console.log('✅ Payment processed successfully:', paymentResult?.id);
+                } else {
+                    throw new Error('Payment data is required for paid plan upgrade');
                 }
-
-                // Process payment using exact modal data
-                paymentResult = await ecartpayService.createPayment({
-                    customerId: ecartpayCustomerId,
-                    amount: newPlanPrice,
-                    currency: 'MXN',
-                    description: `Upgrade a plan ${plan_type}`,
-                    quantity: 1
-                });
-
-                if (!paymentResult.success) {
-                    throw new Error('Payment processing failed');
-                }
-
-                console.log('✅ Payment processed successfully for upgrade');
             }
 
             // Update subscription plan immediately (for upgrades)
@@ -781,11 +882,18 @@ class SubscriptionController {
             const endDate = new Date();
             endDate.setMonth(endDate.getMonth() + 1);
 
+            // Include ecartpay_customer_id if it wasn't set before
+            const extraFields = {};
+            if (ecartpayCustomerId && !currentSubscription.ecartpay_customer_id) {
+                extraFields.ecartpay_customer_id = ecartpayCustomerId;
+            }
+
             const updatedSubscription = await subscriptionService.updateSubscriptionPlan(
                 currentSubscription.id,
                 plan_type,
                 newPlanPrice,
-                endDate.toISOString()
+                endDate.toISOString(),
+                extraFields
             );
 
             // Create transaction record
@@ -794,7 +902,7 @@ class SubscriptionController {
                 transaction_type: 'payment',
                 amount: newPlanPrice,
                 currency: 'MXN',
-                status: paymentResult ? (paymentResult.status || 'pending') : 'completed'
+                status: paymentResult ? normalizePaymentStatus(paymentResult.status) : 'completed'
             };
 
             if (paymentResult) {
@@ -821,6 +929,282 @@ class SubscriptionController {
         }
     }
 
+    // Schedule a downgrade for end of billing cycle
+    async scheduleDowngrade(req, res) {
+        try {
+            const { target_plan } = req.body;
+            const clerkUserId = req.auth?.userId;
+
+            if (!clerkUserId) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Usuario no autenticado'
+                });
+            }
+
+            // Validate target plan
+            if (!['basico', 'premium'].includes(target_plan)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Plan destino invalido'
+                });
+            }
+
+            const { createClient } = require('@supabase/supabase-js');
+            const supabase = createClient(
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_SERVICE_ROLE_KEY
+            );
+
+            // Get user and restaurant
+            const { data: user } = await supabase
+                .from('user_admin_portal')
+                .select('id')
+                .eq('clerk_user_id', clerkUserId)
+                .single();
+
+            if (!user) {
+                return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+            }
+
+            const { data: restaurant } = await supabase
+                .from('restaurants')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('is_active', true)
+                .single();
+
+            if (!restaurant) {
+                return res.status(404).json({ success: false, error: 'Restaurante no encontrado' });
+            }
+
+            const subscriptionService = new SubscriptionService();
+            const currentSubscription = await subscriptionService.getCurrentSubscription(restaurant.id);
+
+            if (!currentSubscription) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'No hay suscripcion activa'
+                });
+            }
+
+            // Can only schedule downgrade to a lower plan
+            const planHierarchy = { basico: 0, premium: 1, ultra: 2 };
+            if (planHierarchy[target_plan] >= planHierarchy[currentSubscription.plan_type]) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Solo puedes programar un cambio a un plan inferior'
+                });
+            }
+
+            const updatedSubscription = await subscriptionService.scheduleDowngrade(
+                currentSubscription.id,
+                target_plan
+            );
+
+            res.json({
+                success: true,
+                data: {
+                    subscription: updatedSubscription,
+                    message: `Cambio a plan ${target_plan} programado para el ${currentSubscription.end_date}`
+                }
+            });
+
+        } catch (error) {
+            console.error('Error scheduling downgrade:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Error al programar cambio de plan'
+            });
+        }
+    }
+
+    // Cancel a scheduled downgrade
+    async cancelScheduledDowngrade(req, res) {
+        try {
+            const clerkUserId = req.auth?.userId;
+
+            if (!clerkUserId) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Usuario no autenticado'
+                });
+            }
+
+            const { createClient } = require('@supabase/supabase-js');
+            const supabase = createClient(
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_SERVICE_ROLE_KEY
+            );
+
+            // Get user and restaurant
+            const { data: user } = await supabase
+                .from('user_admin_portal')
+                .select('id')
+                .eq('clerk_user_id', clerkUserId)
+                .single();
+
+            if (!user) {
+                return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+            }
+
+            const { data: restaurant } = await supabase
+                .from('restaurants')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('is_active', true)
+                .single();
+
+            if (!restaurant) {
+                return res.status(404).json({ success: false, error: 'Restaurante no encontrado' });
+            }
+
+            const subscriptionService = new SubscriptionService();
+            const currentSubscription = await subscriptionService.getCurrentSubscription(restaurant.id);
+
+            if (!currentSubscription) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'No hay suscripcion activa'
+                });
+            }
+
+            if (!currentSubscription.scheduled_plan_change) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No hay cambio de plan programado'
+                });
+            }
+
+            const updatedSubscription = await subscriptionService.cancelScheduledDowngrade(
+                currentSubscription.id
+            );
+
+            res.json({
+                success: true,
+                data: {
+                    subscription: updatedSubscription,
+                    message: 'Cambio de plan cancelado'
+                }
+            });
+
+        } catch (error) {
+            console.error('Error cancelling scheduled downgrade:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Error al cancelar cambio de plan programado'
+            });
+        }
+    }
+
+    // Toggle auto_renew setting
+    async toggleAutoRenew(req, res) {
+        try {
+            const { auto_renew } = req.body;
+            const clerkUserId = req.auth?.userId;
+
+            if (!clerkUserId) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Usuario no autenticado'
+                });
+            }
+
+            if (typeof auto_renew !== 'boolean') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'auto_renew debe ser true o false'
+                });
+            }
+
+            const { createClient } = require('@supabase/supabase-js');
+            const supabase = createClient(
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_SERVICE_ROLE_KEY
+            );
+
+            // Get user and restaurant
+            const { data: user } = await supabase
+                .from('user_admin_portal')
+                .select('id')
+                .eq('clerk_user_id', clerkUserId)
+                .single();
+
+            if (!user) {
+                return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+            }
+
+            const { data: restaurant } = await supabase
+                .from('restaurants')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('is_active', true)
+                .single();
+
+            if (!restaurant) {
+                return res.status(404).json({ success: false, error: 'Restaurante no encontrado' });
+            }
+
+            const subscriptionService = new SubscriptionService();
+            const currentSubscription = await subscriptionService.getCurrentSubscription(restaurant.id);
+
+            if (!currentSubscription) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'No hay suscripcion activa'
+                });
+            }
+
+            const updatedSubscription = await subscriptionService.toggleAutoRenew(
+                currentSubscription.id,
+                auto_renew
+            );
+
+            res.json({
+                success: true,
+                data: {
+                    subscription: updatedSubscription,
+                    message: auto_renew
+                        ? 'Renovacion automatica activada'
+                        : 'Renovacion automatica desactivada'
+                }
+            });
+
+        } catch (error) {
+            console.error('Error toggling auto_renew:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Error al cambiar configuracion de renovacion automatica'
+            });
+        }
+    }
+
+    // Trigger manual renewal process (for testing/admin)
+    async triggerRenewalProcess(req, res) {
+        try {
+            const renewalJob = require('../jobs/renewalJob');
+
+            console.log('🔧 Manual renewal process triggered');
+
+            // Run in background, don't await
+            renewalJob.runRenewalProcess().catch(err => {
+                console.error('Error in manual renewal process:', err);
+            });
+
+            res.json({
+                success: true,
+                message: 'Proceso de renovacion iniciado en segundo plano'
+            });
+
+        } catch (error) {
+            console.error('Error triggering renewal process:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Error al iniciar proceso de renovacion'
+            });
+        }
+    }
+
 }
 
 // Create instance and export methods for static access
@@ -835,5 +1219,9 @@ module.exports = {
     cancelSubscription: subscriptionController.cancelSubscription.bind(subscriptionController),
     getFeatureUsage: subscriptionController.getFeatureUsage.bind(subscriptionController),
     checkFeatureAccess: subscriptionController.checkFeatureAccess.bind(subscriptionController),
-    handleSubscriptionWebhook: subscriptionController.handleSubscriptionWebhook.bind(subscriptionController)
+    handleSubscriptionWebhook: subscriptionController.handleSubscriptionWebhook.bind(subscriptionController),
+    scheduleDowngrade: subscriptionController.scheduleDowngrade.bind(subscriptionController),
+    cancelScheduledDowngrade: subscriptionController.cancelScheduledDowngrade.bind(subscriptionController),
+    toggleAutoRenew: subscriptionController.toggleAutoRenew.bind(subscriptionController),
+    triggerRenewalProcess: subscriptionController.triggerRenewalProcess.bind(subscriptionController)
 };
