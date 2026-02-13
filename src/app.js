@@ -31,6 +31,7 @@ const segmentsRoutes = require("./routes/segmentsRoutes");
 const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const supabase = require("./config/supabase");
 
 const app = express();
 
@@ -45,7 +46,7 @@ app.use(
       "x-guest-id",
       "x-table-number",
     ],
-  })
+  }),
 );
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
@@ -55,6 +56,40 @@ app.get("/health", (req, res) => {
   res
     .status(200)
     .json({ status: "OK", message: "Xquisito Backend is running" });
+});
+
+app.get("/health/supabase", async (req, res) => {
+  try {
+    const startTime = Date.now();
+    const { errorRestaurants } = await supabase
+      .from("restaurants")
+      .select("id")
+      .limit(1);
+    const { errorCarts } = await supabase.from("carts").select("id").limit(1);
+    const latency = Date.now() - startTime;
+
+    if (errorRestaurants || errorCarts) {
+      return res.status(503).json({
+        status: "ERROR",
+        service: "supabase",
+        message: errorRestaurants?.message || errorCarts?.message,
+        latency: `${latency}ms`,
+      });
+    }
+
+    res.status(200).json({
+      status: "OK",
+      service: "supabase",
+      message: "Supabase connection is healthy",
+      latency: `${latency}ms`,
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "ERROR",
+      service: "supabase",
+      message: err.message,
+    });
+  }
 });
 
 // Supabase auth
