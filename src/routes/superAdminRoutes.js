@@ -38,4 +38,11 @@ router.get(
   superAdminController.getPaymentMethodsTimeline
 );
 
+// Historial de transacciones paginado
+router.get(
+  "/transactions",
+  mainPortalAuth,
+  superAdminController.getTransactionHistory
+);
+
 module.exports = router;

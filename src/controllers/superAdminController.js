@@ -318,6 +318,57 @@ class SuperAdminController {
       });
     }
   }
+
+  // Obtiene historial de transacciones paginado
+  async getTransactionHistory(req, res) {
+    try {
+      let restaurantId = "todos";
+      if (req.query.restaurant_id) {
+        if (Array.isArray(req.query.restaurant_id)) {
+          restaurantId = req.query.restaurant_id.map((id) => parseInt(id));
+        } else if (
+          typeof req.query.restaurant_id === "string" &&
+          req.query.restaurant_id.includes(",")
+        ) {
+          restaurantId = req.query.restaurant_id
+            .split(",")
+            .map((id) => parseInt(id.trim()));
+        } else if (req.query.restaurant_id !== "todos") {
+          restaurantId = parseInt(req.query.restaurant_id);
+        }
+      }
+
+      const filters = {
+        start_date: req.query.start_date,
+        end_date: req.query.end_date,
+        restaurant_id: restaurantId,
+        service: req.query.service || "todos",
+        limit: parseInt(req.query.limit) || 5,
+        offset: parseInt(req.query.offset) || 0,
+      };
+
+      const result = await superAdminService.getTransactionHistory(filters);
+
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: {
+          total_count: result.total_count,
+          has_more: result.has_more,
+          limit: result.limit,
+          offset: result.offset,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error in getTransactionHistory controller:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
 }
 
 module.exports = new SuperAdminController();

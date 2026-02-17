@@ -2295,7 +2295,118 @@ class SuperAdminService {
     }
   }
 
-  // Agrupa datos de métodos de pago por período de tiempo
+  // Obtiene historial de transacciones paginado
+  async getTransactionHistory(filters) {
+    const {
+      start_date,
+      end_date,
+      restaurant_id = "todos",
+      service = "todos",
+      limit = 5,
+      offset = 0,
+    } = filters;
+
+    try {
+      let query = supabase
+        .from("payment_transactions")
+        .select(
+          `
+          id,
+          total_amount_charged,
+          tip_amount,
+          restaurant_net_income,
+          xquisito_net_income,
+          ecart_commission_total,
+          created_at,
+          restaurant_id,
+          id_table_order,
+          id_tap_orders_and_pay,
+          id_pick_and_go_order,
+          id_room_order,
+          id_tap_pay_order,
+          restaurants!inner(name)
+        `,
+          { count: "exact" }
+        );
+
+      // Aplicar filtros de fecha
+      if (start_date) {
+        query = query.gte("created_at", start_date);
+      }
+      if (end_date) {
+        query = query.lt("created_at", this.getEndDateInclusive(end_date));
+      }
+
+      // Filtrar por restaurante
+      if (restaurant_id && restaurant_id !== "todos") {
+        if (Array.isArray(restaurant_id)) {
+          query = query.in("restaurant_id", restaurant_id);
+        } else {
+          query = query.eq("restaurant_id", restaurant_id);
+        }
+      }
+
+      // Filtrar por servicio
+      if (service && service !== "todos") {
+        if (service === "flex-bill") {
+          query = query.not("id_table_order", "is", null);
+        } else if (service === "tap-order-pay") {
+          query = query.not("id_tap_orders_and_pay", "is", null);
+        } else if (service === "pick-and-go") {
+          query = query.not("id_pick_and_go_order", "is", null);
+        } else if (service === "room-service") {
+          query = query.not("id_room_order", "is", null);
+        } else if (service === "tap-and-pay") {
+          query = query.not("id_tap_pay_order", "is", null);
+        }
+      }
+
+      // Ordenar y paginar
+      query = query
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      // Transformar datos
+      const transactions = (data || []).map((tx) => ({
+        id: tx.id,
+        total_amount_charged: parseFloat(tx.total_amount_charged) || 0,
+        tip_amount: parseFloat(tx.tip_amount) || 0,
+        restaurant_net_income: parseFloat(tx.restaurant_net_income) || 0,
+        xquisito_net_income: parseFloat(tx.xquisito_net_income) || 0,
+        ecart_commission_total: parseFloat(tx.ecart_commission_total) || 0,
+        created_at: tx.created_at,
+        restaurant_id: tx.restaurant_id,
+        restaurant_name: tx.restaurants?.name || "Desconocido",
+        service_type: this.getServiceType(tx),
+      }));
+
+      return {
+        data: transactions,
+        total_count: count || 0,
+        has_more: offset + limit < (count || 0),
+        limit,
+        offset,
+      };
+    } catch (error) {
+      console.error("Error getting transaction history:", error);
+      throw new Error(`Error fetching transaction history: ${error.message}`);
+    }
+  }
+
+  // Helper para determinar tipo de servicio
+  getServiceType(transaction) {
+    if (transaction.id_table_order) return "Flex Bill";
+    if (transaction.id_tap_orders_and_pay) return "Tap Order & Pay";
+    if (transaction.id_pick_and_go_order) return "Pick & Go";
+    if (transaction.id_room_order) return "Room Service";
+    if (transaction.id_tap_pay_order) return "Tap & Pay";
+    return "Desconocido";
+  }
+
   groupPaymentMethodsByTimePeriod(
     transactionsData,
     viewType,
