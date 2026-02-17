@@ -3,6 +3,7 @@ const ecartPayService = require("../services/ecartpayService");
 const tableService = require("../services/tableService");
 const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
 const paymentTransactionService = require("../services/paymentTransactionService");
+const socketEmitter = require("../services/socketEmitter");
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -935,6 +936,51 @@ class PaymentController {
         "✅ Transaction created successfully:",
         result.transaction.id
       );
+
+      // Determinar el tipo de servicio basado en el tipo de orden
+      let serviceType = 'unknown';
+      let orderIdentifier = '';
+
+      if (transactionData.id_table_order) {
+        serviceType = 'flex-bill';
+        orderIdentifier = `Mesa #${transactionData.table_number || transactionData.id_table_order}`;
+      } else if (transactionData.id_tap_orders_and_pay) {
+        serviceType = 'tap-order-pay';
+        orderIdentifier = `Orden #${transactionData.id_tap_orders_and_pay}`;
+      } else if (transactionData.pick_and_go_order_id) {
+        serviceType = 'pick-n-go';
+        orderIdentifier = `Pick&Go #${transactionData.pick_and_go_order_id}`;
+      } else if (transactionData.id_room_order) {
+        serviceType = 'room-service';
+        orderIdentifier = `Habitación #${transactionData.room_number || transactionData.id_room_order}`;
+      } else if (transactionData.id_tap_pay_order) {
+        serviceType = 'tap-pay';
+        orderIdentifier = `Tap&Pay #${transactionData.id_tap_pay_order}`;
+      }
+
+      // Emitir evento de socket para actualizar dashboard en tiempo real
+      const transaction = result.transaction;
+      const baseAmount = transaction.base_amount || transactionData.base_amount || 0;
+      const tipAmount = transaction.tip_amount || transactionData.tip_amount || 0;
+      const totalAmount = transaction.total_amount_charged || transactionData.total_amount_charged || 0;
+
+      socketEmitter.emitNewTransaction(transactionData.restaurant_id, {
+        id: transaction.id,
+        baseAmount: baseAmount,
+        tipAmount: tipAmount,
+        totalAmount: totalAmount,
+        createdAt: transaction.created_at || new Date().toISOString(),
+        serviceType: transactionData.service_type || serviceType,
+        orderIdentifier: orderIdentifier || `Orden #${transaction.id.slice(0, 8)}`,
+        orderStatus: 'paid'
+      });
+
+      // También emitir actualización de métricas
+      socketEmitter.emitMetricsUpdate(transactionData.restaurant_id, {
+        nuevaVenta: baseAmount,
+        nuevaPropina: tipAmount,
+        nuevoTotal: totalAmount
+      });
 
       res.status(201).json({
         success: true,

@@ -1,0 +1,56 @@
+const { Server } = require("socket.io");
+const { authenticateSocket } = require("./socketAuth");
+const { registerDashboardHandlers } = require("./dashboardEvents");
+
+let io = null;
+
+// Inicializa Socket.IO con el servidor HTTP
+function initializeSocket(httpServer) {
+  io = new Server(httpServer, {
+    cors: {
+      origin: [
+        "http://localhost:3002",
+        "http://localhost:3000",
+        process.env.FRONTEND_URL,
+      ].filter(Boolean),
+      credentials: true,
+    },
+    transports: ["websocket", "polling"],
+  });
+
+  // Middleware de autenticación
+  io.use(authenticateSocket);
+
+  io.on("connection", (socket) => {
+    console.log(`🔌 Socket connected: ${socket.id}, User: ${socket.user?.id}`);
+
+    // Registrar handlers del dashboard
+    registerDashboardHandlers(io, socket);
+
+    socket.on("disconnect", (reason) => {
+      console.log(`❌ Socket disconnected: ${socket.id}, Reason: ${reason}`);
+    });
+
+    socket.on("error", (error) => {
+      console.error(`⚠️ Socket error: ${socket.id}`, error);
+    });
+  });
+
+  console.log("✅ Socket.IO initialized");
+  return io;
+}
+
+// Obtiene la instancia de Socket.IO
+function getIO() {
+  if (!io) {
+    throw new Error("Socket.IO not initialized. Call initializeSocket first.");
+  }
+  return io;
+}
+
+// Verifica si Socket.IO está inicializado
+function isSocketInitialized() {
+  return io !== null;
+}
+
+module.exports = { initializeSocket, getIO, isSocketInitialized };
