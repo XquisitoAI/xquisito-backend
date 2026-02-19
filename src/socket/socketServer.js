@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const { authenticateSocket } = require("./socketAuth");
 const { registerDashboardHandlers } = require("./dashboardEvents");
+const { registerTableHandlers } = require("./tableEvents");
 
 let io = null;
 
@@ -9,9 +10,11 @@ function initializeSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
       origin: [
-        "http://localhost:3002",
-        "http://localhost:3000",
+        "http://localhost:3000", // FlexBill
+        "http://localhost:3001", // FlexBill alt
+        "http://localhost:3002", // Admin Portal
         process.env.FRONTEND_URL,
+        process.env.FLEXBILL_URL,
       ].filter(Boolean),
       credentials: true,
     },
@@ -24,8 +27,16 @@ function initializeSocket(httpServer) {
   io.on("connection", (socket) => {
     console.log(`🔌 Socket connected: ${socket.id}, User: ${socket.user?.id}`);
 
-    // Registrar handlers del dashboard
-    registerDashboardHandlers(io, socket);
+    // Registrar handlers según el tipo de cliente
+    const clientType = socket.user?.clientType;
+
+    if (clientType === "admin-portal") {
+      // Handlers para Admin Portal (dashboard)
+      registerDashboardHandlers(io, socket);
+    }
+
+    // Handlers para FlexBill (mesas) - disponible para todos
+    registerTableHandlers(io, socket);
 
     socket.on("disconnect", (reason) => {
       console.log(`❌ Socket disconnected: ${socket.id}, Reason: ${reason}`);

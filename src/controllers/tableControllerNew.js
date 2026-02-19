@@ -1,4 +1,5 @@
 const tableService = require("../services/tableServiceNew");
+const socketEmitter = require("../services/socketEmitter");
 
 class TableController {
   // Obtener resumen de cuenta de mesa
@@ -8,7 +9,7 @@ class TableController {
       const summary = await tableService.getTableSummary(
         parseInt(restaurantId),
         parseInt(branchNumber),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       if (!summary) {
@@ -39,7 +40,7 @@ class TableController {
       const orders = await tableService.getTableOrders(
         parseInt(restaurantId),
         parseInt(branchNumber),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       res.json({
@@ -98,8 +99,42 @@ class TableController {
         guestId,
         images,
         customFields,
-        parseFloat(extraPrice)
+        parseFloat(extraPrice),
       );
+
+      // Emitir evento de socket para actualización en tiempo real
+      socketEmitter.emitDishCreated(
+        parseInt(restaurantId),
+        parseInt(branchNumber),
+        parseInt(tableNumber),
+        result,
+      );
+
+      // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
+      const summary = await tableService.getTableSummary(
+        parseInt(restaurantId),
+        parseInt(branchNumber),
+        parseInt(tableNumber),
+      );
+      if (summary) {
+        // Determinar si es una nueva orden o actualización
+        const isNewOrder = summary.no_items === 1;
+        socketEmitter.emitOrderUpdate(
+          parseInt(restaurantId),
+          {
+            id: summary.table_order_id,
+            serviceType: "flex-bill",
+            orderIdentifier: `Mesa ${tableNumber}`,
+            totalAmount: parseFloat(summary.total_amount || 0),
+            paidAmount: parseFloat(summary.paid_amount || 0),
+            remainingAmount: parseFloat(summary.remaining_amount || 0),
+            noItems: summary.no_items || 0,
+            orderStatus: summary.status,
+            createdAt: summary.created_at,
+          },
+          isNewOrder ? "created" : "updated",
+        );
+      }
 
       res.status(201).json({
         success: true,
@@ -118,14 +153,56 @@ class TableController {
   async payDishOrder(req, res) {
     try {
       const { dishId } = req.params;
-      const { paymentMethodId } = req.body;
+      const { paymentMethodId, restaurantId, branchNumber, tableNumber } =
+        req.body;
 
       const success = await tableService.payDishOrder(
         dishId,
-        paymentMethodId || null
+        paymentMethodId || null,
       );
 
       if (success) {
+        // Emitir evento de socket si tenemos info de la mesa
+        if (restaurantId && tableNumber) {
+          socketEmitter.emitDishPaid(
+            parseInt(restaurantId),
+            parseInt(branchNumber) || 1,
+            parseInt(tableNumber),
+            dishId,
+            req.body.userId || req.body.guestName || "unknown",
+          );
+          // También emitir actualización del summary
+          socketEmitter.emitTableFullRefresh(
+            parseInt(restaurantId),
+            parseInt(branchNumber) || 1,
+            parseInt(tableNumber),
+          );
+
+          // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
+          const summary = await tableService.getTableSummary(
+            parseInt(restaurantId),
+            parseInt(branchNumber) || 1,
+            parseInt(tableNumber),
+          );
+          if (summary) {
+            socketEmitter.emitOrderUpdate(
+              parseInt(restaurantId),
+              {
+                id: summary.table_order_id,
+                serviceType: "flex-bill",
+                orderIdentifier: `Mesa ${tableNumber}`,
+                totalAmount: parseFloat(summary.total_amount || 0),
+                paidAmount: parseFloat(summary.paid_amount || 0),
+                remainingAmount: parseFloat(summary.remaining_amount || 0),
+                noItems: summary.no_items || 0,
+                orderStatus: summary.status,
+                createdAt: summary.created_at,
+              },
+              "updated",
+            );
+          }
+        }
+
         res.json({
           success: true,
           message: "Platillo pagado exitosamente",
@@ -165,10 +242,41 @@ class TableController {
         parseFloat(amount),
         userId || null,
         guestName || null,
-        paymentMethodId || null
+        paymentMethodId || null,
       );
 
       if (success) {
+        // Emitir actualización de la mesa en tiempo real
+        socketEmitter.emitTableFullRefresh(
+          parseInt(restaurantId),
+          parseInt(branchNumber),
+          parseInt(tableNumber),
+        );
+
+        // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
+        const summary = await tableService.getTableSummary(
+          parseInt(restaurantId),
+          parseInt(branchNumber),
+          parseInt(tableNumber),
+        );
+        if (summary) {
+          socketEmitter.emitOrderUpdate(
+            parseInt(restaurantId),
+            {
+              id: summary.table_order_id,
+              serviceType: "flex-bill",
+              orderIdentifier: `Mesa ${tableNumber}`,
+              totalAmount: parseFloat(summary.total_amount || 0),
+              paidAmount: parseFloat(summary.paid_amount || 0),
+              remainingAmount: parseFloat(summary.remaining_amount || 0),
+              noItems: summary.no_items || 0,
+              orderStatus: summary.status,
+              createdAt: summary.created_at,
+            },
+            "updated",
+          );
+        }
+
         res.json({
           success: true,
           message: `Pago de $${amount} aplicado a la mesa ${tableNumber}`,
@@ -192,7 +300,7 @@ class TableController {
   async updateDishStatus(req, res) {
     try {
       const { dishId } = req.params;
-      const { status } = req.body;
+      const { status, restaurantId, branchNumber, tableNumber } = req.body;
 
       if (!["pending", "cooking", "delivered"].includes(status)) {
         return res.status(400).json({
@@ -204,6 +312,17 @@ class TableController {
       const success = await tableService.updateDishStatus(dishId, status);
 
       if (success) {
+        // Emitir evento de socket si tenemos info de la mesa
+        if (restaurantId && tableNumber) {
+          socketEmitter.emitDishStatusChanged(
+            parseInt(restaurantId),
+            parseInt(branchNumber) || 1,
+            parseInt(tableNumber),
+            dishId,
+            status,
+          );
+        }
+
         res.json({
           success: true,
           message: `Estado actualizado a: ${status}`,
@@ -248,7 +367,7 @@ class TableController {
       const { restaurantId, tableNumber } = req.params;
       const table = await tableService.checkTableAvailability(
         parseInt(restaurantId),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       if (!table) {
@@ -299,7 +418,14 @@ class TableController {
         parseInt(tableNumber),
         numberOfPeople,
         userIds,
-        guestNames
+        guestNames,
+      );
+
+      // Emitir actualización en tiempo real
+      socketEmitter.emitTableFullRefresh(
+        parseInt(restaurantId),
+        parseInt(branchNumber),
+        parseInt(tableNumber),
       );
 
       res.json({
@@ -334,10 +460,41 @@ class TableController {
         parseInt(tableNumber),
         userId,
         guestName,
-        paymentMethodId || null
+        paymentMethodId || null,
       );
 
       if (success) {
+        // Emitir actualización en tiempo real
+        socketEmitter.emitTableFullRefresh(
+          parseInt(restaurantId),
+          parseInt(branchNumber),
+          parseInt(tableNumber),
+        );
+
+        // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
+        const summary = await tableService.getTableSummary(
+          parseInt(restaurantId),
+          parseInt(branchNumber),
+          parseInt(tableNumber),
+        );
+        if (summary) {
+          socketEmitter.emitOrderUpdate(
+            parseInt(restaurantId),
+            {
+              id: summary.table_order_id,
+              serviceType: "flex-bill",
+              orderIdentifier: `Mesa ${tableNumber}`,
+              totalAmount: parseFloat(summary.total_amount || 0),
+              paidAmount: parseFloat(summary.paid_amount || 0),
+              remainingAmount: parseFloat(summary.remaining_amount || 0),
+              noItems: summary.no_items || 0,
+              orderStatus: summary.status,
+              createdAt: summary.created_at,
+            },
+            "updated",
+          );
+        }
+
         res.json({
           success: true,
           message: "Pago individual procesado exitosamente",
@@ -364,7 +521,7 @@ class TableController {
       const splitStatus = await tableService.getSplitPaymentStatus(
         parseInt(restaurantId),
         parseInt(branchNumber),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       const summary = {
@@ -374,11 +531,11 @@ class TableController {
           .length,
         total_collected: splitStatus.reduce(
           (sum, p) => sum + parseFloat(p.amount_paid || 0),
-          0
+          0,
         ),
         total_remaining: splitStatus.reduce(
           (sum, p) => sum + parseFloat(p.remaining || 0),
-          0
+          0,
         ),
       };
 
@@ -407,7 +564,7 @@ class TableController {
       const activeUsers = await tableService.getActiveUsers(
         parseInt(restaurantId),
         parseInt(branchNumber),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       res.json({
@@ -439,7 +596,7 @@ class TableController {
         guestId,
         userId,
         tableNumber ? parseInt(tableNumber) : null,
-        restaurantId ? parseInt(restaurantId) : null
+        restaurantId ? parseInt(restaurantId) : null,
       );
 
       res.json({

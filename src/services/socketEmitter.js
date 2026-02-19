@@ -68,6 +68,146 @@ class SocketEmitter {
       timestamp: new Date().toISOString(),
     });
   }
+
+  // ==================== FLEXBILL TABLE EVENTS ====================
+
+  // Emite un evento a la sala de una mesa específica
+  emitToTable(restaurantId, branchNumber, tableNumber, event, data) {
+    if (!isSocketInitialized()) {
+      console.log("⚠️ Socket.IO not initialized, skipping emit");
+      return false;
+    }
+
+    try {
+      const io = getIO();
+      const roomName = `table:${restaurantId}:${branchNumber || "main"}:${tableNumber}`;
+      io.to(roomName).emit(event, data);
+      console.log(`📡 Emitted ${event} to ${roomName}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error emitting ${event}:`, error);
+      return false;
+    }
+  }
+
+  // Emite cuando se crea un nuevo platillo en la mesa
+  emitDishCreated(restaurantId, branchNumber, tableNumber, dish) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:dish-created",
+      {
+        dish,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite cuando cambia el estado de un platillo (pending → preparing → ready)
+  emitDishStatusChanged(
+    restaurantId,
+    branchNumber,
+    tableNumber,
+    dishId,
+    status,
+  ) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:dish-status",
+      {
+        dishId,
+        status,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite cuando se paga un platillo
+  emitDishPaid(restaurantId, branchNumber, tableNumber, dishId, paidBy) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:dish-paid",
+      {
+        dishId,
+        paidBy,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite actualización del resumen de la mesa (totales)
+  emitTableSummaryUpdate(restaurantId, branchNumber, tableNumber, summary) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:summary-update",
+      {
+        summary,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite cuando un usuario se une a la mesa
+  emitTableUserJoined(restaurantId, branchNumber, tableNumber, user) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:user-joined",
+      {
+        user,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite cuando un usuario abandona la mesa
+  emitTableUserLeft(restaurantId, branchNumber, tableNumber, userId) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:user-left",
+      {
+        userId,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite actualización del split bill
+  emitSplitBillUpdate(restaurantId, branchNumber, tableNumber, splitPayments) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:split-update",
+      {
+        splitPayments,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  // Emite recarga completa de datos de la mesa
+  emitTableFullRefresh(restaurantId, branchNumber, tableNumber) {
+    return this.emitToTable(
+      restaurantId,
+      branchNumber,
+      tableNumber,
+      "table:full-refresh",
+      {
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
 }
 
 module.exports = new SocketEmitter();
