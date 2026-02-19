@@ -8,9 +8,13 @@ class UserService {
         return {};
       }
 
-      // Filtrar IDs válidos (no null, no undefined, no vacíos)
+      // Filtrar IDs válidos (no null, no undefined, no vacíos) y excluir guest IDs
       const validUserIds = userIds.filter(
-        (id) => id && typeof id === "string" && id.trim() !== ""
+        (id) =>
+          id &&
+          typeof id === "string" &&
+          id.trim() !== "" &&
+          !id.startsWith("guest-")
       );
 
       if (validUserIds.length === 0) {
