@@ -13,8 +13,9 @@ function initializeSocket(httpServer) {
         "http://localhost:3000", // FlexBill
         "http://localhost:3001", // FlexBill alt
         "http://localhost:3002", // Admin Portal
-        process.env.FRONTEND_URL,
+        process.env.ADMIN_PORTAL_URL,
         process.env.FLEXBILL_URL,
+        process.env.TAP_PAY_URL,
       ].filter(Boolean),
       credentials: true,
     },

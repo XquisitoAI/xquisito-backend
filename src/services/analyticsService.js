@@ -597,6 +597,7 @@ class AnalyticsService {
         precio: parseFloat(item.precio || 0),
         precioTotal: parseFloat(item.precio_total || 0),
         estadoPago: item.estado_pago,
+        estadoEntrega: item.estado_entrega,
         imagen: item.imagen || null,
       }));
 
