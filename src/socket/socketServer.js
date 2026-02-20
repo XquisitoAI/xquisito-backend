@@ -2,6 +2,7 @@ const { Server } = require("socket.io");
 const { authenticateSocket } = require("./socketAuth");
 const { registerDashboardHandlers } = require("./dashboardEvents");
 const { registerTableHandlers } = require("./tableEvents");
+const { registerTapPayHandlers } = require("./tapPayEvents");
 
 let io = null;
 
@@ -38,6 +39,9 @@ function initializeSocket(httpServer) {
 
     // Handlers para FlexBill (mesas) - disponible para todos
     registerTableHandlers(io, socket);
+
+    // Handlers para Tap & Pay - disponible para todos
+    registerTapPayHandlers(io, socket);
 
     socket.on("disconnect", (reason) => {
       console.log(`❌ Socket disconnected: ${socket.id}, Reason: ${reason}`);

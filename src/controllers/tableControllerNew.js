@@ -583,7 +583,7 @@ class TableController {
   // Vincular órdenes de invitado con userId
   async linkGuestOrdersToUser(req, res) {
     try {
-      const { guestId, userId, tableNumber, restaurantId } = req.body;
+      const { guestId, userId, tableNumber, restaurantId, userName } = req.body;
 
       if (!guestId || !userId) {
         return res.status(400).json({
@@ -597,6 +597,7 @@ class TableController {
         userId,
         tableNumber ? parseInt(tableNumber) : null,
         restaurantId ? parseInt(restaurantId) : null,
+        userName || null,
       );
 
       res.json({

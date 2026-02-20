@@ -45,10 +45,16 @@ class TableService {
                             )
                         )
                     )
-                `
+                `,
         )
-        .eq("user_order.table_order.tables.branches.restaurant_id", restaurantId)
-        .eq("user_order.table_order.tables.branches.branch_number", branchNumber)
+        .eq(
+          "user_order.table_order.tables.branches.restaurant_id",
+          restaurantId,
+        )
+        .eq(
+          "user_order.table_order.tables.branches.branch_number",
+          branchNumber,
+        )
         .eq("user_order.table_order.tables.table_number", tableNumber)
         .in("user_order.table_order.status", ["not_paid", "partial"]);
 
@@ -88,7 +94,7 @@ class TableService {
     guestId = null,
     images = [],
     customFields = null,
-    extraPrice = 0
+    extraPrice = 0,
   ) {
     try {
       const { data, error } = await supabase.rpc("create_dish_order", {
@@ -109,7 +115,14 @@ class TableService {
       if (error) throw error;
 
       // Registrar usuario como activo en la mesa
-      await this.addActiveUser(restaurantId, branchNumber, tableNumber, userId, guestName, guestId);
+      await this.addActiveUser(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+        userId,
+        guestName,
+        guestId,
+      );
 
       // Verificar si hay división activa y re-dividir automáticamente
       const redistributionResult = await this.redistributeSplitBill(
@@ -118,7 +131,7 @@ class TableService {
         tableNumber,
         userId,
         guestName,
-        guestId
+        guestId,
       );
 
       const result = {
@@ -148,7 +161,8 @@ class TableService {
       // Obtener información del dish order antes de pagarlo, incluyendo restaurant_id y branch_number
       const { data: dishData, error: dishError } = await supabase
         .from("dish_order")
-        .select(`
+        .select(
+          `
           *,
           user_order!inner(
             user_id,
@@ -161,14 +175,17 @@ class TableService {
               )
             )
           )
-        `)
+        `,
+        )
         .eq("id", dishOrderId)
         .single();
 
       if (dishError) throw dishError;
 
-      const restaurantId = dishData.user_order.table_order.tables.branches.restaurant_id;
-      const branchNumber = dishData.user_order.table_order.tables.branches.branch_number;
+      const restaurantId =
+        dishData.user_order.table_order.tables.branches.restaurant_id;
+      const branchNumber =
+        dishData.user_order.table_order.tables.branches.branch_number;
       const tableNumber = dishData.user_order.table_order.tables.table_number;
       const userId = dishData.user_order.user_id;
       const guestName = dishData.user_order.guest_name;
@@ -187,16 +204,21 @@ class TableService {
           tableNumber,
           userId,
           guestName,
-          paymentMethodId
+          paymentMethodId,
         );
       }
 
       // Calcular el monto total pagado: (price + extra_price) * quantity
-      const pricePerItem = parseFloat(dishData.price) + parseFloat(dishData.extra_price || 0);
+      const pricePerItem =
+        parseFloat(dishData.price) + parseFloat(dishData.extra_price || 0);
       const amountPaid = pricePerItem * parseInt(dishData.quantity);
 
       // Verificar si la mesa sigue activa (no se cerró automáticamente)
-      const summary = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
+      const summary = await this.getTableSummary(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       const tableStillActive = summary && summary.status !== "paid";
 
       // Solo trackear pago si la mesa sigue activa
@@ -208,7 +230,7 @@ class TableService {
           userId,
           guestName,
           "individual",
-          amountPaid
+          amountPaid,
         );
 
         // Actualizar split_payments si existe - marcar como paid porque pagó por items individuales
@@ -220,7 +242,7 @@ class TableService {
           guestName,
           guestId,
           amountPaid,
-          true // forceMarkAsPaid - quien paga items individuales sale del split
+          true, // forceMarkAsPaid - quien paga items individuales sale del split
         );
       }
 
@@ -238,7 +260,7 @@ class TableService {
     amount,
     userId = null,
     guestName = null,
-    paymentMethodId = null
+    paymentMethodId = null,
   ) {
     try {
       const { data, error } = await supabase.rpc("pay_table_amount", {
@@ -257,12 +279,16 @@ class TableService {
           tableNumber,
           userId,
           guestName,
-          paymentMethodId
+          paymentMethodId,
         );
       }
 
       // Verificar si la mesa sigue activa (no se cerró automáticamente)
-      const summary = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
+      const summary = await this.getTableSummary(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       const tableStillActive = summary && summary.status !== "paid";
 
       // Solo trackear pago si la mesa sigue activa y se proporciona userId o guestName
@@ -274,7 +300,7 @@ class TableService {
           userId,
           guestName,
           "amount",
-          amount
+          amount,
         );
 
         // Actualizar split_payments si existe - marcar como paid sin importar la cantidad
@@ -286,7 +312,7 @@ class TableService {
           guestName,
           null, // guest_id no disponible aquí
           amount,
-          true // forceMarkAsPaid = true
+          true, // forceMarkAsPaid = true
         );
       }
 
@@ -345,7 +371,7 @@ class TableService {
                         remaining_amount,
                         no_items
                     )
-                `
+                `,
         )
         .eq("restaurant_id", restaurantId)
         .in("table_order.status", ["not_paid", "partial"])
@@ -380,13 +406,19 @@ class TableService {
     tableNumber,
     numberOfPeople,
     userIds = null,
-    guestNames = null
+    guestNames = null,
   ) {
     try {
       // Obtener el total actual de la mesa
-      const summary = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
+      const summary = await this.getTableSummary(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       if (!summary) {
-        throw new Error(`No hay cuenta activa para la mesa ${tableNumber} del restaurante ${restaurantId} sucursal ${branchNumber}`);
+        throw new Error(
+          `No hay cuenta activa para la mesa ${tableNumber} del restaurante ${restaurantId} sucursal ${branchNumber}`,
+        );
       }
 
       const totalAmount = parseFloat(summary.total_amount);
@@ -424,7 +456,7 @@ class TableService {
           const activeUser = activeUsers.find(
             (u) =>
               (userId && u.user_id === userId) ||
-              (!userId && u.guest_name === guestName)
+              (!userId && u.guest_name === guestName),
           );
           guestId = activeUser?.guest_id || null;
         }
@@ -469,7 +501,7 @@ class TableService {
     tableNumber,
     newOrderUserId = null,
     newOrderGuestName = null,
-    newOrderGuestId = null
+    newOrderGuestId = null,
   ) {
     try {
       // Verificar si hay división activa
@@ -484,7 +516,11 @@ class TableService {
       if (!activeSplits || activeSplits.length === 0) return false; // No hay división activa
 
       // Obtener todos los huéspedes únicos que tienen órdenes en la mesa
-      const orders = await this.getTableOrders(restaurantId, branchNumber, tableNumber);
+      const orders = await this.getTableOrders(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       const uniqueGuests = new Map();
 
       orders.forEach((order) => {
@@ -500,7 +536,11 @@ class TableService {
       });
 
       // Obtener nuevo total de la mesa
-      const summary = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
+      const summary = await this.getTableSummary(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       if (!summary) return false;
 
       const newTotalAmount = parseFloat(summary.total_amount);
@@ -508,11 +548,15 @@ class TableService {
       // Calcular cuánto ya se pagó por división
       const totalPaidBySplit = activeSplits.reduce(
         (sum, split) => sum + parseFloat(split.amount_paid || 0),
-        0
+        0,
       );
 
       // Usar la tabla de usuarios activos para determinar correctamente quién debe estar en el split
-      const activeUsers = await this.getActiveUsers(restaurantId, branchNumber, tableNumber);
+      const activeUsers = await this.getActiveUsers(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       const newGuests = [];
 
       uniqueGuests.forEach((guest, key) => {
@@ -520,7 +564,7 @@ class TableService {
           (split) =>
             (split.guest_id && split.guest_id === guest.guest_id) ||
             (split.user_id && split.user_id === guest.user_id) ||
-            (split.guest_name && split.guest_name === guest.guest_name)
+            (split.guest_name && split.guest_name === guest.guest_name),
         );
 
         if (!existsInSplit) {
@@ -535,7 +579,7 @@ class TableService {
             (user) =>
               (user.guest_id && user.guest_id === guest.guest_id) ||
               (user.user_id && user.user_id === guest.user_id) ||
-              (user.guest_name && user.guest_name === guest.guest_name)
+              (user.guest_name && user.guest_name === guest.guest_name),
           );
 
           const totalPaidByUser = activeUser
@@ -590,7 +634,7 @@ class TableService {
           (user) =>
             (user.guest_id && user.guest_id === split.guest_id) ||
             (user.user_id && user.user_id === split.user_id) ||
-            (user.guest_name && user.guest_name === split.guest_name)
+            (user.guest_name && user.guest_name === split.guest_name),
         );
 
         if (activeUser) {
@@ -651,7 +695,14 @@ class TableService {
   }
 
   // Pagar parte individual
-  async paySplitAmount(restaurantId, branchNumber, tableNumber, userId = null, guestName = null, paymentMethodId = null) {
+  async paySplitAmount(
+    restaurantId,
+    branchNumber,
+    tableNumber,
+    userId = null,
+    guestName = null,
+    paymentMethodId = null,
+  ) {
     try {
       // IMPORTANTE: Recalcular el split antes de pagar, en caso de que hayan habido pagos individuales
       await this.redistributeSplitBill(restaurantId, branchNumber, tableNumber);
@@ -689,7 +740,7 @@ class TableService {
 
       if (!splitPayments || splitPayments.length === 0) {
         throw new Error(
-          `No se encontró pago pendiente para este usuario en la mesa ${tableNumber}`
+          `No se encontró pago pendiente para este usuario en la mesa ${tableNumber}`,
         );
       }
 
@@ -698,7 +749,11 @@ class TableService {
 
       // Si es la única persona que realmente no ha contribuido, debe pagar todo el restante
       // Verificar si esta persona es efectivamente la única sin contribuir
-      const summary = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
+      const summary = await this.getTableSummary(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       if (summary) {
         const remainingAmount = parseFloat(summary.remaining_amount);
 
@@ -721,10 +776,22 @@ class TableService {
       if (updateError) throw updateError;
 
       // Aplicar el pago al total de la mesa usando la función existente
-      await this.payTableAmount(restaurantId, branchNumber, tableNumber, amountToPay, userId, guestName, paymentMethodId);
+      await this.payTableAmount(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+        amountToPay,
+        userId,
+        guestName,
+        paymentMethodId,
+      );
 
       // Verificar si la mesa sigue activa después del pago
-      const summaryAfterPayment = await this.getTableSummary(restaurantId, branchNumber, tableNumber);
+      const summaryAfterPayment = await this.getTableSummary(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
       const tableStillActive =
         summaryAfterPayment && summaryAfterPayment.status !== "paid";
 
@@ -737,7 +804,7 @@ class TableService {
           userId,
           guestName,
           "split",
-          amountToPay
+          amountToPay,
         );
       }
 
@@ -756,7 +823,7 @@ class TableService {
     tableNumber,
     userId = null,
     guestName = null,
-    guestId = null
+    guestId = null,
   ) {
     try {
       // Primero intentar encontrar el usuario existente
@@ -823,7 +890,7 @@ class TableService {
     userId = null,
     guestName = null,
     paymentType,
-    amount
+    amount,
   ) {
     try {
       const updateField = {
@@ -861,7 +928,7 @@ class TableService {
     guestName = null,
     guestId = null,
     amountPaid,
-    forceMarkAsPaid = false
+    forceMarkAsPaid = false,
   ) {
     try {
       // Buscar el registro en split_payments para este usuario
@@ -924,14 +991,17 @@ class TableService {
     tableNumber,
     userId = null,
     guestName = null,
-    amount
+    amount,
   ) {
     try {
-      console.log(`🔍 Checking split_payments for restaurant ${restaurantId}, table ${tableNumber}:`, {
-        userId,
-        guestName,
-        amount,
-      });
+      console.log(
+        `🔍 Checking split_payments for restaurant ${restaurantId}, table ${tableNumber}:`,
+        {
+          userId,
+          guestName,
+          amount,
+        },
+      );
 
       // Buscar si hay un split_payment pendiente para este usuario
       let query = supabase
@@ -947,7 +1017,7 @@ class TableService {
         query = query.eq("guest_name", guestName);
       } else {
         console.log(
-          "⚠️ No userId or guestName provided, skipping split_payments update"
+          "⚠️ No userId or guestName provided, skipping split_payments update",
         );
         return; // No hay identificador de usuario
       }
@@ -959,7 +1029,7 @@ class TableService {
       }
 
       console.log(
-        `📊 Found ${splitPayments?.length || 0} pending split_payments`
+        `📊 Found ${splitPayments?.length || 0} pending split_payments`,
       );
 
       // Si existe un split payment pendiente, marcarlo como pagado
@@ -981,11 +1051,11 @@ class TableService {
           throw updateError;
         }
         console.log(
-          `✅ Marked user as paid in split_payments: ${userId || guestName}`
+          `✅ Marked user as paid in split_payments: ${userId || guestName}`,
         );
       } else {
         console.log(
-          `ℹ️ No pending split_payment found for ${userId || guestName}`
+          `ℹ️ No pending split_payment found for ${userId || guestName}`,
         );
       }
     } catch (error) {
@@ -1031,7 +1101,13 @@ class TableService {
   }
 
   // Marcar usuarios como en split
-  async setUsersInSplit(restaurantId, branchNumber, tableNumber, userIds = [], guestNames = []) {
+  async setUsersInSplit(
+    restaurantId,
+    branchNumber,
+    tableNumber,
+    userIds = [],
+    guestNames = [],
+  ) {
     try {
       const updates = [];
 
@@ -1042,7 +1118,7 @@ class TableService {
           .update({ is_in_split: false })
           .eq("restaurant_id", restaurantId)
           .eq("branch_number", branchNumber)
-          .eq("table_number", tableNumber)
+          .eq("table_number", tableNumber),
       );
 
       // Marcar usuarios específicos como en split
@@ -1055,7 +1131,7 @@ class TableService {
               .eq("restaurant_id", restaurantId)
               .eq("branch_number", branchNumber)
               .eq("table_number", tableNumber)
-              .eq("user_id", userId)
+              .eq("user_id", userId),
           );
         }
       }
@@ -1069,7 +1145,7 @@ class TableService {
               .eq("restaurant_id", restaurantId)
               .eq("branch_number", branchNumber)
               .eq("table_number", tableNumber)
-              .eq("guest_name", guestName)
+              .eq("guest_name", guestName),
           );
         }
       }
@@ -1085,23 +1161,47 @@ class TableService {
   // === FIN MÉTODOS ACTIVE TABLE USERS ===
 
   // Vincular órdenes de invitado con userId cuando se autentica
-  async linkGuestOrdersToUser(guestId, userId, tableNumber = null, restaurantId = null) {
+  async linkGuestOrdersToUser(
+    guestId,
+    userId,
+    tableNumber = null,
+    restaurantId = null,
+    userName = null,
+  ) {
     try {
+      // Preparar datos de actualización para user_order
+      // Incluye user_id, limpia guest_id, y actualiza guest_name si se proporciona userName
+      const userOrderUpdateData = {
+        user_id: userId,
+        guest_id: null, // Limpiar guest_id ya que ahora es usuario autenticado
+      };
+      if (userName) {
+        userOrderUpdateData.guest_name = userName;
+      }
+
       // Actualizar user_order para vincular guest_id con user_id
-      // Usamos guest_id como identificador único para evitar conflictos
       const { data: userOrderData, error: userOrderError } = await supabase
         .from("user_order")
-        .update({ user_id: userId })
+        .update(userOrderUpdateData)
         .eq("guest_id", guestId)
         .is("user_id", null)
         .select();
 
       if (userOrderError) throw userOrderError;
 
+      // Preparar datos de actualización para active_table_users
+      const activeUserUpdateData = {
+        user_id: userId,
+        guest_id: null,
+      };
+      if (userName) {
+        activeUserUpdateData.guest_name = userName;
+      }
+
       // Actualizar active_table_users para vincular guest_id con user_id
       let activeUserQuery = supabase
         .from("active_table_users")
-        .update({ user_id: userId })
+        .update(activeUserUpdateData)
         .eq("guest_id", guestId)
         .is("user_id", null);
 
@@ -1118,10 +1218,19 @@ class TableService {
 
       if (activeUserError) throw activeUserError;
 
+      // Preparar datos de actualización para split_payments
+      const splitUpdateData = {
+        user_id: userId,
+        guest_id: null,
+      };
+      if (userName) {
+        splitUpdateData.guest_name = userName;
+      }
+
       // Actualizar split_payments para vincular guest_id con user_id
       let splitQuery = supabase
         .from("split_payments")
-        .update({ user_id: userId })
+        .update(splitUpdateData)
         .eq("guest_id", guestId)
         .is("user_id", null);
 
@@ -1182,7 +1291,7 @@ class TableService {
     tableNumber,
     userId = null,
     guestName = null,
-    paymentMethodId
+    paymentMethodId,
   ) {
     try {
       // Obtener info del método de pago
@@ -1252,7 +1361,7 @@ class TableService {
       if (updateError) {
         console.error(
           "Error updating user_order with payment method:",
-          updateError
+          updateError,
         );
       }
     } catch (error) {

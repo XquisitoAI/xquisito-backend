@@ -1,4 +1,5 @@
 const tapPayService = require("../services/tapPayService");
+const socketEmitter = require("../services/socketEmitter");
 
 class TapPayController {
   // Health check
@@ -25,7 +26,7 @@ class TapPayController {
       const order = await tapPayService.getActiveOrderByTable(
         parseInt(restaurantId),
         parseInt(branchNumber),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       // Si no hay orden, retornamos success con data null
@@ -109,7 +110,8 @@ class TapPayController {
       if (!restaurantId || !branchNumber || !tableNumber || !customerName) {
         return res.status(400).json({
           success: false,
-          message: "restaurantId, branchNumber, tableNumber y customerName son requeridos",
+          message:
+            "restaurantId, branchNumber, tableNumber y customerName son requeridos",
         });
       }
 
@@ -131,6 +133,14 @@ class TapPayController {
         guestId,
         items,
       });
+
+      // Emitir evento de socket para orden creada
+      socketEmitter.emitTapPayOrderCreated(
+        parseInt(restaurantId),
+        parseInt(branchNumber),
+        parseInt(tableNumber),
+        order,
+      );
 
       res.status(201).json({
         success: true,
@@ -177,6 +187,22 @@ class TapPayController {
         userId,
         guestName,
       });
+
+      // Obtener info de la orden para emitir evento
+      const order = await tapPayService.getOrderById(orderId);
+      if (order) {
+        socketEmitter.emitTapPayPaymentReceived(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+          { orderId, amount, tipAmount, paymentType, userId, guestName },
+        );
+        socketEmitter.emitTapPayFullRefresh(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+        );
+      }
 
       res.json({
         success: true,
@@ -243,6 +269,22 @@ class TapPayController {
         guestId,
         guestName,
       });
+
+      // Obtener info de la orden para emitir evento
+      const order = await tapPayService.getOrderById(orderId);
+      if (order) {
+        socketEmitter.emitTapPayPaymentReceived(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+          { orderId, amount: parseFloat(amount), userId, guestId, guestName },
+        );
+        socketEmitter.emitTapPayFullRefresh(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+        );
+      }
 
       res.json({
         success: true,
@@ -319,6 +361,22 @@ class TapPayController {
         paymentMethodId: null, // Siempre null - no se usa en este endpoint
       });
 
+      // Obtener info de la orden para emitir evento
+      const order = await tapPayService.getOrderById(orderId);
+      if (order) {
+        socketEmitter.emitTapPayPaymentReceived(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+          { orderId, paymentType: "split", userId, guestId, guestName },
+        );
+        socketEmitter.emitTapPayFullRefresh(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+        );
+      }
+
       res.json({
         success: true,
         data: result,
@@ -386,7 +444,13 @@ class TapPayController {
       }
 
       // addOrUpdateActiveUser ya valida si existe antes de insertar
-      await tapPayService.addOrUpdateActiveUser(orderId, userId, guestId, guestName, 0);
+      await tapPayService.addOrUpdateActiveUser(
+        orderId,
+        userId,
+        guestId,
+        guestName,
+        0,
+      );
 
       res.json({
         success: true,
@@ -414,15 +478,48 @@ class TapPayController {
         });
       }
 
-      const validStatuses = ['active', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled', 'abandoned'];
+      const validStatuses = [
+        "active",
+        "confirmed",
+        "preparing",
+        "ready",
+        "completed",
+        "cancelled",
+        "abandoned",
+      ];
       if (!validStatuses.includes(orderStatus)) {
         return res.status(400).json({
           success: false,
-          message: `orderStatus debe ser uno de: ${validStatuses.join(', ')}`,
+          message: `orderStatus debe ser uno de: ${validStatuses.join(", ")}`,
         });
       }
 
-      const result = await tapPayService.updateOrderStatus(orderId, orderStatus);
+      const result = await tapPayService.updateOrderStatus(
+        orderId,
+        orderStatus,
+      );
+
+      // Obtener info de la orden para emitir evento
+      const order = await tapPayService.getOrderById(orderId);
+      if (order) {
+        socketEmitter.emitTapPayOrderStatusChanged(
+          order.restaurant_id,
+          order.branch_number,
+          order.table_number,
+          orderId,
+          orderStatus,
+        );
+
+        // Si la orden se completó, emitir evento especial
+        if (orderStatus === "completed") {
+          socketEmitter.emitTapPayOrderCompleted(
+            order.restaurant_id,
+            order.branch_number,
+            order.table_number,
+            order,
+          );
+        }
+      }
 
       res.json({
         success: true,
@@ -450,15 +547,29 @@ class TapPayController {
         });
       }
 
-      const validStatuses = ['pending', 'cooking', 'delivered'];
+      const validStatuses = ["pending", "cooking", "delivered"];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({
           success: false,
-          message: `status debe ser uno de: ${validStatuses.join(', ')}`,
+          message: `status debe ser uno de: ${validStatuses.join(", ")}`,
         });
       }
 
       const result = await tapPayService.updateDishStatus(dishId, status);
+
+      // Obtener info de la orden a través del platillo para emitir evento
+      if (result && result.tap_pay_order_id) {
+        const order = await tapPayService.getOrderById(result.tap_pay_order_id);
+        if (order) {
+          socketEmitter.emitTapPayDishStatusChanged(
+            order.restaurant_id,
+            order.branch_number,
+            order.table_number,
+            dishId,
+            status,
+          );
+        }
+      }
 
       res.json({
         success: true,
@@ -479,9 +590,9 @@ class TapPayController {
       const {
         restaurant_id,
         branch_number,
-        time_range = 'daily',
+        time_range = "daily",
         start_date,
-        end_date
+        end_date,
       } = req.query;
 
       if (!restaurant_id) {
