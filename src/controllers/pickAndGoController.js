@@ -523,6 +523,55 @@ class PickAndGoController {
             });
         }
     }
+
+    /**
+     * Actualizar estado de un dish order
+     * PUT /api/pick-and-go/dishes/:dishId/status
+     */
+    async updateDishStatus(req, res) {
+        try {
+            const { dishId } = req.params;
+            const { status } = req.body;
+
+            if (!dishId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'dishId is required'
+                });
+            }
+
+            if (!status) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'status is required'
+                });
+            }
+
+            // Validar estados permitidos
+            const validStatuses = ['pending', 'cooking', 'delivered'];
+            if (!validStatuses.includes(status)) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+                });
+            }
+
+            const result = await pickAndGoService.updateDishStatus(dishId, status);
+
+            if (!result.success) {
+                return res.status(404).json(result);
+            }
+
+            res.json(result);
+
+        } catch (error) {
+            console.error('💥 Error in updateDishStatus controller:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    }
 }
 
 module.exports = new PickAndGoController();

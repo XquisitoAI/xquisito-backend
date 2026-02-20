@@ -542,7 +542,9 @@ class AnalyticsService {
         id: tx.id,
         baseAmount: parseFloat(tx.base_amount || 0),
         tipAmount: parseFloat(tx.tip_amount || 0),
+        commission: parseFloat(tx.commission || 0),
         totalAmount: parseFloat(tx.total_amount || 0),
+        restaurantNet: parseFloat(tx.restaurant_net || 0),
         createdAt: tx.created_at,
         serviceType:
           SERVICE_NAME_MAP_REVERSE[tx.service_type] || tx.service_type,
@@ -592,6 +594,7 @@ class AnalyticsService {
       }
 
       const items = (data || []).map((item) => ({
+        id: item.id,
         nombre: item.nombre,
         cantidad: item.cantidad,
         precio: parseFloat(item.precio || 0),

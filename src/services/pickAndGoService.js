@@ -474,6 +474,54 @@ class PickAndGoService {
             return { success: false, error: error.message };
         }
     }
+
+    /**
+     * Actualizar estado de un dish order de Pick & Go
+     * @param {string} dishId - ID del dish order
+     * @param {string} status - Nuevo estado (pending, cooking, delivered)
+     * @returns {Object} - Resultado de la operación
+     */
+    async updateDishStatus(dishId, status) {
+        try {
+            console.log('🍽️ Updating Pick & Go dish status:', { dishId, status });
+
+            // Verificar que el dish pertenece a una orden Pick & Go
+            const { data: dish, error: fetchError } = await supabase
+                .from('dish_order')
+                .select('id, pick_and_go_order_id, status')
+                .eq('id', dishId)
+                .single();
+
+            if (fetchError) {
+                console.error('❌ Error fetching dish:', fetchError);
+                return { success: false, error: 'Dish not found' };
+            }
+
+            if (!dish.pick_and_go_order_id) {
+                return { success: false, error: 'Dish does not belong to a Pick & Go order' };
+            }
+
+            // Actualizar el estado
+            const { data, error } = await supabase
+                .from('dish_order')
+                .update({ status })
+                .eq('id', dishId)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('❌ Error updating dish status:', error);
+                throw error;
+            }
+
+            console.log('✅ Pick & Go dish status updated successfully:', data.id, status);
+            return { success: true, data };
+
+        } catch (error) {
+            console.error('💥 Error in updateDishStatus:', error);
+            return { success: false, error: error.message };
+        }
+    }
 }
 
 module.exports = new PickAndGoService();
