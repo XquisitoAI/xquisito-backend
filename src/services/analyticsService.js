@@ -550,6 +550,14 @@ class AnalyticsService {
           SERVICE_NAME_MAP_REVERSE[tx.service_type] || tx.service_type,
         orderIdentifier: tx.order_identifier,
         orderStatus: tx.order_status || "paid",
+        deliveryStatus: tx.delivery_status || "none",
+        customerName: tx.customer_name || null,
+        paymentsBreakdown: tx.payments_breakdown
+          ? tx.payments_breakdown.map((p) => ({
+              name: p.name,
+              amount: parseFloat(p.amount || 0),
+            }))
+          : null,
         // Nuevos campos para FlexBill
         noItems: tx.no_items || null,
         paidAmount: tx.paid_amount !== null ? parseFloat(tx.paid_amount) : null,
@@ -602,6 +610,7 @@ class AnalyticsService {
         estadoPago: item.estado_pago,
         estadoEntrega: item.estado_entrega,
         imagen: item.imagen || null,
+        guestName: item.guest_name || null,
       }));
 
       return { items, success: true };
