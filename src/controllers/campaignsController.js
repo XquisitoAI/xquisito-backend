@@ -463,6 +463,46 @@ class CampaignsController {
                 });
             }
 
+            // Verificar limite de campañas activas si se intenta activar/reanudar una campaña
+            const activatingStatuses = ['running', 'scheduled'];
+            if (activatingStatuses.includes(status)) {
+                const subscriptionService = new SubscriptionService();
+
+                // Obtener la campaña actual para verificar su estado
+                const currentCampaign = await campaignsService.getCampaignById(id, parseInt(restaurant_id));
+
+                // Solo verificar limite si la campaña no estaba ya activa (evitar bloquear cambios entre running/scheduled)
+                const wasAlreadyActive = activatingStatuses.includes(currentCampaign.status);
+
+                if (!wasAlreadyActive) {
+                    console.log(`🎯 Verificando limite de campañas para reactivacion en restaurant ${restaurant_id}`);
+
+                    const canActivate = await subscriptionService.checkFeatureAccess(
+                        parseInt(restaurant_id),
+                        'campaigns_per_month'
+                    );
+
+                    if (!canActivate) {
+                        const subscription = await subscriptionService.getCurrentSubscription(parseInt(restaurant_id));
+                        const usage = await subscriptionService.getFeatureUsage(parseInt(restaurant_id), 'campaigns_per_month');
+
+                        console.log(`❌ Reactivacion de campaña denegada. Plan: ${subscription?.plan_type}, Activas: ${usage.usage}/${usage.limit}`);
+
+                        return res.status(403).json({
+                            success: false,
+                            error: 'Has alcanzado el límite de campañas activas de tu plan. Pausa otra campaña o actualiza tu plan para reactivar esta.',
+                            error_code: 'CAMPAIGN_LIMIT_EXCEEDED',
+                            details: {
+                                current_active: usage.usage,
+                                limit: usage.limit,
+                                plan_type: subscription?.plan_type || null
+                            },
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+
             const campaign = await campaignsService.updateCampaign(id, { status }, parseInt(restaurant_id));
 
             res.json({

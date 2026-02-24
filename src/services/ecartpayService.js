@@ -287,6 +287,86 @@ class EcartPayService {
     }
   }
 
+  /**
+   * Obtiene las tarjetas guardadas de un customer en EcartPay
+   * Usado para cobros automaticos de renovacion de suscripciones
+   * @param {string} customerId - ID del customer en EcartPay
+   * @returns {Promise<{success: boolean, cards?: Array, error?: object}>}
+   */
+  async getCustomerCards(customerId) {
+    try {
+      console.log("💳 Getting cards for customer:", customerId);
+
+      const response = await this.makeAuthenticatedRequest(
+        "get",
+        `/customers/${customerId}/cards`
+      );
+
+      const cards = response.data?.docs || response.data || [];
+
+      console.log(`✅ Found ${Array.isArray(cards) ? cards.length : 0} cards for customer:`, customerId);
+
+      return {
+        success: true,
+        cards: Array.isArray(cards) ? cards : [cards],
+      };
+    } catch (error) {
+      console.error("❌ Failed to get customer cards:", error.response?.data);
+      return {
+        success: false,
+        error: this.handleError(error),
+      };
+    }
+  }
+
+  /**
+   * Obtiene la tarjeta principal (default) de un customer
+   * Si no hay default, retorna la primera tarjeta disponible
+   * @param {string} customerId - ID del customer en EcartPay
+   * @returns {Promise<{success: boolean, card?: object, error?: object}>}
+   */
+  async getCustomerDefaultCard(customerId) {
+    try {
+      const cardsResult = await this.getCustomerCards(customerId);
+
+      if (!cardsResult.success) {
+        return cardsResult;
+      }
+
+      const cards = cardsResult.cards;
+
+      if (!cards || cards.length === 0) {
+        return {
+          success: false,
+          error: {
+            type: "not_found",
+            message: "No cards found for this customer",
+          },
+        };
+      }
+
+      // Buscar tarjeta marcada como default, o usar la primera
+      const defaultCard = cards.find((card) => card.is_default || card.default) || cards[0];
+
+      console.log("✅ Default card found:", {
+        id: defaultCard.id,
+        last_four: defaultCard.last_four || defaultCard.number?.slice(-4),
+        brand: defaultCard.brand || defaultCard.card_type,
+      });
+
+      return {
+        success: true,
+        card: defaultCard,
+      };
+    } catch (error) {
+      console.error("❌ Error getting default card:", error);
+      return {
+        success: false,
+        error: this.handleError(error),
+      };
+    }
+  }
+
   async createPaymentMethod(paymentMethodData) {
     try {
       console.log("💳 Creating payment method with data:", {

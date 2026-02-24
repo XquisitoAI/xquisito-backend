@@ -368,7 +368,7 @@ class SubscriptionService {
     }
 
     // Update subscription plan
-    async updateSubscriptionPlan(subscriptionId, newPlanType, newPrice, newEndDate = null) {
+    async updateSubscriptionPlan(subscriptionId, newPlanType, newPrice, newEndDate = null, extraFields = {}) {
         try {
             const updateData = {
                 plan_type: newPlanType,
@@ -379,7 +379,21 @@ class SubscriptionService {
             // Update end date if provided (for new billing cycle)
             if (newEndDate) {
                 updateData.end_date = newEndDate;
+                updateData.next_billing_date = newEndDate; // Also update next billing date
             }
+
+            // Reset renewal tracking fields on plan change
+            updateData.renewal_attempts = 0;
+            updateData.renewal_reminder_sent = false;
+            updateData.scheduled_plan_change = null;
+
+            // For paid plans, enable auto_renew by default
+            if (newPrice > 0) {
+                updateData.auto_renew = true;
+            }
+
+            // Merge any extra fields (like ecartpay_customer_id)
+            Object.assign(updateData, extraFields);
 
             console.log('📝 Updating subscription plan:', {
                 subscriptionId,
@@ -405,6 +419,69 @@ class SubscriptionService {
 
         } catch (error) {
             console.error('Error updating subscription plan:', error);
+            throw error;
+        }
+    }
+
+    // Toggle auto_renew for a subscription
+    async toggleAutoRenew(subscriptionId, autoRenew) {
+        try {
+            const { data, error } = await this.supabase
+                .from('subscriptions')
+                .update({
+                    auto_renew: autoRenew,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', subscriptionId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error toggling auto_renew:', error);
+            throw error;
+        }
+    }
+
+    // Schedule a plan downgrade for end of billing cycle
+    async scheduleDowngrade(subscriptionId, targetPlan) {
+        try {
+            const { data, error } = await this.supabase
+                .from('subscriptions')
+                .update({
+                    scheduled_plan_change: targetPlan,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', subscriptionId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error scheduling downgrade:', error);
+            throw error;
+        }
+    }
+
+    // Cancel scheduled downgrade
+    async cancelScheduledDowngrade(subscriptionId) {
+        try {
+            const { data, error } = await this.supabase
+                .from('subscriptions')
+                .update({
+                    scheduled_plan_change: null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', subscriptionId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error cancelling scheduled downgrade:', error);
             throw error;
         }
     }
