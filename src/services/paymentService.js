@@ -39,7 +39,7 @@ class PaymentService {
           },
         };
         console.log(
-          `Processing guest user: ${userId} with unique email: ${uniqueGuestEmail} (original: ${userEmail})`
+          `Processing guest user: ${userId} with unique email: ${uniqueGuestEmail} (original: ${userEmail})`,
         );
       } else {
         // For authenticated users (Supabase Auth), get from public.profiles table
@@ -50,7 +50,7 @@ class PaymentService {
           .single();
 
         if (userError || !userData) {
-          console.error('❌ Supabase profiles lookup failed:', userError);
+          console.error("❌ Supabase profiles lookup failed:", userError);
           return {
             success: false,
             error: {
@@ -102,7 +102,7 @@ class PaymentService {
           ecartPayCustomerId = existingCustomer.customer.id;
           console.log(
             "✅ Found existing eCartpay customer:",
-            ecartPayCustomerId
+            ecartPayCustomerId,
           );
         } else {
           // Create new customer
@@ -131,7 +131,7 @@ class PaymentService {
           if (!customerResult.success) {
             console.error(
               "❌ Failed to create EcartPay customer:",
-              customerResult.error
+              customerResult.error,
             );
             return {
               success: false,
@@ -163,11 +163,13 @@ class PaymentService {
 
       const ecartPayPaymentMethod = paymentMethodResult.paymentMethod;
 
-      // Log the actual structure from eCartpay
-      console.log(
-        "📋 eCartpay payment method structure:",
-        JSON.stringify(ecartPayPaymentMethod, null, 2)
-      );
+      // PCI DSS: Only log non-sensitive fields from eCartpay response
+      console.log("📋 eCartpay payment method created:", {
+        id: ecartPayPaymentMethod.id,
+        type: ecartPayPaymentMethod.type,
+        brand: ecartPayPaymentMethod.brand,
+        last4: ecartPayPaymentMethod.last || ecartPayPaymentMethod.last4,
+      });
 
       // Determine if this should be the default payment method
       const { data: existingDefault } = await supabase
@@ -197,7 +199,7 @@ class PaymentService {
           ecartPayPaymentMethod.brand ||
             ecartPayPaymentMethod.type ||
             "unknown",
-          paymentData.cardNumber
+          paymentData.cardNumber,
         ),
         expiry_month: paymentData.expMonth, // Use original data as eCartpay may not return it
         expiry_year: paymentData.expYear, // Use original data as eCartpay may not return it
@@ -294,7 +296,7 @@ class PaymentService {
           is_default,
           is_active,
           created_at
-        `
+        `,
         )
         .eq(userFieldName, userId)
         .eq("is_active", true);
@@ -372,17 +374,17 @@ class PaymentService {
       // Attempt to detach from EcartPay (continue even if it fails)
       if (method.ecartpay_token) {
         console.log(
-          `🗑️ Attempting to delete from EcartPay: ${method.ecartpay_token}`
+          `🗑️ Attempting to delete from EcartPay: ${method.ecartpay_token}`,
         );
         try {
           const detachResult = await ecartPayService.detachPaymentMethod(
-            method.ecartpay_token
+            method.ecartpay_token,
           );
 
           if (!detachResult.success) {
             console.warn(
               "⚠️ Failed to delete payment method from EcartPay (will continue with local deletion):",
-              detachResult.error
+              detachResult.error,
             );
           } else {
             console.log("✅ Successfully deleted from EcartPay");
@@ -390,7 +392,7 @@ class PaymentService {
         } catch (ecartPayError) {
           console.warn(
             "⚠️ EcartPay deletion failed (will continue with local deletion):",
-            ecartPayError
+            ecartPayError,
           );
         }
       } else {
@@ -409,7 +411,7 @@ class PaymentService {
       if (deleteError) {
         console.error(
           "❌ Database deletion failed after EcartPay deletion:",
-          deleteError
+          deleteError,
         );
         return {
           success: false,
@@ -534,7 +536,7 @@ class PaymentService {
       }
 
       console.log(
-        `🧹 Cleaning up ${methods?.length || 0} payment methods for ${isGuest ? "guest" : "user"}: ${userId}`
+        `🧹 Cleaning up ${methods?.length || 0} payment methods for ${isGuest ? "guest" : "user"}: ${userId}`,
       );
 
       // Detach each from eCartPay
@@ -659,7 +661,7 @@ class PaymentService {
   async migrateGuestPaymentMethods(guestId, userId) {
     try {
       console.log(
-        `🔄 Starting migration from guest ${guestId} to user ${userId}`
+        `🔄 Starting migration from guest ${guestId} to user ${userId}`,
       );
 
       // 1. Obtener todos los payment methods del guest
@@ -689,7 +691,7 @@ class PaymentService {
       }
 
       console.log(
-        `📋 Found ${guestPaymentMethods.length} payment methods to migrate`
+        `📋 Found ${guestPaymentMethods.length} payment methods to migrate`,
       );
 
       // 2. Verificar cuáles ya existen para evitar duplicados
@@ -699,12 +701,12 @@ class PaymentService {
         .eq("user_id", userId);
 
       const existingTokens = new Set(
-        (existingMethods || []).map((m) => m.ecartpay_token)
+        (existingMethods || []).map((m) => m.ecartpay_token),
       );
 
       // Filtrar solo los que no existen
       const methodsToMigrate = guestPaymentMethods.filter(
-        (gpm) => !existingTokens.has(gpm.ecartpay_token)
+        (gpm) => !existingTokens.has(gpm.ecartpay_token),
       );
 
       if (methodsToMigrate.length === 0) {
@@ -716,7 +718,7 @@ class PaymentService {
       }
 
       console.log(
-        `💳 ${methodsToMigrate.length} new payment methods to migrate (${guestPaymentMethods.length - methodsToMigrate.length} already exist)`
+        `💳 ${methodsToMigrate.length} new payment methods to migrate (${guestPaymentMethods.length - methodsToMigrate.length} already exist)`,
       );
 
       // 3. Convertir cada payment method de guest a user
@@ -740,7 +742,7 @@ class PaymentService {
 
       console.log(
         "📝 Payment methods to insert:",
-        JSON.stringify(userPaymentMethods, null, 2)
+        JSON.stringify(userPaymentMethods, null, 2),
       );
 
       // 4. Insertar los payment methods en la tabla de usuario
@@ -761,7 +763,7 @@ class PaymentService {
       }
 
       console.log(
-        `✅ Successfully inserted ${insertedMethods.length} payment methods`
+        `✅ Successfully inserted ${insertedMethods.length} payment methods`,
       );
 
       // 5. Marcar los payment methods del guest como inactivos (NO eliminar)
@@ -773,7 +775,7 @@ class PaymentService {
       if (deactivateError) {
         console.warn(
           "⚠️ Warning: Could not deactivate guest payment methods:",
-          deactivateError
+          deactivateError,
         );
         // No es crítico, continuar
       }

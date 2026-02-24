@@ -4,6 +4,7 @@ const tableService = require("../services/tableService");
 const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
 const paymentTransactionService = require("../services/paymentTransactionService");
 const socketEmitter = require("../services/socketEmitter");
+const { pciLog, PCI_ACTIONS } = require("../utils/pciLog");
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -11,7 +12,22 @@ class PaymentController {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
 
+      // PCI Log: Attempt to create payment token
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_CREATE_ATTEMPT,
+        userId: userId || "unauthenticated",
+        processor: "ecartpay",
+        req,
+      });
+
       if (!userId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_CREATE_ERROR,
+          userId: "unauthenticated",
+          processor: "ecartpay",
+          req,
+          error: "User not authenticated",
+        });
         return res.status(401).json({
           success: false,
           error: {
@@ -22,7 +38,7 @@ class PaymentController {
       }
 
       console.log(
-        `Processing payment method for ${isGuest ? "guest" : "authenticated"} user: ${userId}`
+        `Processing payment method for ${isGuest ? "guest" : "authenticated"} user: ${userId}`,
       );
 
       const { fullName, email, cardNumber, expDate, cvv } = req.body;
@@ -69,7 +85,7 @@ class PaymentController {
         {
           isGuest,
           userEmail: email, // Use the email from the form
-        }
+        },
       );
 
       console.log("💳 PaymentService result:", {
@@ -80,6 +96,13 @@ class PaymentController {
 
       if (!result.success) {
         console.error("❌ Payment method creation failed:", result.error);
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_CREATE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: result.error?.message || result.error?.type,
+        });
         const statusCode =
           result.error.type === "validation_error"
             ? 400
@@ -90,6 +113,15 @@ class PaymentController {
         return res.status(statusCode).json(result);
       }
 
+      // PCI Log: Success
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_CREATE_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId: result.paymentMethod?.id },
+      });
+
       // Don't return sensitive data
       res.status(201).json({
         success: true,
@@ -98,6 +130,13 @@ class PaymentController {
       });
     } catch (error) {
       console.error("Error in addPaymentMethod controller:", error);
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_CREATE_ERROR,
+        userId: req.user?.id || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
@@ -113,7 +152,22 @@ class PaymentController {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
 
+      // PCI Log: Attempt to access payment tokens
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_ACCESS_ATTEMPT,
+        userId: userId || "unauthenticated",
+        processor: "ecartpay",
+        req,
+      });
+
       if (!userId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
+          userId: "unauthenticated",
+          processor: "ecartpay",
+          req,
+          error: "User not authenticated",
+        });
         return res.status(401).json({
           success: false,
           error: {
@@ -128,9 +182,25 @@ class PaymentController {
       });
 
       if (!result.success) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: result.error?.message || result.error?.type,
+        });
         const statusCode = result.error.type === "database_error" ? 500 : 400;
         return res.status(statusCode).json(result);
       }
+
+      // PCI Log: Success
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_ACCESS_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: { count: result.paymentMethods?.length || 0 },
+      });
 
       res.json({
         success: true,
@@ -138,6 +208,13 @@ class PaymentController {
       });
     } catch (error) {
       console.error("Error in getUserPaymentMethods controller:", error);
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
+        userId: req.user?.id || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
@@ -153,7 +230,23 @@ class PaymentController {
       const userId = req.user?.id;
       const { paymentMethodId } = req.params;
 
+      // PCI Log: Attempt to delete payment token
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_DELETE_ATTEMPT,
+        userId: userId || "unauthenticated",
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId },
+      });
+
       if (!userId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_DELETE_ERROR,
+          userId: "unauthenticated",
+          processor: "ecartpay",
+          req,
+          error: "User not authenticated",
+        });
         return res.status(401).json({
           success: false,
           error: {
@@ -164,6 +257,13 @@ class PaymentController {
       }
 
       if (!paymentMethodId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_DELETE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: "Payment method ID is required",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -175,10 +275,18 @@ class PaymentController {
 
       const result = await paymentService.deletePaymentMethod(
         userId,
-        paymentMethodId
+        paymentMethodId,
       );
 
       if (!result.success) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_DELETE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: result.error?.message || result.error?.type,
+          metadata: { paymentMethodId },
+        });
         const statusCode =
           result.error.type === "not_found"
             ? 404
@@ -189,12 +297,28 @@ class PaymentController {
         return res.status(statusCode).json(result);
       }
 
+      // PCI Log: Success
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_DELETE_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId },
+      });
+
       res.json({
         success: true,
         message: result.message,
       });
     } catch (error) {
       console.error("Error in deletePaymentMethod controller:", error);
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_DELETE_ERROR,
+        userId: req.user?.id || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
@@ -210,7 +334,23 @@ class PaymentController {
       const userId = req.user?.id;
       const { paymentMethodId } = req.params;
 
+      // PCI Log: Attempt to update payment token
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_UPDATE_ATTEMPT,
+        userId: userId || "unauthenticated",
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId, operation: "set_default" },
+      });
+
       if (!userId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
+          userId: "unauthenticated",
+          processor: "ecartpay",
+          req,
+          error: "User not authenticated",
+        });
         return res.status(401).json({
           success: false,
           error: {
@@ -221,6 +361,13 @@ class PaymentController {
       }
 
       if (!paymentMethodId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: "Payment method ID is required",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -232,10 +379,18 @@ class PaymentController {
 
       const result = await paymentService.setDefaultPaymentMethod(
         userId,
-        paymentMethodId
+        paymentMethodId,
       );
 
       if (!result.success) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: result.error?.message || result.error?.type,
+          metadata: { paymentMethodId },
+        });
         const statusCode =
           result.error.type === "not_found"
             ? 404
@@ -246,12 +401,28 @@ class PaymentController {
         return res.status(statusCode).json(result);
       }
 
+      // PCI Log: Success
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_UPDATE_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId, operation: "set_default" },
+      });
+
       res.json({
         success: true,
         message: result.message,
       });
     } catch (error) {
       console.error("Error in setDefaultPaymentMethod controller:", error);
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
+        userId: req.user?.id || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
@@ -263,13 +434,30 @@ class PaymentController {
   }
 
   async processPayment(req, res) {
-    console.log("body de la request", req.body);
+    // PCI DSS: Never log req.body as it may contain sensitive card data
     console.log("⚡ processPayment method STARTED");
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
+      const { paymentMethodId, amount, tableNumber, restaurantId } = req.body;
+
+      // PCI Log: Attempt to process payment
+      pciLog({
+        action: PCI_ACTIONS.PAYMENT_PROCESS_ATTEMPT,
+        userId: userId || "unauthenticated",
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId, amount, tableNumber, restaurantId },
+      });
 
       if (!userId) {
+        pciLog({
+          action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
+          userId: "unauthenticated",
+          processor: "ecartpay",
+          req,
+          error: "User not authenticated",
+        });
         return res.status(401).json({
           success: false,
           error: {
@@ -279,18 +467,17 @@ class PaymentController {
         });
       }
 
-      const {
-        paymentMethodId,
-        amount,
-        currency = "MXN",
-        description,
-        orderId,
-        tableNumber,
-        restaurantId,
-      } = req.body;
+      const { currency = "MXN", description, orderId } = req.body;
 
       // Validate required fields
       if (!paymentMethodId || !amount) {
+        pciLog({
+          action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: "Payment method ID and amount are required",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -302,6 +489,13 @@ class PaymentController {
 
       // Validate amount
       if (typeof amount !== "number" || amount <= 0) {
+        pciLog({
+          action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: "Invalid amount",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -312,7 +506,7 @@ class PaymentController {
       }
 
       console.log(
-        `💰 Processing payment for ${isGuest ? "guest" : "authenticated"} user: ${userId}`
+        `💰 Processing payment for ${isGuest ? "guest" : "authenticated"} user: ${userId}`,
       );
       console.log(`💰 Payment details:`, {
         paymentMethodId,
@@ -340,7 +534,7 @@ class PaymentController {
         await require("../config/supabase")
           .from(tableName)
           .select(
-            "ecartpay_token, ecartpay_customer_id, last_four_digits, card_type, cardholder_name"
+            "ecartpay_token, ecartpay_customer_id, last_four_digits, card_type, cardholder_name",
           )
           .eq(userFieldName, userId)
           .eq("id", paymentMethodId)
@@ -370,6 +564,15 @@ class PaymentController {
           userId,
         });
 
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: "Payment method not found",
+          metadata: { paymentMethodId },
+        });
+
         return res.status(404).json({
           success: false,
           error: {
@@ -378,6 +581,15 @@ class PaymentController {
           },
         });
       }
+
+      // PCI Log: Token accessed for payment
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_ACCESS_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: { paymentMethodId, purpose: "payment_processing" },
+      });
 
       // Prepare order data for eCartPay
       const orderDescription =
@@ -412,18 +624,32 @@ class PaymentController {
                 },
               ],
               webhookUrl: `${process.env.BASE_URL || "http://localhost:5000"}/api/payments/webhooks/ecartpay`,
-            }
+            },
           );
 
         if (directPaymentResult.success) {
           console.log(
             "✅ Direct payment processed successfully:",
-            directPaymentResult.order.id
+            directPaymentResult.order.id,
           );
           console.log("📊 Direct payment details:", {
             orderId: directPaymentResult.order.id,
             orderStatus: directPaymentResult.order.status,
             hasToken: !!directPaymentResult.token,
+          });
+
+          // PCI Log: Payment success
+          pciLog({
+            action: PCI_ACTIONS.PAYMENT_PROCESS_SUCCESS,
+            userId,
+            processor: "ecartpay",
+            req,
+            metadata: {
+              paymentMethodId,
+              amount,
+              orderId: directPaymentResult.order.id,
+              type: "direct_charge",
+            },
           });
 
           res.status(200).json({
@@ -448,7 +674,7 @@ class PaymentController {
         } else {
           console.error(
             "❌ Direct payment processing failed:",
-            directPaymentResult.error
+            directPaymentResult.error,
           );
           console.log("🔄 Will fallback to payLink method");
           throw new Error("Failed to process direct payment with stored card");
@@ -456,7 +682,7 @@ class PaymentController {
       } catch (directProcessError) {
         console.error(
           "❌ Direct processing failed:",
-          directProcessError.message
+          directProcessError.message,
         );
         console.log("⚠️ Falling back to order creation with payLink");
       }
@@ -479,11 +705,33 @@ class PaymentController {
 
       if (!orderResult.success) {
         console.error("❌ Order creation failed:", orderResult.error);
+        pciLog({
+          action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: orderResult.error?.message || "Order creation failed",
+          metadata: { paymentMethodId, amount },
+        });
         return res.status(400).json({
           success: false,
           error: orderResult.error,
         });
       }
+
+      // PCI Log: Payment success (fallback with payLink)
+      pciLog({
+        action: PCI_ACTIONS.PAYMENT_PROCESS_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: {
+          paymentMethodId,
+          amount,
+          orderId: orderResult.order.id,
+          type: "order_with_link",
+        },
+      });
 
       res.status(200).json({
         success: true,
@@ -511,6 +759,13 @@ class PaymentController {
       });
     } catch (error) {
       console.error("Error in processPayment controller:", error);
+      pciLog({
+        action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
+        userId: req.user?.id || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
@@ -582,7 +837,7 @@ class PaymentController {
         case "payment_method.attached":
           console.log(
             "🔗 Payment method attached:",
-            webhookData.data.object.id
+            webhookData.data.object.id,
           );
           break;
 
@@ -705,7 +960,22 @@ class PaymentController {
       const { guestId } = req.body;
       const isGuest = req.isGuest || req.user?.isGuest;
 
+      // PCI Log: Attempt to cleanup guest tokens
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_CLEANUP_ATTEMPT,
+        userId: guestId || "unknown",
+        processor: "ecartpay",
+        req,
+      });
+
       if (!isGuest) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_CLEANUP_ERROR,
+          userId: guestId || "unknown",
+          processor: "ecartpay",
+          req,
+          error: "Operation only allowed for guest users",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -716,6 +986,13 @@ class PaymentController {
       }
 
       if (!guestId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_CLEANUP_ERROR,
+          userId: "unknown",
+          processor: "ecartpay",
+          req,
+          error: "Guest ID is required",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -733,18 +1010,18 @@ class PaymentController {
 
       if (customerResult.success && customerResult.customer) {
         console.log(
-          `🗑️ Deleting eCartPay customer: ${customerResult.customer.id}`
+          `🗑️ Deleting eCartPay customer: ${customerResult.customer.id}`,
         );
 
         // Delete from eCartPay
         const deleteResult = await ecartPayService.deleteCustomer(
-          customerResult.customer.id
+          customerResult.customer.id,
         );
 
         if (!deleteResult.success) {
           console.error(
             "Failed to delete eCartPay customer:",
-            deleteResult.error
+            deleteResult.error,
           );
         }
 
@@ -757,9 +1034,17 @@ class PaymentController {
         if (dbError) {
           console.error(
             "Failed to delete guest payment methods from DB:",
-            dbError
+            dbError,
           );
         }
+
+        // PCI Log: Cleanup success
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_CLEANUP_SUCCESS,
+          userId: guestId,
+          processor: "ecartpay",
+          req,
+        });
 
         res.json({
           success: true,
@@ -770,6 +1055,14 @@ class PaymentController {
           },
         });
       } else {
+        // PCI Log: No data to cleanup
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_CLEANUP_SUCCESS,
+          userId: guestId,
+          processor: "ecartpay",
+          req,
+          metadata: { noDataFound: true },
+        });
         res.json({
           success: true,
           message: "No guest data found to cleanup",
@@ -777,6 +1070,13 @@ class PaymentController {
       }
     } catch (error) {
       console.error("Error in cleanupGuestData controller:", error);
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_CLEANUP_ERROR,
+        userId: req.body?.guestId || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
@@ -799,7 +1099,7 @@ class PaymentController {
       if (paymentObject.reference_id) {
         // Match our format: xq_table_12_timestamp
         const match = paymentObject.reference_id.match(
-          /(?:xq_)?table[_-]?(\d+)/i
+          /(?:xq_)?table[_-]?(\d+)/i,
         );
         if (match) {
           tableNumber = parseInt(match[1]);
@@ -831,12 +1131,12 @@ class PaymentController {
 
         if (result.success) {
           console.log(
-            `✅ Successfully marked ${result.count} orders as paid for table ${tableNumber}`
+            `✅ Successfully marked ${result.count} orders as paid for table ${tableNumber}`,
           );
         } else {
           console.error(
             `❌ Failed to mark orders as paid for table ${tableNumber}:`,
-            result.error
+            result.error,
           );
         }
       } else {
@@ -871,7 +1171,7 @@ class PaymentController {
       }
 
       console.log(
-        `📊 Creating payment transaction for ${isGuest ? "guest" : "user"}: ${userId}`
+        `📊 Creating payment transaction for ${isGuest ? "guest" : "user"}: ${userId}`,
       );
 
       const transactionData = req.body;
@@ -885,7 +1185,7 @@ class PaymentController {
       ];
 
       const missingFields = requiredFields.filter(
-        (field) => transactionData[field] === undefined
+        (field) => transactionData[field] === undefined,
       );
 
       if (missingFields.length > 0) {
@@ -924,7 +1224,7 @@ class PaymentController {
       const result = await paymentTransactionService.createTransaction(
         transactionData,
         isGuest,
-        userId
+        userId,
       );
 
       if (!result.success) {
@@ -934,35 +1234,40 @@ class PaymentController {
 
       console.log(
         "✅ Transaction created successfully:",
-        result.transaction.id
+        result.transaction.id,
       );
 
       // Determinar el tipo de servicio basado en el tipo de orden
-      let serviceType = 'unknown';
-      let orderIdentifier = '';
+      let serviceType = "unknown";
+      let orderIdentifier = "";
 
       if (transactionData.id_table_order) {
-        serviceType = 'flex-bill';
+        serviceType = "flex-bill";
         orderIdentifier = `Mesa #${transactionData.table_number || transactionData.id_table_order}`;
       } else if (transactionData.id_tap_orders_and_pay) {
-        serviceType = 'tap-order-pay';
+        serviceType = "tap-order-pay";
         orderIdentifier = `Orden #${transactionData.id_tap_orders_and_pay}`;
       } else if (transactionData.pick_and_go_order_id) {
-        serviceType = 'pick-n-go';
+        serviceType = "pick-n-go";
         orderIdentifier = `Pick&Go #${transactionData.pick_and_go_order_id}`;
       } else if (transactionData.id_room_order) {
-        serviceType = 'room-service';
+        serviceType = "room-service";
         orderIdentifier = `Habitación #${transactionData.room_number || transactionData.id_room_order}`;
       } else if (transactionData.id_tap_pay_order) {
-        serviceType = 'tap-pay';
+        serviceType = "tap-pay";
         orderIdentifier = `Tap&Pay #${transactionData.id_tap_pay_order}`;
       }
 
       // Emitir evento de socket para actualizar dashboard en tiempo real
       const transaction = result.transaction;
-      const baseAmount = transaction.base_amount || transactionData.base_amount || 0;
-      const tipAmount = transaction.tip_amount || transactionData.tip_amount || 0;
-      const totalAmount = transaction.total_amount_charged || transactionData.total_amount_charged || 0;
+      const baseAmount =
+        transaction.base_amount || transactionData.base_amount || 0;
+      const tipAmount =
+        transaction.tip_amount || transactionData.tip_amount || 0;
+      const totalAmount =
+        transaction.total_amount_charged ||
+        transactionData.total_amount_charged ||
+        0;
 
       socketEmitter.emitNewTransaction(transactionData.restaurant_id, {
         id: transaction.id,
@@ -971,15 +1276,16 @@ class PaymentController {
         totalAmount: totalAmount,
         createdAt: transaction.created_at || new Date().toISOString(),
         serviceType: transactionData.service_type || serviceType,
-        orderIdentifier: orderIdentifier || `Orden #${transaction.id.slice(0, 8)}`,
-        orderStatus: 'paid'
+        orderIdentifier:
+          orderIdentifier || `Orden #${transaction.id.slice(0, 8)}`,
+        orderStatus: "paid",
       });
 
       // También emitir actualización de métricas
       socketEmitter.emitMetricsUpdate(transactionData.restaurant_id, {
         nuevaVenta: baseAmount,
         nuevaPropina: tipAmount,
-        nuevoTotal: totalAmount
+        nuevoTotal: totalAmount,
       });
 
       res.status(201).json({
@@ -1024,7 +1330,7 @@ class PaymentController {
           limit: limit ? parseInt(limit) : 50,
           offset: offset ? parseInt(offset) : 0,
           restaurantId: restaurantId || null,
-        }
+        },
       );
 
       if (!result.success) {
@@ -1098,6 +1404,15 @@ class PaymentController {
       const isGuest = req.isGuest || req.user?.isGuest;
       const { guestId } = req.body;
 
+      // PCI Log: Attempt to migrate tokens
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_MIGRATE_ATTEMPT,
+        userId: userId || "unauthenticated",
+        processor: "ecartpay",
+        req,
+        metadata: { guestId, targetUserId: userId },
+      });
+
       console.log("🔄 Migration request received:", {
         userId,
         isGuest,
@@ -1106,6 +1421,13 @@ class PaymentController {
 
       // Validar que el usuario esté autenticado
       if (!userId || isGuest) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
+          userId: userId || "unauthenticated",
+          processor: "ecartpay",
+          req,
+          error: "User must be authenticated to migrate payment methods",
+        });
         return res.status(401).json({
           success: false,
           error: {
@@ -1117,6 +1439,13 @@ class PaymentController {
 
       // Validar que se proporcione el guestId
       if (!guestId) {
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: "Guest ID is required",
+        });
         return res.status(400).json({
           success: false,
           error: {
@@ -1129,16 +1458,33 @@ class PaymentController {
       // Llamar al servicio para migrar los métodos de pago
       const result = await paymentService.migrateGuestPaymentMethods(
         guestId,
-        userId
+        userId,
       );
 
       if (!result.success) {
         console.error("❌ Migration failed:", result.error);
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
+          userId,
+          processor: "ecartpay",
+          req,
+          error: result.error?.message || result.error?.type,
+          metadata: { guestId },
+        });
         return res.status(500).json(result);
       }
 
+      // PCI Log: Migration success
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_MIGRATE_SUCCESS,
+        userId,
+        processor: "ecartpay",
+        req,
+        metadata: { guestId, migratedCount: result.migratedCount },
+      });
+
       console.log(
-        `✅ Successfully migrated ${result.migratedCount} payment methods from guest ${guestId} to user ${userId}`
+        `✅ Successfully migrated ${result.migratedCount} payment methods from guest ${guestId} to user ${userId}`,
       );
 
       res.status(200).json({
@@ -1149,6 +1495,13 @@ class PaymentController {
       });
     } catch (error) {
       console.error("❌ Error in migrateGuestPaymentMethods:", error);
+      pciLog({
+        action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
+        userId: req.user?.id || "unknown",
+        processor: "ecartpay",
+        req,
+        error: error.message,
+      });
       res.status(500).json({
         success: false,
         error: {
