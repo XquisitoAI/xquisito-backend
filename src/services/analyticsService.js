@@ -431,6 +431,7 @@ class AnalyticsService {
       totalOrdenes: parseInt(metricas?.total_ordenes || 0), // Mesas/órdenes atendidas
       totalPedidos: parseInt(metricas?.total_pedidos || 0), // Comensales individuales
       ticketPromedio: parseFloat(metricas?.ticket_promedio || 0),
+      ordenesActivas: parseInt(metricas?.ordenes_activas || 0), // Órdenes no pagadas o con platillos no entregados
     };
 
     // Formatear desglose por servicio (convertir nombres SQL a frontend)
@@ -477,6 +478,7 @@ class AnalyticsService {
         totalOrdenes: 0,
         totalPedidos: 0,
         ticketPromedio: 0,
+        ordenesActivas: 0,
       },
       grafico: this.generateEmptyChartData(granularity),
       desglose_por_servicio: {},
