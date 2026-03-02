@@ -9,6 +9,7 @@ class RestaurantService {
         .select("*")
         .eq("id", restaurantId)
         .eq("is_active", true)
+        .or("deleted.is.null,deleted.eq.false")
         .single();
 
       if (error) {
@@ -46,7 +47,7 @@ class RestaurantService {
           restaurant_id,
           created_at,
           updated_at
-        `
+        `,
         )
         .eq("restaurant_id", restaurantId)
         .eq("is_active", true)
@@ -79,7 +80,7 @@ class RestaurantService {
           display_order,
           created_at,
           updated_at
-        `
+        `,
         )
         .in("section_id", sectionIds)
         .eq("is_available", true)
@@ -127,6 +128,7 @@ class RestaurantService {
         .from("restaurants")
         .select("*")
         .eq("is_active", true)
+        .or("deleted.is.null,deleted.eq.false")
         .order("name", { ascending: true });
 
       if (error) throw error;
@@ -155,7 +157,9 @@ class RestaurantService {
       // Obtener todas las sucursales activas del cliente
       const { data, error } = await supabase
         .from("branches")
-        .select("id, client_id, branch_number, name, address, tables, active, created_at, updated_at")
+        .select(
+          "id, client_id, branch_number, name, address, tables, active, created_at, updated_at",
+        )
         .eq("client_id", restaurant.client_id)
         .eq("active", true)
         .order("branch_number", { ascending: true });
@@ -288,7 +292,7 @@ class RestaurantService {
       return menu;
     } catch (error) {
       throw new Error(
-        `Error getting restaurant menu by branch: ${error.message}`
+        `Error getting restaurant menu by branch: ${error.message}`,
       );
     }
   }
@@ -305,7 +309,7 @@ class RestaurantService {
       };
     } catch (error) {
       throw new Error(
-        `Error getting restaurant with menu by branch: ${error.message}`
+        `Error getting restaurant with menu by branch: ${error.message}`,
       );
     }
   }

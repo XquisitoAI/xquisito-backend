@@ -49,7 +49,7 @@ class SuperAdminService {
       // Calcular período anterior
       const { previous_start_date, previous_end_date } = this.getPreviousPeriod(
         start_date,
-        end_date
+        end_date,
       );
       const previousFilters = {
         ...filters,
@@ -123,31 +123,31 @@ class SuperAdminService {
         ? {
             transaction_volume_change: this.calculateChange(
               transactionVolume,
-              previousStats.transaction_volume
+              previousStats.transaction_volume,
             ),
             xquisito_income_change: this.calculateChange(
               xquisitoIncome,
-              previousStats.xquisito_income
+              previousStats.xquisito_income,
             ),
             active_diners_change: this.calculateChange(
               activeDiners,
-              previousStats.active_diners
+              previousStats.active_diners,
             ),
             successful_orders_change: this.calculateChange(
               successfulOrders,
-              previousStats.successful_orders
+              previousStats.successful_orders,
             ),
             active_admins_change: this.calculateChange(
               activeAdmins,
-              previousStats.active_admins
+              previousStats.active_admins,
             ),
             total_transactions_change: this.calculateChange(
               totalTransactions,
-              previousStats.total_transactions
+              previousStats.total_transactions,
             ),
             total_campaigns_change: this.calculateChange(
               totalCampaigns,
-              previousStats.total_campaigns
+              previousStats.total_campaigns,
             ),
           }
         : {
@@ -209,7 +209,7 @@ class SuperAdminService {
 
       const total = data.reduce(
         (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
-        0
+        0,
       );
       return parseFloat(total.toFixed(2));
     } catch (error) {
@@ -233,7 +233,7 @@ class SuperAdminService {
 
       const total = data.reduce(
         (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
-        0
+        0,
       );
       return parseFloat(total.toFixed(2));
     } catch (error) {
@@ -258,7 +258,7 @@ class SuperAdminService {
       let flexBillQuery = supabase
         .from("user_order")
         .select(
-          "user_id, guest_id, table_order!inner(created_at, table_id, tables!inner(restaurant_id))"
+          "user_id, guest_id, table_order!inner(created_at, table_id, tables!inner(restaurant_id))",
         );
 
       if (start_date)
@@ -266,18 +266,18 @@ class SuperAdminService {
       if (end_date)
         flexBillQuery = flexBillQuery.lt(
           "table_order.created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           flexBillQuery = flexBillQuery.in(
             "table_order.tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           flexBillQuery = flexBillQuery.eq(
             "table_order.tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -292,18 +292,18 @@ class SuperAdminService {
       if (end_date)
         tapOrderQuery = tapOrderQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapOrderQuery = tapOrderQuery.in(
             "tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           tapOrderQuery = tapOrderQuery.eq(
             "tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -406,7 +406,7 @@ class SuperAdminService {
           if (end_date)
             flexQuery = flexQuery.lt(
               "created_at",
-              this.getEndDateInclusive(end_date)
+              this.getEndDateInclusive(end_date),
             );
           if (restaurant_id && restaurant_id !== "todos") {
             if (Array.isArray(restaurant_id)) {
@@ -443,7 +443,7 @@ class SuperAdminService {
           if (end_date)
             tapQuery = tapQuery.lt(
               "created_at",
-              this.getEndDateInclusive(end_date)
+              this.getEndDateInclusive(end_date),
             );
           if (restaurant_id && restaurant_id !== "todos") {
             if (Array.isArray(restaurant_id)) {
@@ -478,7 +478,7 @@ class SuperAdminService {
           if (end_date)
             pickQuery = pickQuery.lt(
               "created_at",
-              this.getEndDateInclusive(end_date)
+              this.getEndDateInclusive(end_date),
             );
           if (restaurant_id && restaurant_id !== "todos") {
             if (Array.isArray(restaurant_id)) {
@@ -516,7 +516,7 @@ class SuperAdminService {
           if (end_date) {
             roomQuery = roomQuery.lt(
               "created_at",
-              this.getEndDateInclusive(end_date)
+              this.getEndDateInclusive(end_date),
             );
           }
 
@@ -557,7 +557,7 @@ class SuperAdminService {
           if (end_date) {
             tapPayQuery = tapPayQuery.lt(
               "created_at",
-              this.getEndDateInclusive(end_date)
+              this.getEndDateInclusive(end_date),
             );
           }
 
@@ -598,11 +598,12 @@ class SuperAdminService {
   // NOTA: Este método NO aplica filtros
   async getActiveAdmins() {
     try {
-      // Ignorar todos los filtros - siempre devolver el total de administradores activos
+      // Contar clientes activos que no han sido eliminados (soft delete)
       const query = supabase
-        .from("user_admin_portal")
+        .from("clients")
         .select("id", { count: "exact", head: true })
-        .eq("is_active", true);
+        .eq("active", true)
+        .or("deleted.is.null,deleted.eq.false");
 
       const { count, error } = await query;
 
@@ -700,7 +701,7 @@ class SuperAdminService {
         if (end_date)
           flexBillQuery = flexBillQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -715,12 +716,12 @@ class SuperAdminService {
         flexBillVolume = flexBillResult.data
           ? flexBillResult.data.reduce(
               (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
-              0
+              0,
             )
           : 0;
 
         console.log(
-          `💰 Flex Bill Volume: ${flexBillVolume} (${flexBillResult.data?.length || 0} transactions)`
+          `💰 Flex Bill Volume: ${flexBillVolume} (${flexBillResult.data?.length || 0} transactions)`,
         );
 
         results.push({
@@ -740,7 +741,7 @@ class SuperAdminService {
         if (end_date)
           tapOrderQuery = tapOrderQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -755,12 +756,12 @@ class SuperAdminService {
         tapOrderVolume = tapOrderResult.data
           ? tapOrderResult.data.reduce(
               (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
-              0
+              0,
             )
           : 0;
 
         console.log(
-          `💰 Tap Order & Pay Volume: ${tapOrderVolume} (${tapOrderResult.data?.length || 0} transactions)`
+          `💰 Tap Order & Pay Volume: ${tapOrderVolume} (${tapOrderResult.data?.length || 0} transactions)`,
         );
 
         results.push({
@@ -780,7 +781,7 @@ class SuperAdminService {
         if (end_date)
           pickAndGoQuery = pickAndGoQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -795,12 +796,12 @@ class SuperAdminService {
         pickAndGoVolume = pickAndGoResult.data
           ? pickAndGoResult.data.reduce(
               (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
-              0
+              0,
             )
           : 0;
 
         console.log(
-          `💰 Pick & Go Volume: ${pickAndGoVolume} (${pickAndGoResult.data?.length || 0} transactions)`
+          `💰 Pick & Go Volume: ${pickAndGoVolume} (${pickAndGoResult.data?.length || 0} transactions)`,
         );
 
         results.push({
@@ -820,18 +821,18 @@ class SuperAdminService {
         if (end_date)
           roomServiceQuery = roomServiceQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
             roomServiceQuery = roomServiceQuery.in(
               "restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           } else {
             roomServiceQuery = roomServiceQuery.eq(
               "restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           }
         }
@@ -841,12 +842,12 @@ class SuperAdminService {
         roomServiceVolume = roomServiceResult.data
           ? roomServiceResult.data.reduce(
               (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
-              0
+              0,
             )
           : 0;
 
         console.log(
-          `💰 Room Service Volume: ${roomServiceVolume} (${roomServiceResult.data?.length || 0} transactions)`
+          `💰 Room Service Volume: ${roomServiceVolume} (${roomServiceResult.data?.length || 0} transactions)`,
         );
 
         results.push({
@@ -866,7 +867,7 @@ class SuperAdminService {
         if (end_date)
           tapAndPayQuery = tapAndPayQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -881,12 +882,12 @@ class SuperAdminService {
         tapPayVolume = tapAndPayResult.data
           ? tapAndPayResult.data.reduce(
               (sum, row) => sum + (parseFloat(row.total_amount_charged) || 0),
-              0
+              0,
             )
           : 0;
 
         console.log(
-          `💰 Tap & Pay Service Volume: ${tapPayVolume} (${tapAndPayResult.data?.length || 0} transactions)`
+          `💰 Tap & Pay Service Volume: ${tapPayVolume} (${tapAndPayResult.data?.length || 0} transactions)`,
         );
 
         results.push({
@@ -926,18 +927,18 @@ class SuperAdminService {
         if (end_date)
           flexBillQuery = flexBillQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
             flexBillQuery = flexBillQuery.in(
               "tables.restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           } else {
             flexBillQuery = flexBillQuery.eq(
               "tables.restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           }
         }
@@ -964,18 +965,18 @@ class SuperAdminService {
         if (end_date)
           tapOrderQuery = tapOrderQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
             tapOrderQuery = tapOrderQuery.in(
               "tables.restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           } else {
             tapOrderQuery = tapOrderQuery.eq(
               "tables.restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           }
         }
@@ -1000,7 +1001,7 @@ class SuperAdminService {
         if (end_date)
           pickAndGoQuery = pickAndGoQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -1030,18 +1031,18 @@ class SuperAdminService {
         if (end_date)
           roomServiceQuery = roomServiceQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
             roomServiceQuery = roomServiceQuery.in(
               "restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           } else {
             roomServiceQuery = roomServiceQuery.eq(
               "restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           }
         }
@@ -1065,7 +1066,7 @@ class SuperAdminService {
         if (end_date)
           tapPayQuery = tapPayQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -1112,7 +1113,7 @@ class SuperAdminService {
         if (end_date)
           flexBillQuery = flexBillQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -1142,7 +1143,7 @@ class SuperAdminService {
         if (end_date)
           tapOrderQuery = tapOrderQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -1154,7 +1155,7 @@ class SuperAdminService {
 
         const tapOrderResult = await tapOrderQuery;
         console.log(
-          `💳 Tap Order & Pay Transactions: ${tapOrderResult.count || 0}`
+          `💳 Tap Order & Pay Transactions: ${tapOrderResult.count || 0}`,
         );
         results.push({
           service: "Tap Order & Pay",
@@ -1174,7 +1175,7 @@ class SuperAdminService {
         if (end_date)
           pickAndGoQuery = pickAndGoQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -1204,25 +1205,25 @@ class SuperAdminService {
         if (end_date)
           roomServiceQuery = roomServiceQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
             roomServiceQuery = roomServiceQuery.in(
               "restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           } else {
             roomServiceQuery = roomServiceQuery.eq(
               "restaurant_id",
-              restaurant_id
+              restaurant_id,
             );
           }
         }
 
         const roomServiceResult = await roomServiceQuery;
         console.log(
-          `💳 Room Service Transactions: ${roomServiceResult.count || 0}`
+          `💳 Room Service Transactions: ${roomServiceResult.count || 0}`,
         );
         results.push({
           service: "Room Service",
@@ -1241,7 +1242,7 @@ class SuperAdminService {
         if (end_date)
           tapPayQuery = tapPayQuery.lt(
             "created_at",
-            this.getEndDateInclusive(end_date)
+            this.getEndDateInclusive(end_date),
           );
         if (restaurant_id && restaurant_id !== "todos") {
           if (Array.isArray(restaurant_id)) {
@@ -1352,7 +1353,8 @@ class SuperAdminService {
         .select("id", { count: "exact", head: true });
 
       if (start_date) query = query.gte("created_at", start_date);
-      if (end_date) query = query.lt("created_at", this.getEndDateInclusive(end_date));
+      if (end_date)
+        query = query.lt("created_at", this.getEndDateInclusive(end_date));
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           query = query.in("restaurant_id", restaurant_id);
@@ -1370,7 +1372,6 @@ class SuperAdminService {
       console.error("Error getting total campaigns:", error);
       return 0;
     }
-    
   }
 
   // Obtiene el número de campañas activas (status = 'scheduled' o 'running')
@@ -1400,7 +1401,6 @@ class SuperAdminService {
       console.error("Error getting active campaigns:", error);
       return 0;
     }
-
   }
 
   // Obtener todos los restaurantes del sistema
@@ -1445,7 +1445,7 @@ class SuperAdminService {
       if (end_date)
         flexBillQuery = flexBillQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1466,7 +1466,7 @@ class SuperAdminService {
       if (end_date)
         tapOrderQuery = tapOrderQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1487,7 +1487,7 @@ class SuperAdminService {
       if (end_date)
         pickAndGoQuery = pickAndGoQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1508,18 +1508,18 @@ class SuperAdminService {
       if (end_date)
         roomServiceQuery = roomServiceQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           roomServiceQuery = roomServiceQuery.in(
             "restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           roomServiceQuery = roomServiceQuery.eq(
             "restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -1534,7 +1534,7 @@ class SuperAdminService {
       if (end_date)
         tapPayQuery = tapPayQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1578,7 +1578,7 @@ class SuperAdminService {
         view_type,
         "volume",
         start_date,
-        end_date
+        end_date,
       );
 
       return groupedData;
@@ -1609,18 +1609,18 @@ class SuperAdminService {
       if (end_date)
         flexBillQuery = flexBillQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           flexBillQuery = flexBillQuery.in(
             "tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           flexBillQuery = flexBillQuery.eq(
             "tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -1635,18 +1635,18 @@ class SuperAdminService {
       if (end_date)
         tapOrderQuery = tapOrderQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapOrderQuery = tapOrderQuery.in(
             "tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           tapOrderQuery = tapOrderQuery.eq(
             "tables.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -1661,7 +1661,7 @@ class SuperAdminService {
       if (end_date)
         pickAndGoQuery = pickAndGoQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1683,7 +1683,7 @@ class SuperAdminService {
       if (end_date) {
         roomServiceQuery = roomServiceQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       }
 
@@ -1691,12 +1691,12 @@ class SuperAdminService {
         if (Array.isArray(restaurant_id)) {
           roomServiceQuery = roomServiceQuery.in(
             "rooms.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           roomServiceQuery = roomServiceQuery.eq(
             "rooms.restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -1713,7 +1713,7 @@ class SuperAdminService {
       if (end_date) {
         tapPayQuery = tapPayQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       }
 
@@ -1759,7 +1759,7 @@ class SuperAdminService {
         view_type,
         "orders",
         start_date,
-        end_date
+        end_date,
       );
 
       return groupedData;
@@ -1791,7 +1791,7 @@ class SuperAdminService {
       if (end_date)
         flexBillQuery = flexBillQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1812,7 +1812,7 @@ class SuperAdminService {
       if (end_date)
         tapOrderQuery = tapOrderQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1833,7 +1833,7 @@ class SuperAdminService {
       if (end_date)
         pickAndGoQuery = pickAndGoQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1854,18 +1854,18 @@ class SuperAdminService {
       if (end_date)
         roomServiceQuery = roomServiceQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           roomServiceQuery = roomServiceQuery.in(
             "restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         } else {
           roomServiceQuery = roomServiceQuery.eq(
             "restaurant_id",
-            restaurant_id
+            restaurant_id,
           );
         }
       }
@@ -1880,7 +1880,7 @@ class SuperAdminService {
       if (end_date)
         tapPayQuery = tapPayQuery.lt(
           "created_at",
-          this.getEndDateInclusive(end_date)
+          this.getEndDateInclusive(end_date),
         );
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1924,7 +1924,7 @@ class SuperAdminService {
         view_type,
         "transactions",
         start_date,
-        end_date
+        end_date,
       );
 
       return groupedData;
@@ -1944,7 +1944,7 @@ class SuperAdminService {
     viewType,
     dataType,
     filterStartDate,
-    filterEndDate
+    filterEndDate,
   ) {
     const grouped = {};
 
@@ -1976,7 +1976,7 @@ class SuperAdminService {
       } else if (viewType === "monthly") {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
           2,
-          "0"
+          "0",
         )}`; // YYYY-MM
       }
     };
@@ -1997,7 +1997,7 @@ class SuperAdminService {
 
       if (dataType === "volume") {
         grouped[dateKey]["Flex Bill"] += parseFloat(
-          item.total_amount_charged || 0
+          item.total_amount_charged || 0,
         );
       } else {
         grouped[dateKey]["Flex Bill"] += 1;
@@ -2020,7 +2020,7 @@ class SuperAdminService {
 
       if (dataType === "volume") {
         grouped[dateKey]["Tap Order & Pay"] += parseFloat(
-          item.total_amount_charged || 0
+          item.total_amount_charged || 0,
         );
       } else {
         grouped[dateKey]["Tap Order & Pay"] += 1;
@@ -2043,7 +2043,7 @@ class SuperAdminService {
 
       if (dataType === "volume") {
         grouped[dateKey]["Pick & Go"] += parseFloat(
-          item.total_amount_charged || 0
+          item.total_amount_charged || 0,
         );
       } else {
         grouped[dateKey]["Pick & Go"] += 1;
@@ -2065,7 +2065,7 @@ class SuperAdminService {
 
       if (dataType === "volume") {
         grouped[dateKey]["Room Service"] += parseFloat(
-          item.total_amount_charged || 0
+          item.total_amount_charged || 0,
         );
       } else {
         grouped[dateKey]["Room Service"] += 1;
@@ -2088,7 +2088,7 @@ class SuperAdminService {
 
       if (dataType === "volume") {
         grouped[dateKey]["Tap & Pay"] += parseFloat(
-          item.total_amount_charged || 0
+          item.total_amount_charged || 0,
         );
       } else {
         grouped[dateKey]["Tap & Pay"] += 1;
@@ -2097,7 +2097,7 @@ class SuperAdminService {
 
     // Convertir a array y ordenar por fecha
     const sortedData = Object.values(grouped).sort((a, b) =>
-      a.date.localeCompare(b.date)
+      a.date.localeCompare(b.date),
     );
 
     // Rellenar periodos faltantes según el tipo de vista
@@ -2141,12 +2141,12 @@ class SuperAdminService {
         const startMonth = startDateObj.getUTCMonth();
         const startDay = startDateObj.getUTCDate();
         const startUtcDate = new Date(
-          Date.UTC(startYear, startMonth, startDay)
+          Date.UTC(startYear, startMonth, startDay),
         );
         const startDayOfWeek = startUtcDate.getUTCDay();
         const daysToStartMonday = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
         const currentDate = new Date(
-          Date.UTC(startYear, startMonth, startDay - daysToStartMonday)
+          Date.UTC(startYear, startMonth, startDay - daysToStartMonday),
         );
 
         // Obtener el lunes de la última semana que contiene el endDate usando UTC
@@ -2158,7 +2158,7 @@ class SuperAdminService {
         const endDayOfWeek = endUtcDate.getUTCDay();
         const daysToEndMonday = endDayOfWeek === 0 ? 6 : endDayOfWeek - 1;
         const endDateMonday = new Date(
-          Date.UTC(endYear, endMonth, endDay - daysToEndMonday)
+          Date.UTC(endYear, endMonth, endDay - daysToEndMonday),
         );
 
         while (currentDate <= endDateMonday) {
@@ -2196,7 +2196,7 @@ class SuperAdminService {
 
         while (currentDate <= endDateMonth) {
           const dateKey = `${currentDate.getFullYear()}-${String(
-            currentDate.getMonth() + 1
+            currentDate.getMonth() + 1,
           ).padStart(2, "0")}`;
 
           // Buscar si existe data para este mes
@@ -2242,7 +2242,7 @@ class SuperAdminService {
       let query = supabase
         .from("payment_transactions")
         .select(
-          "created_at, id_table_order, id_tap_orders_and_pay, id_pick_and_go_order, id_room_order, id_tap_pay_order, restaurant_id, payment_method_id, card_type"
+          "created_at, id_table_order, id_tap_orders_and_pay, id_pick_and_go_order, id_room_order, id_tap_pay_order, restaurant_id, payment_method_id, card_type",
         );
 
       if (start_date) query = query.gte("created_at", start_date);
@@ -2285,7 +2285,7 @@ class SuperAdminService {
         transformedData || [],
         view_type,
         start_date,
-        end_date
+        end_date,
       );
 
       return groupedData;
@@ -2307,10 +2307,8 @@ class SuperAdminService {
     } = filters;
 
     try {
-      let query = supabase
-        .from("payment_transactions")
-        .select(
-          `
+      let query = supabase.from("payment_transactions").select(
+        `
           id,
           total_amount_charged,
           tip_amount,
@@ -2326,8 +2324,8 @@ class SuperAdminService {
           id_tap_pay_order,
           restaurants!inner(name)
         `,
-          { count: "exact" }
-        );
+        { count: "exact" },
+      );
 
       // Aplicar filtros de fecha
       if (start_date) {
@@ -2411,7 +2409,7 @@ class SuperAdminService {
     transactionsData,
     viewType,
     filterStartDate,
-    filterEndDate
+    filterEndDate,
   ) {
     const grouped = {};
 
@@ -2433,7 +2431,7 @@ class SuperAdminService {
       } else if (viewType === "monthly") {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
           2,
-          "0"
+          "0",
         )}`;
       }
     };
@@ -2453,7 +2451,7 @@ class SuperAdminService {
     transactionsData.forEach((transaction) => {
       const dateKey = getDateKey(transaction.created_at);
       const paymentMethod = normalizePaymentMethod(
-        transaction.payment_method_name
+        transaction.payment_method_name,
       );
 
       if (!grouped[dateKey]) {
@@ -2471,7 +2469,7 @@ class SuperAdminService {
 
     // Convertir a array y ordenar
     const sortedData = Object.values(grouped).sort((a, b) =>
-      a.date.localeCompare(b.date)
+      a.date.localeCompare(b.date),
     );
 
     // Rellenar períodos faltantes
@@ -2514,12 +2512,12 @@ class SuperAdminService {
         const startMonth = startDateObj.getUTCMonth();
         const startDay = startDateObj.getUTCDate();
         const startUtcDate = new Date(
-          Date.UTC(startYear, startMonth, startDay)
+          Date.UTC(startYear, startMonth, startDay),
         );
         const startDayOfWeek = startUtcDate.getUTCDay();
         const daysToStartMonday = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
         const currentDate = new Date(
-          Date.UTC(startYear, startMonth, startDay - daysToStartMonday)
+          Date.UTC(startYear, startMonth, startDay - daysToStartMonday),
         );
 
         const endDateObj = new Date(endDate);
@@ -2530,7 +2528,7 @@ class SuperAdminService {
         const endDayOfWeek = endUtcDate.getUTCDay();
         const daysToEndMonday = endDayOfWeek === 0 ? 6 : endDayOfWeek - 1;
         const endDateMonday = new Date(
-          Date.UTC(endYear, endMonth, endDay - daysToEndMonday)
+          Date.UTC(endYear, endMonth, endDay - daysToEndMonday),
         );
 
         while (currentDate <= endDateMonday) {
@@ -2559,7 +2557,7 @@ class SuperAdminService {
 
         while (currentDate <= endDateMonth) {
           const dateKey = `${currentDate.getFullYear()}-${String(
-            currentDate.getMonth() + 1
+            currentDate.getMonth() + 1,
           ).padStart(2, "0")}`;
           const existingData = sortedData.find((item) => item.date === dateKey);
 
