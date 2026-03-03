@@ -253,6 +253,60 @@ class RoomOrderService {
     }
   }
 
+  // Obtener orden activa por clientId (user_id o guest_id) - retorna orden con dish_orders sin entregar
+  async getActiveOrderByClientId(clientId, restaurantId) {
+    try {
+      const { data, error } = await supabase
+        .from('room_orders')
+        .select(`
+          id, user_id, customer_name, total_amount, payment_status,
+          order_status, room_id, created_at,
+          rooms!inner(id, room_number, restaurant_id),
+          dish_order!dish_order_room_order_id_fkey(id, item, quantity, price, status, payment_status, images)
+        `)
+        .eq('user_id', clientId)
+        .eq('rooms.restaurant_id', restaurantId)
+        .neq('order_status', 'cancelled')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return { success: true, hasActiveOrder: false, data: null };
+      }
+
+      for (const order of data) {
+        const pendingDishes = order.dish_order?.filter(dish => dish.status !== 'delivered') || [];
+
+        if (pendingDishes.length > 0) {
+          return {
+            success: true,
+            hasActiveOrder: true,
+            data: {
+              room_order: {
+                id: order.id,
+                user_id: order.user_id,
+                customer_name: order.customer_name,
+                total_amount: order.total_amount,
+                payment_status: order.payment_status,
+                order_status: order.order_status,
+                room_id: order.room_id,
+                created_at: order.created_at
+              },
+              room: order.rooms,
+              dishes: order.dish_order,
+              pending_dishes_count: pendingDishes.length
+            }
+          };
+        }
+      }
+
+      return { success: true, hasActiveOrder: false, data: null };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
   // Agregar platillo a orden existente
   async addDishToOrder(roomOrderId, dishData) {
     try {

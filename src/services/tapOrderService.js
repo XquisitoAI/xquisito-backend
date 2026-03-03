@@ -1,4 +1,4 @@
-const supabase = require('../config/supabase');
+const supabase = require("../config/supabase");
 
 class TapOrderService {
   // Ya no necesitamos generar QR tokens para el flujo de URL directa
@@ -11,25 +11,25 @@ class TapOrderService {
         clerk_user_id = null,
         customer_name = null,
         customer_phone = null,
-        customer_email = null
+        customer_email = null,
       } = orderData;
 
       // Validar que la mesa existe
       const { data: table, error: tableError } = await supabase
-        .from('tables')
-        .select('id, table_number, status')
-        .eq('id', table_id)
+        .from("tables")
+        .select("id, table_number, status")
+        .eq("id", table_id)
         .single();
 
       if (tableError || !table) {
-        return { success: false, error: 'Table not found' };
+        return { success: false, error: "Table not found" };
       }
 
       // Ya no necesitamos qr_token
 
       // Crear el tap order
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
+        .from("tap_orders_and_pay")
         .insert({
           table_id,
           clerk_user_id,
@@ -38,20 +38,22 @@ class TapOrderService {
           customer_email,
           // qr_token ya no es necesario
           total_amount: 0,
-          payment_status: 'pending',
-          order_status: 'active'
+          payment_status: "pending",
+          order_status: "active",
         })
-        .select(`
+        .select(
+          `
           *,
           tables(id, table_number, status)
-        `)
+        `,
+        )
         .single();
 
       if (error) throw error;
 
       return {
         success: true,
-        data
+        data,
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -62,12 +64,14 @@ class TapOrderService {
   async getTapOrderByTable(restaurant_id, branch_number, table_number) {
     try {
       // Usar función SQL para verificar orden activa
-      const { data, error } = await supabase
-        .rpc('check_active_tap_order_by_table', {
+      const { data, error } = await supabase.rpc(
+        "check_active_tap_order_by_table",
+        {
           p_table_number: table_number,
           p_restaurant_id: restaurant_id,
-          p_branch_number: branch_number
-        });
+          p_branch_number: branch_number,
+        },
+      );
 
       if (error) throw error;
 
@@ -75,7 +79,9 @@ class TapOrderService {
         success: true,
         data: data.data || data.table_info,
         hasOrder: data.hasOrder,
-        message: data.hasOrder ? 'Active order found' : 'No active order found for this table'
+        message: data.hasOrder
+          ? "Active order found"
+          : "No active order found for this table",
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -83,7 +89,13 @@ class TapOrderService {
   }
 
   // Crear tap order al agregar primer item con platillo
-  async createTapOrderWithFirstDish(restaurant_id, branch_number, table_number, dishData, customerData = {}) {
+  async createTapOrderWithFirstDish(
+    restaurant_id,
+    branch_number,
+    table_number,
+    dishData,
+    customerData = {},
+  ) {
     try {
       const {
         item,
@@ -91,12 +103,13 @@ class TapOrderService {
         quantity = 1,
         images = [],
         custom_fields = null,
-        extra_price = 0
+        extra_price = 0,
       } = dishData;
 
       // Usar función SQL para crear orden completa con primer platillo
-      const { data, error } = await supabase
-        .rpc('create_tap_order_with_first_dish', {
+      const { data, error } = await supabase.rpc(
+        "create_tap_order_with_first_dish",
+        {
           p_table_number: table_number,
           p_restaurant_id: restaurant_id,
           p_branch_number: branch_number,
@@ -109,8 +122,9 @@ class TapOrderService {
           p_clerk_user_id: customerData.clerk_user_id || null,
           p_images: images,
           p_custom_fields: custom_fields,
-          p_extra_price: extra_price
-        });
+          p_extra_price: extra_price,
+        },
+      );
 
       if (error) throw error;
 
@@ -123,9 +137,9 @@ class TapOrderService {
           ...orderSummary.data,
           tap_order_id: data.tap_order_id,
           action: data.action,
-          dish_order_id: data.dish_order_id
+          dish_order_id: data.dish_order_id,
         },
-        isNew: data.action === 'new_order_created_with_first_dish'
+        isNew: data.action === "new_order_created_with_first_dish",
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -136,15 +150,17 @@ class TapOrderService {
   async getTapOrderById(id) {
     try {
       // Usar función SQL para obtener resumen completo
-      const { data, error } = await supabase
-        .rpc('get_tap_order_complete_summary', {
-          p_tap_order_id: id
-        });
+      const { data, error } = await supabase.rpc(
+        "get_tap_order_complete_summary",
+        {
+          p_tap_order_id: id,
+        },
+      );
 
       if (error) throw error;
 
       if (!data) {
-        return { success: false, error: 'Tap order not found' };
+        return { success: false, error: "Tap order not found" };
       }
 
       return { success: true, data };
@@ -156,18 +172,19 @@ class TapOrderService {
   // Actualizar información del cliente
   async updateCustomerInfo(tap_order_id, customerData) {
     try {
-      const { customer_name, customer_phone, customer_email, clerk_user_id } = customerData;
+      const { customer_name, customer_phone, customer_email, clerk_user_id } =
+        customerData;
 
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
+        .from("tap_orders_and_pay")
         .update({
           customer_name,
           customer_phone,
           customer_email,
           clerk_user_id,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', tap_order_id)
+        .eq("id", tap_order_id)
         .select()
         .single();
 
@@ -181,25 +198,31 @@ class TapOrderService {
   // Actualizar estado de la orden
   async updateOrderStatus(tap_order_id, status) {
     try {
-      const validStatuses = ['active', 'confirmed', 'preparing', 'completed', 'abandoned'];
+      const validStatuses = [
+        "active",
+        "confirmed",
+        "preparing",
+        "completed",
+        "abandoned",
+      ];
       if (!validStatuses.includes(status)) {
-        return { success: false, error: 'Invalid order status' };
+        return { success: false, error: "Invalid order status" };
       }
 
       const updateData = {
         order_status: status,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       // Si se completa, agregar timestamp
-      if (status === 'completed') {
+      if (status === "completed") {
         updateData.completed_at = new Date().toISOString();
       }
 
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
+        .from("tap_orders_and_pay")
         .update(updateData)
-        .eq('id', tap_order_id)
+        .eq("id", tap_order_id)
         .select()
         .single();
 
@@ -213,18 +236,18 @@ class TapOrderService {
   // Actualizar estado de pago
   async updatePaymentStatus(tap_order_id, payment_status) {
     try {
-      const validStatuses = ['pending', 'paid'];
+      const validStatuses = ["pending", "paid"];
       if (!validStatuses.includes(payment_status)) {
-        return { success: false, error: 'Invalid payment status' };
+        return { success: false, error: "Invalid payment status" };
       }
 
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
+        .from("tap_orders_and_pay")
         .update({
           payment_status,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', tap_order_id)
+        .eq("id", tap_order_id)
         .select()
         .single();
 
@@ -240,26 +263,27 @@ class TapOrderService {
     try {
       // Obtener todos los dish_orders de este tap_order
       const { data: dishOrders, error: dishError } = await supabase
-        .from('dish_order')
-        .select('price, quantity, extra_price')
-        .eq('tap_order_id', tap_order_id);
+        .from("dish_order")
+        .select("price, quantity, extra_price")
+        .eq("tap_order_id", tap_order_id);
 
       if (dishError) throw dishError;
 
       // Calcular total
       const total = dishOrders.reduce((sum, dish) => {
-        const dishTotal = (dish.price + (dish.extra_price || 0)) * dish.quantity;
+        const dishTotal =
+          (dish.price + (dish.extra_price || 0)) * dish.quantity;
         return sum + dishTotal;
       }, 0);
 
       // Actualizar el total en tap_orders_and_pay
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
+        .from("tap_orders_and_pay")
         .update({
           total_amount: total,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', tap_order_id)
+        .eq("id", tap_order_id)
         .select()
         .single();
 
@@ -274,17 +298,86 @@ class TapOrderService {
   async getTableOrderHistory(table_id, limit = 10) {
     try {
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
-        .select(`
+        .from("tap_orders_and_pay")
+        .select(
+          `
           *,
           tables(table_number)
-        `)
-        .eq('table_id', table_id)
-        .order('created_at', { ascending: false })
+        `,
+        )
+        .eq("table_id", table_id)
+        .order("created_at", { ascending: false })
         .limit(limit);
 
       if (error) throw error;
       return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Obtener orden activa por clerk_user_id (user_id o guest_id)
+  // Retorna la orden si tiene al menos un dish_order sin entregar
+  async getActiveOrderByClientId(clientId, restaurantId) {
+    try {
+      // Buscar tap_orders_and_pay con dish_orders no entregados
+      // No filtramos por order_status porque una orden "completed" (pagada) puede tener platillos pendientes de entrega
+      const { data, error } = await supabase
+        .from("tap_orders_and_pay")
+        .select(
+          `
+          id,
+          table_id,
+          clerk_user_id,
+          customer_name,
+          total_amount,
+          payment_status,
+          order_status,
+          created_at,
+          tables!inner(id, table_number, restaurant_id),
+          dish_order(id, item, quantity, price, status, payment_status, images)
+        `,
+        )
+        .eq("clerk_user_id", clientId)
+        .eq("tables.restaurant_id", restaurantId)
+        .neq("order_status", "abandoned")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return { success: true, hasActiveOrder: false, data: null };
+      }
+
+      // Buscar la primera orden que tenga dish_orders sin entregar
+      for (const order of data) {
+        const pendingDishes =
+          order.dish_order?.filter((dish) => dish.status !== "delivered") || [];
+
+        if (pendingDishes.length > 0) {
+          return {
+            success: true,
+            hasActiveOrder: true,
+            data: {
+              tap_order: {
+                id: order.id,
+                table_id: order.table_id,
+                clerk_user_id: order.clerk_user_id,
+                customer_name: order.customer_name,
+                total_amount: order.total_amount,
+                payment_status: order.payment_status,
+                order_status: order.order_status,
+                created_at: order.created_at,
+              },
+              table: order.tables,
+              dishes: order.dish_order,
+              pending_dishes_count: pendingDishes.length,
+            },
+          };
+        }
+      }
+
+      return { success: true, hasActiveOrder: false, data: null };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -295,19 +388,19 @@ class TapOrderService {
     try {
       // Primero eliminar los dish_orders asociados
       await supabase
-        .from('dish_order')
+        .from("dish_order")
         .delete()
-        .eq('tap_order_id', tap_order_id);
+        .eq("tap_order_id", tap_order_id);
 
       // Luego marcar como abandonada
       const { data, error } = await supabase
-        .from('tap_orders_and_pay')
+        .from("tap_orders_and_pay")
         .update({
-          order_status: 'abandoned',
+          order_status: "abandoned",
           completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', tap_order_id)
+        .eq("id", tap_order_id)
         .select()
         .single();
 

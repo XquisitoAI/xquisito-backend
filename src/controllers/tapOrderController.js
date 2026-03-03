@@ -1,4 +1,4 @@
-const tapOrderService = require('../services/tapOrderService');
+const tapOrderService = require("../services/tapOrderService");
 
 class TapOrderController {
   // POST /api/tap-orders - Crear nueva orden de tap
@@ -10,7 +10,7 @@ class TapOrderController {
       if (!table_id) {
         return res.status(400).json({
           success: false,
-          message: 'Table ID is required'
+          message: "Table ID is required",
         });
       }
 
@@ -21,7 +21,7 @@ class TapOrderController {
         table_id,
         clerk_user_id,
         customer_name,
-        customer_phone
+        customer_phone,
       };
 
       const result = await tapOrderService.createTapOrder(orderData);
@@ -29,20 +29,20 @@ class TapOrderController {
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
       res.status(201).json({
         success: true,
         data: result.data,
-        message: 'Tap order created successfully'
+        message: "Tap order created successfully",
       });
     } catch (error) {
-      console.error('Error creating tap order:', error);
+      console.error("Error creating tap order:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -55,20 +55,21 @@ class TapOrderController {
       if (!restaurantId || !branchNumber || !tableNumber) {
         return res.status(400).json({
           success: false,
-          message: 'Restaurant ID, branch number, and table number are required'
+          message:
+            "Restaurant ID, branch number, and table number are required",
         });
       }
 
       const result = await tapOrderService.getTapOrderByTable(
         parseInt(restaurantId),
         parseInt(branchNumber),
-        parseInt(tableNumber)
+        parseInt(tableNumber),
       );
 
       if (!result.success) {
         return res.status(404).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
@@ -76,13 +77,15 @@ class TapOrderController {
         success: true,
         data: result.data,
         hasOrder: result.hasOrder,
-        message: result.hasOrder ? 'Active order found' : 'No active order for this table'
+        message: result.hasOrder
+          ? "Active order found"
+          : "No active order for this table",
       });
     } catch (error) {
-      console.error('Error getting tap order by table:', error);
+      console.error("Error getting tap order by table:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -95,7 +98,7 @@ class TapOrderController {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID is required'
+          message: "Order ID is required",
         });
       }
 
@@ -104,19 +107,19 @@ class TapOrderController {
       if (!result.success) {
         return res.status(404).json({
           success: false,
-          message: 'Tap order not found'
+          message: "Tap order not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        data: result.data
+        data: result.data,
       });
     } catch (error) {
-      console.error('Error getting tap order by ID:', error);
+      console.error("Error getting tap order by ID:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -130,7 +133,7 @@ class TapOrderController {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID is required'
+          message: "Order ID is required",
         });
       }
 
@@ -140,7 +143,7 @@ class TapOrderController {
       const customerData = {
         customer_name,
         customer_phone,
-        clerk_user_id
+        clerk_user_id,
       };
 
       const result = await tapOrderService.updateCustomerInfo(id, customerData);
@@ -148,20 +151,20 @@ class TapOrderController {
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
       res.status(200).json({
         success: true,
         data: result.data,
-        message: 'Customer information updated successfully'
+        message: "Customer information updated successfully",
       });
     } catch (error) {
-      console.error('Error updating customer info:', error);
+      console.error("Error updating customer info:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -169,7 +172,7 @@ class TapOrderController {
   // PATCH /api/tap-orders/:id/status - Actualizar estado de la orden
   async updateOrderStatus(req, res) {
     console.log(req.params);
-    
+
     try {
       const { id } = req.params;
       const { status } = req.body;
@@ -177,7 +180,7 @@ class TapOrderController {
       if (!id || !status) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID and status are required'
+          message: "Order ID and status are required",
         });
       }
 
@@ -186,20 +189,20 @@ class TapOrderController {
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
       res.status(200).json({
         success: true,
         data: result.data,
-        message: 'Order status updated successfully'
+        message: "Order status updated successfully",
       });
     } catch (error) {
-      console.error('Error updating order status:', error);
+      console.error("Error updating order status:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -213,29 +216,32 @@ class TapOrderController {
       if (!id || !payment_status) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID and payment status are required'
+          message: "Order ID and payment status are required",
         });
       }
 
-      const result = await tapOrderService.updatePaymentStatus(id, payment_status);
+      const result = await tapOrderService.updatePaymentStatus(
+        id,
+        payment_status,
+      );
 
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
       res.status(200).json({
         success: true,
         data: result.data,
-        message: 'Payment status updated successfully'
+        message: "Payment status updated successfully",
       });
     } catch (error) {
-      console.error('Error updating payment status:', error);
+      console.error("Error updating payment status:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -248,7 +254,7 @@ class TapOrderController {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID is required'
+          message: "Order ID is required",
         });
       }
 
@@ -257,7 +263,7 @@ class TapOrderController {
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
@@ -265,13 +271,13 @@ class TapOrderController {
         success: true,
         data: result.data,
         total: result.total,
-        message: 'Total calculated successfully'
+        message: "Total calculated successfully",
       });
     } catch (error) {
-      console.error('Error calculating total:', error);
+      console.error("Error calculating total:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }
@@ -285,28 +291,76 @@ class TapOrderController {
       if (!tableId) {
         return res.status(400).json({
           success: false,
-          message: 'Table ID is required'
+          message: "Table ID is required",
         });
       }
 
-      const result = await tapOrderService.getTableOrderHistory(tableId, parseInt(limit));
+      const result = await tapOrderService.getTableOrderHistory(
+        tableId,
+        parseInt(limit),
+      );
 
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
       res.status(200).json({
         success: true,
-        data: result.data
+        data: result.data,
       });
     } catch (error) {
-      console.error('Error getting table history:', error);
+      console.error("Error getting table history:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
+      });
+    }
+  }
+
+  // GET /api/tap-orders/active/user/:clerkUserId - Obtener orden activa por clerk_user_id
+  async getActiveOrderByUser(req, res) {
+    try {
+      const { clientId, restaurantId } = req.params;
+
+      if (!clientId) {
+        return res.status(400).json({
+          success: false,
+          message: "Clerk user ID is required",
+        });
+      }
+
+      if (!restaurantId) {
+        return res.status(400).json({
+          success: false,
+          message: "Restaurant ID is required",
+        });
+      }
+
+      const result = await tapOrderService.getActiveOrderByClientId(
+        clientId,
+        parseInt(restaurantId),
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        hasActiveOrder: result.hasActiveOrder,
+        data: result.data,
+      });
+    } catch (error) {
+      console.error("Error getting active order by user:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
       });
     }
   }
@@ -319,7 +373,7 @@ class TapOrderController {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID is required'
+          message: "Order ID is required",
         });
       }
 
@@ -328,20 +382,20 @@ class TapOrderController {
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error
+          message: result.error,
         });
       }
 
       res.status(200).json({
         success: true,
         data: result.data,
-        message: 'Order abandoned successfully'
+        message: "Order abandoned successfully",
       });
     } catch (error) {
-      console.error('Error abandoning order:', error);
+      console.error("Error abandoning order:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error'
+        message: "Internal server error",
       });
     }
   }

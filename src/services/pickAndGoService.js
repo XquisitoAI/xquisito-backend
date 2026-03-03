@@ -475,6 +475,73 @@ class PickAndGoService {
         }
     }
 
+    // Obtener orden activa por clientId (user_id o guest_id) - retorna orden con dish_orders sin entregar
+    async getActiveOrderByClientId(clientId, restaurantId) {
+        try {
+            let query = supabase
+                .from('pick_and_go_orders')
+                .select(`
+                    id,
+                    clerk_user_id,
+                    customer_name,
+                    total_amount,
+                    payment_status,
+                    order_status,
+                    restaurant_id,
+                    branch_number,
+                    created_at,
+                    dish_order(id, item, quantity, price, status, payment_status, images)
+                `)
+                .eq('clerk_user_id', clientId)
+                .neq('order_status', 'abandoned')
+                .order('created_at', { ascending: false });
+
+            if (restaurantId) {
+                query = query.eq('restaurant_id', restaurantId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                return { success: true, hasActiveOrder: false, data: null };
+            }
+
+            for (const order of data) {
+                const pendingDishes = order.dish_order?.filter(
+                    dish => dish.status !== 'delivered'
+                ) || [];
+
+                if (pendingDishes.length > 0) {
+                    return {
+                        success: true,
+                        hasActiveOrder: true,
+                        data: {
+                            order: {
+                                id: order.id,
+                                clerk_user_id: order.clerk_user_id,
+                                customer_name: order.customer_name,
+                                total_amount: order.total_amount,
+                                payment_status: order.payment_status,
+                                order_status: order.order_status,
+                                restaurant_id: order.restaurant_id,
+                                branch_number: order.branch_number,
+                                created_at: order.created_at
+                            },
+                            dishes: order.dish_order,
+                            pending_dishes_count: pendingDishes.length
+                        }
+                    };
+                }
+            }
+
+            return { success: true, hasActiveOrder: false, data: null };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
     /**
      * Actualizar estado de un dish order de Pick & Go
      * @param {string} dishId - ID del dish order

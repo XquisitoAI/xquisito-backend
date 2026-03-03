@@ -8,7 +8,7 @@ exports.getOrderByRoom = async (req, res) => {
     const order = await roomOrderService.getActiveRoomOrder(
       restaurantId,
       branchNumber,
-      roomNumber
+      roomNumber,
     );
 
     if (!order) {
@@ -70,7 +70,7 @@ exports.updatePaymentStatus = async (req, res) => {
 
     const updated = await roomOrderService.updatePaymentStatus(
       id,
-      payment_status
+      payment_status,
     );
 
     res.json({
@@ -113,6 +113,43 @@ exports.updateOrderStatus = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+// Obtener orden activa por clientId y restaurantId
+exports.getActiveOrderByUser = async (req, res) => {
+  try {
+    const { clientId, restaurantId } = req.params;
+
+    if (!clientId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Client ID is required" });
+    }
+
+    if (!restaurantId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Restaurant ID is required" });
+    }
+
+    const result = await roomOrderService.getActiveOrderByClientId(
+      clientId,
+      parseInt(restaurantId),
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.error });
+    }
+
+    res.status(200).json({
+      success: true,
+      hasActiveOrder: result.hasActiveOrder,
+      data: result.data,
+    });
+  } catch (error) {
+    console.error("Error getting active order by user:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 

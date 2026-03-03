@@ -1,6 +1,6 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pickAndGoController = require('../controllers/pickAndGoController');
+const pickAndGoController = require("../controllers/pickAndGoController");
 
 /**
  * Rutas para el servicio Pick & Go
@@ -37,7 +37,7 @@ const pickAndGoController = require('../controllers/pickAndGoController');
  *   "prep_metadata": {}
  * }
  */
-router.post('/orders', pickAndGoController.createOrder);
+router.post("/orders", pickAndGoController.createOrder);
 
 /**
  * Obtener orden por ID con todos sus detalles
@@ -45,7 +45,7 @@ router.post('/orders', pickAndGoController.createOrder);
  *
  * Respuesta incluye: orden, items, pagos
  */
-router.get('/orders/:orderId', pickAndGoController.getOrder);
+router.get("/orders/:orderId", pickAndGoController.getOrder);
 
 /**
  * Actualizar estado de la orden
@@ -57,7 +57,7 @@ router.get('/orders/:orderId', pickAndGoController.getOrder);
  *   "prep_metadata": {} // opcional
  * }
  */
-router.put('/orders/:orderId/status', pickAndGoController.updateOrderStatus);
+router.put("/orders/:orderId/status", pickAndGoController.updateOrderStatus);
 
 /**
  * Actualizar estado de pago
@@ -68,7 +68,10 @@ router.put('/orders/:orderId/status', pickAndGoController.updateOrderStatus);
  *   "payment_status": "pending|paid"
  * }
  */
-router.put('/orders/:orderId/payment-status', pickAndGoController.updatePaymentStatus);
+router.put(
+  "/orders/:orderId/payment-status",
+  pickAndGoController.updatePaymentStatus,
+);
 
 // ===================================
 // GESTIÓN DE ITEMS
@@ -88,7 +91,7 @@ router.put('/orders/:orderId/payment-status', pickAndGoController.updatePaymentS
  *   "extra_price": 25.00
  * }
  */
-router.post('/orders/:orderId/items', pickAndGoController.addItemToOrder);
+router.post("/orders/:orderId/items", pickAndGoController.addItemToOrder);
 
 /**
  * Crear dish order vinculado a una orden Pick & Go
@@ -110,7 +113,7 @@ router.post('/orders/:orderId/items', pickAndGoController.addItemToOrder);
  *   "extraPrice": 25.00
  * }
  */
-router.post('/orders/:orderId/dishes', pickAndGoController.createDishOrder);
+router.post("/orders/:orderId/dishes", pickAndGoController.createDishOrder);
 
 /**
  * Actualizar estado de un dish order
@@ -121,11 +124,17 @@ router.post('/orders/:orderId/dishes', pickAndGoController.createDishOrder);
  *   "status": "pending|cooking|delivered"
  * }
  */
-router.put('/dishes/:dishId/status', pickAndGoController.updateDishStatus);
+router.put("/dishes/:dishId/status", pickAndGoController.updateDishStatus);
 
 // ===================================
 // CONSULTAS POR USUARIO
 // ===================================
+
+// Obtener orden activa por clientId (user_id o guest_id) y restaurantId
+router.get(
+  "/restaurant/:restaurantId/active/user/:clientId",
+  pickAndGoController.getActiveOrderByUser,
+);
 
 /**
  * Obtener órdenes del usuario
@@ -138,7 +147,7 @@ router.put('/dishes/:dishId/status', pickAndGoController.updateDishStatus);
  *
  * Ejemplo: /api/pick-and-go/user/user_123/orders?order_status=active&limit=10
  */
-router.get('/user/:userId/orders', pickAndGoController.getUserOrders);
+router.get("/user/:userId/orders", pickAndGoController.getUserOrders);
 
 // ===================================
 // CONSULTAS POR RESTAURANTE
@@ -156,7 +165,10 @@ router.get('/user/:userId/orders', pickAndGoController.getUserOrders);
  *
  * Ejemplo: /api/pick-and-go/restaurant/3/orders?order_status=preparing&branch_number=1&date_from=2025-11-18
  */
-router.get('/restaurant/:restaurantId/orders', pickAndGoController.getRestaurantOrders);
+router.get(
+  "/restaurant/:restaurantId/orders",
+  pickAndGoController.getRestaurantOrders,
+);
 
 /**
  * Obtener órdenes de una sucursal específica
@@ -169,7 +181,10 @@ router.get('/restaurant/:restaurantId/orders', pickAndGoController.getRestaurant
  *
  * Ejemplo: /api/pick-and-go/restaurant/3/branch/1/orders?order_status=preparing
  */
-router.get('/restaurant/:restaurantId/branch/:branchNumber/orders', pickAndGoController.getBranchOrders);
+router.get(
+  "/restaurant/:restaurantId/branch/:branchNumber/orders",
+  pickAndGoController.getBranchOrders,
+);
 
 // ===================================
 // UTILIDADES
@@ -196,7 +211,7 @@ router.get('/restaurant/:restaurantId/branch/:branchNumber/orders', pickAndGoCon
  *   }
  * }
  */
-router.post('/estimate-prep-time', pickAndGoController.estimatePrepTime);
+router.post("/estimate-prep-time", pickAndGoController.estimatePrepTime);
 
 // ===================================
 // MIDDLEWARE DE MANEJO DE ERRORES
