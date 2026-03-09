@@ -35,17 +35,36 @@ const supabase = require("./config/supabase");
 
 const app = express();
 
+// Orígenes permitidos para CORS
+const allowedOrigins = [
+  "https://flexbill.xquisito.ai",
+  "https://taporderpay.xquisito.ai",
+  "https://room-service.xquisito.ai",
+  "https://pickandgo.xquisito.ai",
+  "https://tapandpay.xquisito.ai",
+];
+
 app.use(helmet());
 app.use(
   cors({
-    origin: true, // Allow all origins (or specify your frontend URL)
-    credentials: true,
+    origin: (origin, callback) => {
+      // Permitir requests sin origin (ej. Postman) solo en desarrollo
+      if (!origin && process.env.NODE_ENV === "development") {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error("Origen no autorizado por CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "x-guest-id",
       "x-table-number",
     ],
+    credentials: true,
   }),
 );
 app.use(morgan("combined"));
