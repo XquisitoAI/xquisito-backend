@@ -42,9 +42,19 @@ const allowedOrigins = [
   "https://room-service.xquisito.ai",
   "https://pickandgo.xquisito.ai",
   "https://tapandpay.xquisito.ai",
+
+  // Solo desarrollo
+  ...(process.env.NODE_ENV === "development"
+    ? [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+      ]
+    : []),
 ];
 
 app.use(helmet());
+app.disable("x-powered-by");
 app.use(
   cors({
     origin: (origin, callback) => {
