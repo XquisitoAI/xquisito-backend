@@ -32,6 +32,7 @@ const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const supabase = require("./config/supabase");
+const { supabaseAdmin } = require("./config/supabaseAuth");
 
 const app = express();
 
@@ -42,6 +43,8 @@ const allowedOrigins = [
   "https://room-service.xquisito.ai",
   "https://pickandgo.xquisito.ai",
   "https://tapandpay.xquisito.ai",
+  "https://admin-portal.xquisito.ai",
+  "https://main-portal.xquisito.ai",
 
   // Solo desarrollo
   ...(process.env.NODE_ENV === "development"
@@ -80,6 +83,37 @@ app.use(
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// PCI Audit Log Middleware - Fire and forget
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    if (supabaseAdmin) {
+      supabaseAdmin
+        .from("pci_audit_logs")
+        .insert({
+          user_id: req.user?.id || "anonymous",
+          event_type:
+            res.statusCode === 401 || res.statusCode === 403
+              ? "auth_failure"
+              : "http_request",
+          resource: `${req.method} ${req.path}`,
+          result: res.statusCode < 400 ? "success" : "failure",
+          source_ip:
+            req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
+          service: "xquisito-backend",
+          metadata: {
+            status_code: res.statusCode,
+            user_agent: req.headers["user-agent"],
+          },
+        })
+        .then(() => {})
+        .catch((err) => {
+          console.error("Audit log error:", err.message);
+        });
+    }
+  });
+  next();
+});
 
 app.get("/health", (req, res) => {
   res
