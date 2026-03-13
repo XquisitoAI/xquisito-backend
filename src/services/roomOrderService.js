@@ -1,4 +1,5 @@
 const { createClient } = require("@supabase/supabase-js");
+const POSSyncService = require("./pos/POSSyncService");
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,7 +20,7 @@ class RoomOrderService {
 
       if (roomError || !room) {
         throw new Error(
-          `Room ${roomNumber} not found for restaurant ${restaurantId}`
+          `Room ${roomNumber} not found for restaurant ${restaurantId}`,
         );
       }
 
@@ -47,7 +48,7 @@ class RoomOrderService {
             custom_fields,
             user_order_id
           )
-        `
+        `,
         )
         .eq("room_id", room.id)
         .eq("order_status", "pending")
@@ -106,7 +107,7 @@ class RoomOrderService {
             custom_fields,
             user_order_id
           )
-        `
+        `,
         )
         .eq("id", orderId)
         .single();
@@ -149,7 +150,7 @@ class RoomOrderService {
           p_user_id: params.userId || null,
           p_images: params.images || [],
           p_custom_fields: params.customFields || {},
-        }
+        },
       );
 
       if (error) {
@@ -201,6 +202,13 @@ class RoomOrderService {
 
       if (error) throw error;
 
+      // Sincronizar con POS al completar orden (fire and forget)
+      if (orderStatus === "completed") {
+        POSSyncService.syncOrder(orderId, "room_orders").catch((err) =>
+          console.error("Error en sincronización POS:", err),
+        );
+      }
+
       return data;
     } catch (error) {
       console.error("Error updating order status:", error);
@@ -241,7 +249,7 @@ class RoomOrderService {
         "recalculate_room_order_total",
         {
           p_room_order_id: roomOrderId,
-        }
+        },
       );
 
       if (error) throw error;
@@ -257,17 +265,19 @@ class RoomOrderService {
   async getActiveOrderByClientId(clientId, restaurantId) {
     try {
       const { data, error } = await supabase
-        .from('room_orders')
-        .select(`
+        .from("room_orders")
+        .select(
+          `
           id, user_id, customer_name, total_amount, payment_status,
           order_status, room_id, created_at,
           rooms!inner(id, room_number, restaurant_id),
           dish_order!dish_order_room_order_id_fkey(id, item, quantity, price, status, payment_status, images)
-        `)
-        .eq('user_id', clientId)
-        .eq('rooms.restaurant_id', restaurantId)
-        .neq('order_status', 'cancelled')
-        .order('created_at', { ascending: false });
+        `,
+        )
+        .eq("user_id", clientId)
+        .eq("rooms.restaurant_id", restaurantId)
+        .neq("order_status", "cancelled")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -276,7 +286,8 @@ class RoomOrderService {
       }
 
       for (const order of data) {
-        const pendingDishes = order.dish_order?.filter(dish => dish.status !== 'delivered') || [];
+        const pendingDishes =
+          order.dish_order?.filter((dish) => dish.status !== "delivered") || [];
 
         if (pendingDishes.length > 0) {
           return {
@@ -291,12 +302,12 @@ class RoomOrderService {
                 payment_status: order.payment_status,
                 order_status: order.order_status,
                 room_id: order.room_id,
-                created_at: order.created_at
+                created_at: order.created_at,
               },
               room: order.rooms,
               dishes: order.dish_order,
-              pending_dishes_count: pendingDishes.length
-            }
+              pending_dishes_count: pendingDishes.length,
+            },
           };
         }
       }

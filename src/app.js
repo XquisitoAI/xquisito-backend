@@ -31,6 +31,7 @@ const segmentsRoutes = require("./routes/segmentsRoutes");
 const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const posRoutes = require("./routes/posRoutes");
 const supabase = require("./config/supabase");
 const { supabaseAdmin } = require("./config/supabaseAuth");
 
@@ -208,6 +209,9 @@ app.use("/api/campaigns", campaignsRoutes);
 
 // Subscription System
 app.use("/api/subscriptions", subscriptionRoutes);
+
+// POS Integration
+app.use("/api/pos", posRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
