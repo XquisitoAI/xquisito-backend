@@ -202,11 +202,13 @@ class RoomOrderService {
 
       if (error) throw error;
 
-      // Sincronizar con POS al completar orden (fire and forget)
+      // Sincronizar con POS al completar orden (orden prepagada)
       if (orderStatus === "completed") {
-        POSSyncService.syncOrder(orderId, "room_orders").catch((err) =>
-          console.error("Error en sincronización POS:", err),
-        );
+        POSSyncService.syncPaidOrder(
+          orderId,
+          "room_orders",
+          data.total_amount || 0,
+        ).catch((err) => console.error("Error en sincronización POS:", err));
       }
 
       return data;

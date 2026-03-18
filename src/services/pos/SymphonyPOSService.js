@@ -92,10 +92,7 @@ class SymphonyPOSService extends BasePOSService {
 
   // Generar code_challenge usando SHA256
   generateCodeChallenge(codeVerifier) {
-    return crypto
-      .createHash("sha256")
-      .update(codeVerifier)
-      .digest("base64url");
+    return crypto.createHash("sha256").update(codeVerifier).digest("base64url");
   }
 
   // Paso 1: Iniciar flujo de autorización
@@ -279,7 +276,8 @@ class SymphonyPOSService extends BasePOSService {
           idempotencyId: this.generateIdempotencyId(),
           checkEmployeeRef: this.settings.employee_ref,
           orderTypeRef: this.settings.order_type_ref,
-          checkName: orderData.check_name || orderData.table_number || "Xquisito Order",
+          checkName:
+            orderData.check_name || orderData.table_number || "Xquisito Order",
           guestCount: orderData.guest_count || 1,
           tableName: orderData.table_number || null,
           orderChannelRef: this.settings.order_channel_ref || undefined,
@@ -300,7 +298,9 @@ class SymphonyPOSService extends BasePOSService {
             total: 0, // 0 = pago completo automático
           },
         ];
-        console.log(`💳 Auto-close habilitado. Incluyendo tender ${this.settings.tender_ref}`);
+        console.log(
+          `💳 Auto-close habilitado. Incluyendo tender ${this.settings.tender_ref}`,
+        );
       }
 
       const response = await this.axiosInstance.post(
@@ -360,6 +360,44 @@ class SymphonyPOSService extends BasePOSService {
     }
   }
 
+  // Agregar una nueva ronda de items a un check existente
+  async addRound(posOrderId, items) {
+    try {
+      console.log(
+        `🔄 Agregando ronda de ${items.length} items al check ${posOrderId}...`,
+      );
+
+      const roundData = {
+        menuItems: items.map((item) => ({
+          menuItemId: parseInt(item.pos_item_id, 10),
+          quantity: item.quantity,
+          unitPrice: item.price,
+          total: item.price * item.quantity,
+        })),
+      };
+
+      const response = await this.axiosInstance.post(
+        `/api/v1/checks/${posOrderId}/round`,
+        roundData,
+      );
+
+      console.log(
+        `✅ Ronda agregada al check ${posOrderId}. Total items: ${response.data.menuItems?.length || 0}`,
+      );
+
+      return {
+        success: true,
+        posOrderId: response.data.header.checkRef,
+        status: response.data.header.status,
+        totals: response.data.totals,
+        menuItems: response.data.menuItems,
+        rawResponse: response.data,
+      };
+    } catch (error) {
+      throw this.handleError(error, "addRound");
+    }
+  }
+
   // ==================== TENDERS (PAGOS) ====================
 
   // Obtener tenders disponibles para el centro de ingresos
@@ -367,7 +405,9 @@ class SymphonyPOSService extends BasePOSService {
     try {
       console.log("💳 Obteniendo tenders disponibles en Symphony...");
 
-      const response = await this.axiosInstance.get("/api/v1/tenders/collection");
+      const response = await this.axiosInstance.get(
+        "/api/v1/tenders/collection",
+      );
 
       console.log(`✅ ${response.data.items?.length || 0} tenders encontrados`);
 
@@ -405,7 +445,9 @@ class SymphonyPOSService extends BasePOSService {
         tenderPayload,
       );
 
-      console.log(`✅ Pago aplicado. Check ${posOrderId} status: ${response.data.header?.status}`);
+      console.log(
+        `✅ Pago aplicado. Check ${posOrderId} status: ${response.data.header?.status}`,
+      );
 
       return {
         success: true,
@@ -423,7 +465,9 @@ class SymphonyPOSService extends BasePOSService {
   async closeOrder(posOrderId) {
     // Si hay tender_ref configurado, intentar cerrar con pago
     if (this.settings.tender_ref) {
-      console.log(`🔒 Cerrando check ${posOrderId} con tender ${this.settings.tender_ref}...`);
+      console.log(
+        `🔒 Cerrando check ${posOrderId} con tender ${this.settings.tender_ref}...`,
+      );
       return this.applyTender(posOrderId, { amount: 0 });
     }
 
@@ -432,6 +476,80 @@ class SymphonyPOSService extends BasePOSService {
       `⚠️ No hay tender_ref configurado. Check ${posOrderId} permanece abierto.`,
     );
     return this.getOrderStatus(posOrderId);
+  }
+
+  // ==================== CHECKS (CONSULTA) ====================
+
+  // Obtener checks abiertos de una mesa específica
+  async getChecksByTable(tableNumber, options = {}) {
+    try {
+      console.log(`🔍 Buscando checks abiertos para mesa ${tableNumber}...`);
+
+      const params = {
+        tableName: String(tableNumber),
+        includeClosed: options.includeClosed || false,
+      };
+
+      // Filtros opcionales
+      if (options.checkEmployeeRef) {
+        params.checkEmployeeRef = options.checkEmployeeRef;
+      }
+      if (options.orderTypeRef) {
+        params.orderTypeRef = options.orderTypeRef;
+      }
+      if (options.sinceTime) {
+        params.sinceTime = options.sinceTime;
+      }
+
+      const response = await this.axiosInstance.get("/api/v1/checks", { params });
+
+      const checks = response.data.items || [];
+      console.log(`✅ ${checks.length} check(s) encontrado(s) para mesa ${tableNumber}`);
+
+      return {
+        success: true,
+        checks: checks.map((check) => ({
+          checkRef: check.header.checkRef,
+          checkNumber: check.header.checkNumber,
+          tableName: check.header.tableName,
+          status: check.header.status,
+          preparationStatus: check.header.preparationStatus,
+          guestCount: check.header.guestCount,
+          checkName: check.header.checkName,
+          totals: check.totals,
+          menuItems: check.menuItems || [],
+          rawResponse: check,
+        })),
+        rawResponse: response.data,
+      };
+    } catch (error) {
+      throw this.handleError(error, "getChecksByTable");
+    }
+  }
+
+  // Obtener un check abierto de una mesa (el primero si hay varios)
+  async getOpenCheckByTable(tableNumber) {
+    try {
+      const result = await this.getChecksByTable(tableNumber, { includeClosed: false });
+
+      if (!result.success || result.checks.length === 0) {
+        return {
+          success: false,
+          error: `No hay checks abiertos para mesa ${tableNumber}`,
+        };
+      }
+
+      // Retornar el primer check abierto
+      const check = result.checks[0];
+      console.log(`✅ Check abierto encontrado: ${check.checkRef} (${check.checkNumber})`);
+
+      return {
+        success: true,
+        check,
+      };
+    } catch (error) {
+      throw this.handleError(error, "getOpenCheckByTable");
+    }
   }
 
   // ==================== MENÚ ====================

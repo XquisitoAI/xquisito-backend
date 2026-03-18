@@ -229,11 +229,13 @@ class TapOrderService {
 
       if (error) throw error;
 
-      // Sincronizar con POS al completar orden (fire and forget)
+      // Sincronizar con POS al completar orden (orden prepagada)
       if (status === "completed") {
-        POSSyncService.syncOrder(tap_order_id, "tap_orders_and_pay").catch(
-          (err) => console.error("Error en sincronización POS:", err),
-        );
+        POSSyncService.syncPaidOrder(
+          tap_order_id,
+          "tap_orders_and_pay",
+          data.total_amount || 0,
+        ).catch((err) => console.error("Error en sincronización POS:", err));
       }
 
       return { success: true, data };

@@ -1,8 +1,45 @@
 const supabase = require("../config/supabase");
+const POSSyncService = require("./pos/POSSyncService");
+const { supabaseAdmin } = require("../config/supabaseAuth");
 
 class TapPayService {
+  /**
+   * Verificar si una sucursal tiene POS integrado
+   */
+  async hasPOSIntegration(branchId) {
+    const { data } = await supabaseAdmin
+      .from("pos_integrations")
+      .select("id")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .single();
+
+    return !!data;
+  }
+
+  /**
+   * Obtener branch_id desde restaurant_id y branch_number
+   */
+  async getBranchId(restaurantId, branchNumber) {
+    const { data } = await supabaseAdmin
+      .from("branches")
+      .select("id")
+      .eq("restaurant_id", restaurantId)
+      .eq("branch_number", branchNumber)
+      .single();
+
+    return data?.id || null;
+  }
+
+  /**
+   * Obtener orden activa - con soporte POS
+   * 1. Busca primero en Supabase local
+   * 2. Si NO existe → recupera del POS y crea en Supabase
+   * 3. Si YA existe → retorna el local
+   */
   async getActiveOrderByTable(restaurantId, branchNumber, tableNumber) {
     try {
+      // 1. Buscar orden existente en Supabase
       const { data, error } = await supabase.rpc(
         "get_tap_pay_order_by_table",
         {
@@ -17,9 +54,112 @@ class TapPayService {
         throw error;
       }
 
-      return data && data.length > 0 ? data[0] : null;
+      // Si ya existe en local, retornarla
+      if (data && data.length > 0) {
+        return data[0];
+      }
+
+      // 2. No existe en local → recuperar del POS y crear
+      const branchId = await this.getBranchId(restaurantId, branchNumber);
+      if (!branchId) {
+        return null; // No hay sucursal
+      }
+
+      // Verificar si hay POS integrado
+      const hasPOS = await this.hasPOSIntegration(branchId);
+      if (!hasPOS) {
+        return null; // No hay POS, no hay orden
+      }
+
+      // Recuperar check del POS
+      console.log(`🔍 Tap&Pay: Buscando check en POS para mesa ${tableNumber}...`);
+      const posResult = await POSSyncService.getTapPayCheckByTable(branchId, tableNumber);
+
+      if (!posResult.success) {
+        console.log(`❌ No hay check en POS para mesa ${tableNumber}`);
+        return null;
+      }
+
+      // 3. Crear orden en Supabase con datos del POS
+      const check = posResult.check;
+      const createdOrder = await this.createOrderFromPOS({
+        restaurantId,
+        branchNumber,
+        tableNumber,
+        posOrderId: check.posOrderId,
+        checkNumber: check.checkNumber,
+        items: check.items,
+        totals: check.totals,
+      });
+
+      return createdOrder;
     } catch (error) {
       console.error("Error in getActiveOrderByTable:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear orden en Supabase a partir de datos del POS
+   */
+  async createOrderFromPOS({ restaurantId, branchNumber, tableNumber, posOrderId, checkNumber, items, totals }) {
+    try {
+      console.log(`📝 Creando orden local desde POS check ${posOrderId}...`);
+
+      // Calcular total de items
+      const totalAmount = totals?.checkTotal || items.reduce((sum, item) => sum + (item.total || 0), 0);
+
+      // Crear tap_pay_order
+      const { data: order, error: orderError } = await supabaseAdmin
+        .from("tap_pay_orders")
+        .insert({
+          restaurant_id: restaurantId,
+          branch_number: branchNumber,
+          table_number: tableNumber,
+          pos_order_id: posOrderId,
+          pos_check_number: checkNumber,
+          total_amount: totalAmount,
+          paid_amount: totals?.totalPaid || 0,
+          order_status: "active",
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error("Error creating tap_pay_order:", orderError);
+        throw orderError;
+      }
+
+      // Crear dish_orders para cada item
+      if (items && items.length > 0) {
+        const dishOrders = items.map((item) => ({
+          tap_pay_order_id: order.id,
+          item: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          extra_price: 0,
+          status: "delivered", // Items del POS ya están entregados
+          payment_status: "not_paid",
+          images: item.images || [],
+          pos_item_id: item.pos_item_id,
+          menu_item_id: item.menu_item_id || null,
+        }));
+
+        const { error: dishError } = await supabaseAdmin
+          .from("dish_order")
+          .insert(dishOrders);
+
+        if (dishError) {
+          console.error("Error creating dish_orders:", dishError);
+        }
+      }
+
+      console.log(`✅ Orden local ${order.id} creada desde POS check ${posOrderId}`);
+
+      // Retornar la orden con formato esperado
+      return await this.getOrderById(order.id);
+    } catch (error) {
+      console.error("Error in createOrderFromPOS:", error);
       throw error;
     }
   }
@@ -185,6 +325,12 @@ class TapPayService {
 
       await this.addOrUpdateActiveUser(orderId, userId, guestName, totalAmount);
 
+      // Sincronizar pago con POS (fire and forget)
+      // amount=0 significa pago completo
+      this.syncPaymentWithPOS(orderId, 0).catch((err) =>
+        console.error("Error sincronizando pago full con POS:", err)
+      );
+
       return {
         transaction_id: transaction.id,
         amount_paid: totalAmount,
@@ -246,6 +392,11 @@ class TapPayService {
       }
 
       await this.addOrUpdateActiveUser(orderId, userId, guestName, totalAmount);
+
+      // Sincronizar pago con POS (fire and forget)
+      this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
+        console.error("Error sincronizando pago items con POS:", err)
+      );
 
       return {
         transaction_id: transaction.id,
@@ -351,6 +502,11 @@ class TapPayService {
       if (updateError) throw updateError;
 
       await this.addOrUpdateActiveUser(orderId, userId, guestId, guestName, totalAmount);
+
+      // Sincronizar pago con POS (fire and forget)
+      this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
+        console.error("Error sincronizando pago monto con POS:", err)
+      );
 
       return {
         transaction_id: `temp-${Date.now()}`, // Temporal hasta que se implemente correctamente
@@ -683,6 +839,47 @@ class TapPayService {
       }
     } catch (error) {
       console.error("Error in clearActiveUsers:", error);
+    }
+  }
+
+  /**
+   * Sincronizar pago con POS
+   * @param {string} orderId - ID de la orden local
+   * @param {number} amount - Monto a pagar (0 = pago completo)
+   */
+  async syncPaymentWithPOS(orderId, amount) {
+    try {
+      // Obtener la orden con pos_order_id
+      const { data: order, error } = await supabaseAdmin
+        .from("tap_pay_orders")
+        .select("pos_order_id, restaurant_id, branch_number")
+        .eq("id", orderId)
+        .single();
+
+      if (error || !order || !order.pos_order_id) {
+        console.log(`❌ Orden ${orderId} no tiene pos_order_id, saltando sync`);
+        return null;
+      }
+
+      // Obtener branch_id
+      const branchId = await this.getBranchId(order.restaurant_id, order.branch_number);
+      if (!branchId) {
+        console.log(`❌ No se encontró branch_id para sync`);
+        return null;
+      }
+
+      // Sincronizar con POS
+      const result = await POSSyncService.syncTapPayPayment(
+        order.pos_order_id,
+        branchId,
+        amount
+      );
+
+      console.log(`✅ Pago Tap&Pay sincronizado con POS: ${order.pos_order_id}`);
+      return result;
+    } catch (error) {
+      console.error("Error in syncPaymentWithPOS:", error);
+      return null;
     }
   }
 

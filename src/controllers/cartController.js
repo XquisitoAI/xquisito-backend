@@ -15,14 +15,14 @@ const addToCart = async (req, res) => {
       branch_number,
     } = req.body;
 
-    console.log("🛒 Adding item to cart:", {
+    /*console.log("🛒 Adding item to cart:", {
       user_id,
       guest_id,
       menu_item_id,
       quantity,
       restaurant_id,
       branch_number,
-    });
+    });*/
 
     // Validaciones
     if (!user_id && !guest_id) {
@@ -58,10 +58,10 @@ const addToCart = async (req, res) => {
       extra_price || 0,
       price || null,
       restaurant_id || null,
-      branch_number || null
+      branch_number || null,
     );
 
-    console.log("✅ Item added to cart successfully:", cartItemId);
+    //console.log("✅ Item added to cart successfully:", cartItemId);
     res.status(200).json({
       success: true,
       data: {
@@ -92,7 +92,12 @@ const getCart = async (req, res) => {
   try {
     const { user_id, guest_id, restaurant_id, branch_number } = req.query;
 
-    console.log("🛒 Getting cart:", { user_id, guest_id, restaurant_id, branch_number });
+    /* console.log("🛒 Getting cart:", {
+      user_id,
+      guest_id,
+      restaurant_id,
+      branch_number,
+    });*/
 
     // Validaciones
     if (!user_id && !guest_id) {
@@ -104,9 +109,13 @@ const getCart = async (req, res) => {
     }
 
     const userId = { user_id, guest_id };
-    const cart = await cartService.getCart(userId, restaurant_id || null, branch_number || null);
+    const cart = await cartService.getCart(
+      userId,
+      restaurant_id || null,
+      branch_number || null,
+    );
 
-    console.log(`✅ Cart retrieved: ${cart.items.length} items`);
+    //console.log(`✅ Cart retrieved: ${cart.items.length} items`);
     res.json({
       success: true,
       data: cart,
@@ -127,7 +136,7 @@ const updateCartItemQuantity = async (req, res) => {
     const { cart_item_id } = req.params;
     const { quantity } = req.body;
 
-    console.log("🛒 Updating cart item quantity:", { cart_item_id, quantity });
+    //console.log("🛒 Updating cart item quantity:", { cart_item_id, quantity });
 
     if (quantity === undefined || quantity < 0) {
       return res.status(400).json({
@@ -139,7 +148,7 @@ const updateCartItemQuantity = async (req, res) => {
 
     await cartService.updateCartItemQuantity(cart_item_id, quantity);
 
-    console.log("✅ Cart item quantity updated successfully");
+    //console.log("✅ Cart item quantity updated successfully");
     res.json({
       success: true,
       message:
@@ -162,11 +171,11 @@ const removeFromCart = async (req, res) => {
   try {
     const { cart_item_id } = req.params;
 
-    console.log("🛒 Removing item from cart:", cart_item_id);
+    //console.log("🛒 Removing item from cart:", cart_item_id);
 
     await cartService.removeFromCart(cart_item_id);
 
-    console.log("✅ Item removed from cart successfully");
+    //console.log("✅ Item removed from cart successfully");
     res.json({
       success: true,
       message: "Item removed from cart successfully",
@@ -186,7 +195,12 @@ const clearCart = async (req, res) => {
   try {
     const { user_id, guest_id, restaurant_id, branch_number } = req.body;
 
-    console.log("🛒 Clearing cart:", { user_id, guest_id, restaurant_id, branch_number });
+    /*console.log("🛒 Clearing cart:", {
+      user_id,
+      guest_id,
+      restaurant_id,
+      branch_number,
+    });*/
 
     // Validaciones
     if (!user_id && !guest_id) {
@@ -198,9 +212,13 @@ const clearCart = async (req, res) => {
     }
 
     const userId = { user_id, guest_id };
-    await cartService.clearCart(userId, restaurant_id || null, branch_number || null);
+    await cartService.clearCart(
+      userId,
+      restaurant_id || null,
+      branch_number || null,
+    );
 
-    console.log("✅ Cart cleared successfully");
+    //console.log("✅ Cart cleared successfully");
     res.json({
       success: true,
       message: "Cart cleared successfully",
@@ -220,7 +238,12 @@ const getCartTotals = async (req, res) => {
   try {
     const { user_id, guest_id, restaurant_id, branch_number } = req.query;
 
-    console.log("🛒 Getting cart totals:", { user_id, guest_id, restaurant_id, branch_number });
+    /*console.log("🛒 Getting cart totals:", {
+      user_id,
+      guest_id,
+      restaurant_id,
+      branch_number,
+    });*/
 
     // Validaciones
     if (!user_id && !guest_id) {
@@ -232,9 +255,13 @@ const getCartTotals = async (req, res) => {
     }
 
     const userId = { user_id, guest_id };
-    const totals = await cartService.getCartTotals(userId, restaurant_id || null, branch_number || null);
+    const totals = await cartService.getCartTotals(
+      userId,
+      restaurant_id || null,
+      branch_number || null,
+    );
 
-    console.log("✅ Cart totals retrieved");
+    //console.log("✅ Cart totals retrieved");
     res.json({
       success: true,
       data: totals,
@@ -254,7 +281,11 @@ const migrateGuestCart = async (req, res) => {
   try {
     const { guest_id, user_id, restaurant_id } = req.body;
 
-    console.log("🔄 Migrating guest cart to user:", { guest_id, user_id, restaurant_id });
+    /*console.log("🔄 Migrating guest cart to user:", {
+      guest_id,
+      user_id,
+      restaurant_id,
+    });*/
 
     // Validaciones
     if (!guest_id || !user_id) {
@@ -268,10 +299,10 @@ const migrateGuestCart = async (req, res) => {
     const result = await cartService.migrateGuestCartToUser(
       guest_id,
       user_id,
-      restaurant_id || null
+      restaurant_id || null,
     );
 
-    console.log("✅ Cart migrated successfully:", result);
+    // console.log("✅ Cart migrated successfully:", result);
     res.json({
       success: true,
       data: result,
@@ -291,12 +322,12 @@ const updateCartBranch = async (req, res) => {
   try {
     const { user_id, guest_id, restaurant_id, new_branch_number } = req.body;
 
-    console.log("🔄 Updating cart branch:", {
+    /*console.log("🔄 Updating cart branch:", {
       user_id,
       guest_id,
       restaurant_id,
       new_branch_number,
-    });
+    });*/
 
     // Validaciones
     if (!user_id && !guest_id) {
@@ -335,10 +366,10 @@ const updateCartBranch = async (req, res) => {
     const itemsUpdated = await cartService.updateCartBranch(
       userId,
       restaurant_id,
-      new_branch_number
+      new_branch_number,
     );
 
-    console.log(`✅ Cart branch updated: ${itemsUpdated} items updated`);
+    // console.log(`✅ Cart branch updated: ${itemsUpdated} items updated`);
     res.status(200).json({
       success: true,
       data: {

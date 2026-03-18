@@ -1,6 +1,5 @@
 const SymphonyPOSService = require("./SymphonyPOSService");
-// const WansoftPOSService = require("./WansoftPOSService");
-// const SoftRestPOSService = require("./SoftRestPOSService");
+const SoftRestaurantPOSService = require("./SoftRestaurantPOSService");
 
 class POSFactory {
   // Crear una instancia del servicio POS apropiado
@@ -19,36 +18,25 @@ class POSFactory {
       case "symphony":
         return new SymphonyPOSService(integration);
 
-      // case "wansoft":
-      //   return new WansoftPOSService(integration);
-      //
-      // case "softrest":
-      //   return new SoftRestPOSService(integration);
+      case "soft_restaurant":
+        return new SoftRestaurantPOSService(integration);
 
       default:
         throw new Error(
-          `Unknown POS provider: ${providerCode}. Available providers: symphony`,
+          `Unknown POS provider: ${providerCode}. Available providers: symphony, soft_restaurant`,
         );
     }
   }
 
   // Verificar si un proveedor está soportado
   static isProviderSupported(providerCode) {
-    const supportedProviders = [
-      "symphony",
-      // "wansoft",
-      // "softrest",
-    ];
-
+    const supportedProviders = ["symphony", "soft_restaurant"];
     return supportedProviders.includes(providerCode.toLowerCase());
   }
 
   // Obtener lista de proveedores soportados
   static getSupportedProviders() {
-    return [
-      "symphony",
-      // Agregar más según se implementen
-    ];
+    return ["symphony", "soft_restaurant"];
   }
 }
 

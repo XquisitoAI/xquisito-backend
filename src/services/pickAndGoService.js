@@ -224,11 +224,13 @@ class PickAndGoService {
 
       console.log("✅ Order status updated successfully");
 
-      // Sincronizar con POS al completar orden (fire and forget)
+      // Sincronizar con POS al completar orden (orden prepagada)
       if (orderStatus === "completed") {
-        POSSyncService.syncOrder(orderId, "pick_and_go_orders").catch((err) =>
-          console.error("Error en sincronización POS:", err),
-        );
+        POSSyncService.syncPaidOrder(
+          orderId,
+          "pick_and_go_orders",
+          data.total_amount || 0,
+        ).catch((err) => console.error("Error en sincronización POS:", err));
       }
 
       return { success: true, data };

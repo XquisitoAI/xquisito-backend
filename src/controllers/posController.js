@@ -1,5 +1,6 @@
 const supabase = require("../config/supabase");
 const POSFactory = require("../services/pos/POSFactory");
+const agentConnectionManager = require("../socket/agentConnectionManager");
 
 class POSController {
   // Obtener tenders disponibles por branch_id
@@ -10,10 +11,12 @@ class POSController {
       // Buscar integración POS activa para esta sucursal
       const { data: integration, error } = await supabase
         .from("pos_integrations")
-        .select(`
+        .select(
+          `
           *,
           pos_providers(code, name)
-        `)
+        `,
+        )
         .eq("branch_id", branchId)
         .eq("is_active", true)
         .single();
@@ -65,7 +68,8 @@ class POSController {
 
       const { data: integration, error } = await supabase
         .from("pos_integrations")
-        .select(`
+        .select(
+          `
           id,
           branch_id,
           is_active,
@@ -75,7 +79,8 @@ class POSController {
           sync_error,
           created_at,
           pos_providers(code, name)
-        `)
+        `,
+        )
         .eq("branch_id", branchId)
         .single();
 
@@ -173,10 +178,12 @@ class POSController {
 
       const { data: integration, error } = await supabase
         .from("pos_integrations")
-        .select(`
+        .select(
+          `
           *,
           pos_providers(code, name)
-        `)
+        `,
+        )
         .eq("branch_id", branchId)
         .eq("is_active", true)
         .single();
@@ -225,10 +232,12 @@ class POSController {
 
       const { data: integration, error } = await supabase
         .from("pos_integrations")
-        .select(`
+        .select(
+          `
           *,
           pos_providers(code, name)
-        `)
+        `,
+        )
         .eq("branch_id", branchId)
         .eq("is_active", true)
         .single();
@@ -289,10 +298,12 @@ class POSController {
       // Buscar integración
       const { data: integration, error } = await supabase
         .from("pos_integrations")
-        .select(`
+        .select(
+          `
           *,
           pos_providers(code, name)
-        `)
+        `,
+        )
         .eq("branch_id", branchId)
         .eq("is_active", true)
         .single();
@@ -344,6 +355,85 @@ class POSController {
           .eq("branch_id", req.params.branchId);
       }
 
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // TEST: Ver agentes conectados
+  async getConnectedAgents(req, res) {
+    try {
+      const agents = agentConnectionManager.getConnectedAgents();
+
+      res.json({
+        success: true,
+        count: agents.length,
+        agents: agents.map((a) => ({
+          branchId: a.branchId,
+          socketId: a.socketId,
+          connectedAt: a.connectedAt,
+          lastPing: a.lastPing,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // TEST: Enviar orden de prueba a agente SR
+  async testAgentOrder(req, res) {
+    try {
+      const { branchId } = req.params;
+
+      // Verificar si hay agente conectado
+      const isConnected = agentConnectionManager.isConnected(branchId);
+
+      if (!isConnected) {
+        return res.status(400).json({
+          success: false,
+          error: `No hay agente conectado para branch ${branchId}`,
+          hint: "Ejecuta el agente con: node test-connection.js",
+        });
+      }
+
+      // Enviar orden de prueba
+      const testOrder = {
+        id: `test-${Date.now()}`,
+        tableNumber: req.body.tableNumber || "TEST",
+        orderType: "dine_in",
+        personas: 1,
+        items: req.body.items || [
+          {
+            pos_item_id: "001",
+            name: "Item de Prueba",
+            quantity: 1,
+            price: 100.0,
+          },
+        ],
+      };
+
+      console.log(`📤 Enviando orden de prueba a branch ${branchId}...`);
+
+      const response = await agentConnectionManager.sendAndWait(
+        branchId,
+        "new_order",
+        testOrder,
+        15000, // 15 segundos timeout
+      );
+
+      res.json({
+        success: true,
+        message: "Orden enviada y procesada por el agente",
+        order: testOrder,
+        response,
+      });
+    } catch (error) {
+      console.error("Error en test de orden:", error);
       res.status(500).json({
         success: false,
         error: error.message,
