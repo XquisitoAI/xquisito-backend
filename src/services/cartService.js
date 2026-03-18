@@ -10,7 +10,7 @@ class CartService {
     extraPrice = 0,
     price = null,
     restaurantId = null,
-    branchNumber = null
+    branchNumber = null,
   ) {
     try {
       const { user_id, guest_id } = userId;
@@ -228,13 +228,6 @@ class CartService {
     try {
       const { user_id, guest_id } = userId;
 
-      console.log("🔄 Updating cart branch in DB:", {
-        user_id,
-        guest_id,
-        restaurantId,
-        newBranchNumber,
-      });
-
       // Actualizar el branch_number en la tabla carts (no en cart_items)
       let query = supabase
         .from("carts")
@@ -248,12 +241,16 @@ class CartService {
         query = query.eq("guest_id", guest_id);
       }
 
-      const { data, error, count } = await query.select("id", { count: "exact" });
+      const { data, error, count } = await query.select("id", {
+        count: "exact",
+      });
 
       if (error) throw error;
 
       const cartsUpdated = count || 0;
-      console.log(`✅ Updated ${cartsUpdated} cart(s) to branch ${newBranchNumber}`);
+      /* console.log(
+        `✅ Updated ${cartsUpdated} cart(s) to branch ${newBranchNumber}`,
+      );*/
 
       return cartsUpdated;
     } catch (error) {

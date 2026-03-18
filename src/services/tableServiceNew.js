@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const POSSyncService = require("./pos/POSSyncService");
 
 class TableService {
   // Obtener resumen de cuenta de mesa
@@ -149,6 +150,21 @@ class TableService {
         result.redistribution_info = redistributionResult;
       }
 
+      // Sincronizar platillo con POS (fire and forget)
+      // Obtener el table_order_id para la sincronización
+      const { data: userOrderData } = await supabase
+        .from("dish_order")
+        .select("user_order!inner(table_order_id)")
+        .eq("id", data)
+        .single();
+
+      if (userOrderData?.user_order?.table_order_id) {
+        POSSyncService.syncFlexBillDish(
+          data,
+          userOrderData.user_order.table_order_id,
+        ).catch((err) => console.error("Error en sincronización POS:", err));
+      }
+
       return result;
     } catch (error) {
       throw new Error(`Error creating dish order: ${error.message}`);
@@ -246,6 +262,14 @@ class TableService {
         );
       }
 
+      // Sincronizar pago con POS (fire and forget)
+      if (dishData) {
+        const tableOrderId = dishData.user_order.table_order.id;
+        POSSyncService.syncFlexBillPayment(tableOrderId, amountPaid).catch(
+          (err) => console.error("Error sincronizando pago en POS:", err),
+        );
+      }
+
       return data;
     } catch (error) {
       throw new Error(`Error paying dish order: ${error.message}`);
@@ -313,6 +337,32 @@ class TableService {
           null, // guest_id no disponible aquí
           amount,
           true, // forceMarkAsPaid = true
+        );
+      }
+
+      // Sincronizar pago con POS (fire and forget)
+      // Buscar el table_order_id para esta mesa
+      const { data: tableData } = await supabase
+        .from("tables")
+        .select(
+          `
+          id,
+          table_order!inner(id, status)
+        `,
+        )
+        .eq("restaurant_id", restaurantId)
+        .eq("table_number", tableNumber)
+        .in("table_order.status", ["not_paid", "partial", "paid"])
+        .order("table_order.created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (tableData?.table_order?.[0]?.id) {
+        POSSyncService.syncFlexBillPayment(
+          tableData.table_order[0].id,
+          amount,
+        ).catch((err) =>
+          console.error("Error sincronizando pago en POS:", err),
         );
       }
 

@@ -3,6 +3,7 @@ const { authenticateSocket } = require("./socketAuth");
 const { registerDashboardHandlers } = require("./dashboardEvents");
 const { registerTableHandlers } = require("./tableEvents");
 const { registerTapPayHandlers } = require("./tapPayEvents");
+const { setupAgentNamespace } = require("./agentEvents");
 
 let io = null;
 
@@ -51,6 +52,9 @@ function initializeSocket(httpServer) {
       console.error(`⚠️ Socket error: ${socket.id}`, error);
     });
   });
+
+  // Configurar namespace /sync para agentes Soft Restaurant
+  setupAgentNamespace(io);
 
   console.log("✅ Socket.IO initialized");
   return io;

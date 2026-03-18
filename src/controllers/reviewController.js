@@ -5,13 +5,13 @@ const createReview = async (req, res) => {
   try {
     const { menu_item_id, rating, user_id = null, guest_id = null } = req.body;
 
-    console.log("🔍 Creating review:", {
+    /* console.log("🔍 Creating review:", {
       menu_item_id,
       rating,
       user_id,
       guest_id,
     });
-
+*/
     if (!menu_item_id || !rating) {
       return res.status(400).json({
         success: false,
@@ -29,7 +29,7 @@ const createReview = async (req, res) => {
       rating,
     });
 
-    console.log("✅ Review created successfully:", review.id);
+    //console.log("✅ Review created successfully:", review.id);
     res.status(201).json({
       success: true,
       data: review,
@@ -58,11 +58,11 @@ const getReviewsByMenuItem = async (req, res) => {
   try {
     const menuItemId = parseInt(req.params.menuItemId);
 
-    console.log("🔍 Getting reviews for menu item:", menuItemId);
+    //console.log("🔍 Getting reviews for menu item:", menuItemId);
 
     const reviews = await reviewsService.getReviewsByMenuItem(menuItemId);
 
-    console.log(`✅ Found ${reviews.length} reviews`);
+    //console.log(`✅ Found ${reviews.length} reviews`);
     res.json({
       success: true,
       data: reviews,
@@ -82,11 +82,11 @@ const getMenuItemStats = async (req, res) => {
   try {
     const menuItemId = parseInt(req.params.menuItemId);
 
-    console.log("🔍 Getting stats for menu item:", menuItemId);
+    //console.log("🔍 Getting stats for menu item:", menuItemId);
 
     const stats = await reviewsService.getMenuItemStats(menuItemId);
 
-    console.log("✅ Stats retrieved successfully");
+    //console.log("✅ Stats retrieved successfully");
     res.json({
       success: true,
       data: stats,
@@ -109,28 +109,28 @@ const getMyReview = async (req, res) => {
     // Obtener reviewer_identifier de query params
     const reviewerIdentifier = req.params.id;
 
-    console.log("🔍 Query params received:", {
+    /*console.log("🔍 Query params received:", {
       reviewerIdentifier,
       menuItemId,
-    });
+    });*/
 
     // Si no hay identifier, devolver null (no hay review del usuario)
     if (!reviewerIdentifier) {
-      console.log("⚠️ No reviewer identifier in query params, returning null");
+      //console.log("⚠️ No reviewer identifier in query params, returning null");
       return res.json({
         success: true,
         data: null,
       });
     }
 
-    console.log("🔍 Getting user review:", { menuItemId, reviewerIdentifier });
+    //console.log("🔍 Getting user review:", { menuItemId, reviewerIdentifier });
 
     const review = await reviewsService.getUserReviewForMenuItem(
       menuItemId,
-      reviewerIdentifier
+      reviewerIdentifier,
     );
 
-    console.log("✅ User review retrieved");
+    //console.log("✅ User review retrieved");
     res.json({
       success: true,
       data: review,
@@ -151,7 +151,7 @@ const updateReview = async (req, res) => {
     const reviewId = parseInt(req.params.reviewId);
     const { rating, user_id = null, guest_id = null } = req.body;
 
-    console.log("🔍 Updating review:", { reviewId, rating, user_id, guest_id });
+    // console.log("🔍 Updating review:", { reviewId, rating, user_id, guest_id });
 
     if (!rating) {
       return res.status(400).json({
@@ -172,15 +172,15 @@ const updateReview = async (req, res) => {
       });
     }
 
-    console.log(reviewId, reviewerIdentifier, rating);
+    //console.log(reviewId, reviewerIdentifier, rating);
 
     const review = await reviewsService.updateReview(
       reviewId,
       reviewerIdentifier,
-      rating
+      rating,
     );
 
-    console.log("✅ Review updated successfully");
+    //console.log("✅ Review updated successfully");
     res.json({
       success: true,
       data: review,

@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const POSSyncService = require("./pos/POSSyncService");
 
 class TapOrderService {
   // Ya no necesitamos generar QR tokens para el flujo de URL directa
@@ -227,6 +228,16 @@ class TapOrderService {
         .single();
 
       if (error) throw error;
+
+      // Sincronizar con POS al completar orden (orden prepagada)
+      if (status === "completed") {
+        POSSyncService.syncPaidOrder(
+          tap_order_id,
+          "tap_orders_and_pay",
+          data.total_amount || 0,
+        ).catch((err) => console.error("Error en sincronización POS:", err));
+      }
+
       return { success: true, data };
     } catch (error) {
       return { success: false, error: error.message };
