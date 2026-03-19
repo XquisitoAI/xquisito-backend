@@ -3,9 +3,7 @@ const POSSyncService = require("./pos/POSSyncService");
 const { supabaseAdmin } = require("../config/supabaseAuth");
 
 class TapPayService {
-  /**
-   * Verificar si una sucursal tiene POS integrado
-   */
+  // Verificar si una sucursal tiene POS integrado
   async hasPOSIntegration(branchId) {
     const { data } = await supabaseAdmin
       .from("pos_integrations")
@@ -17,9 +15,7 @@ class TapPayService {
     return !!data;
   }
 
-  /**
-   * Obtener branch_id desde restaurant_id y branch_number
-   */
+  // Obtener branch_id desde restaurant_id y branch_number
   async getBranchId(restaurantId, branchNumber) {
     const { data } = await supabaseAdmin
       .from("branches")
@@ -40,14 +36,11 @@ class TapPayService {
   async getActiveOrderByTable(restaurantId, branchNumber, tableNumber) {
     try {
       // 1. Buscar orden existente en Supabase
-      const { data, error } = await supabase.rpc(
-        "get_tap_pay_order_by_table",
-        {
-          p_restaurant_id: restaurantId,
-          p_branch_number: branchNumber,
-          p_table_number: tableNumber,
-        }
-      );
+      const { data, error } = await supabase.rpc("get_tap_pay_order_by_table", {
+        p_restaurant_id: restaurantId,
+        p_branch_number: branchNumber,
+        p_table_number: tableNumber,
+      });
 
       if (error) {
         console.error("Error getting active order:", error);
@@ -72,8 +65,13 @@ class TapPayService {
       }
 
       // Recuperar check del POS
-      console.log(`🔍 Tap&Pay: Buscando check en POS para mesa ${tableNumber}...`);
-      const posResult = await POSSyncService.getTapPayCheckByTable(branchId, tableNumber);
+      console.log(
+        `🔍 Tap&Pay: Buscando check en POS para mesa ${tableNumber}...`,
+      );
+      const posResult = await POSSyncService.getTapPayCheckByTable(
+        branchId,
+        tableNumber,
+      );
 
       if (!posResult.success) {
         console.log(`❌ No hay check en POS para mesa ${tableNumber}`);
@@ -99,15 +97,23 @@ class TapPayService {
     }
   }
 
-  /**
-   * Crear orden en Supabase a partir de datos del POS
-   */
-  async createOrderFromPOS({ restaurantId, branchNumber, tableNumber, posOrderId, checkNumber, items, totals }) {
+  // Crear orden en Supabase a partir de datos del POS
+  async createOrderFromPOS({
+    restaurantId,
+    branchNumber,
+    tableNumber,
+    posOrderId,
+    checkNumber,
+    items,
+    totals,
+  }) {
     try {
       console.log(`📝 Creando orden local desde POS check ${posOrderId}...`);
 
       // Calcular total de items
-      const totalAmount = totals?.checkTotal || items.reduce((sum, item) => sum + (item.total || 0), 0);
+      const totalAmount =
+        totals?.checkTotal ||
+        items.reduce((sum, item) => sum + (item.total || 0), 0);
 
       // Crear tap_pay_order
       const { data: order, error: orderError } = await supabaseAdmin
@@ -154,7 +160,28 @@ class TapPayService {
         }
       }
 
-      console.log(`✅ Orden local ${order.id} creada desde POS check ${posOrderId}`);
+      console.log(
+        `✅ Orden local ${order.id} creada desde POS check ${posOrderId}`,
+      );
+
+      // Actualizar pos_order_sync con el local_order_id
+      const branchId = await this.getBranchId(restaurantId, branchNumber);
+      if (branchId) {
+        const { error: syncError } = await supabaseAdmin
+          .from("pos_order_sync")
+          .update({ local_order_id: order.id })
+          .eq("pos_order_id", posOrderId)
+          .eq("sync_direction", "pull")
+          .is("local_order_id", null);
+
+        if (syncError) {
+          console.error("Error updating pos_order_sync:", syncError);
+        } else {
+          console.log(
+            `✅ pos_order_sync actualizado con local_order_id ${order.id}`,
+          );
+        }
+      }
 
       // Retornar la orden con formato esperado
       return await this.getOrderById(order.id);
@@ -253,16 +280,42 @@ class TapPayService {
 
       switch (paymentType) {
         case "full-bill":
-          result = await this.payFullBill(orderId, tipAmount, paymentMethodId, userId, guestName);
+          result = await this.payFullBill(
+            orderId,
+            tipAmount,
+            paymentMethodId,
+            userId,
+            guestName,
+          );
           break;
         case "select-items":
-          result = await this.paySelectedItems(orderId, selectedItems, tipAmount, paymentMethodId, userId, guestName);
+          result = await this.paySelectedItems(
+            orderId,
+            selectedItems,
+            tipAmount,
+            paymentMethodId,
+            userId,
+            guestName,
+          );
           break;
         case "equal-shares":
-          result = await this.payEqualShare(orderId, tipAmount, paymentMethodId, userId, guestName);
+          result = await this.payEqualShare(
+            orderId,
+            tipAmount,
+            paymentMethodId,
+            userId,
+            guestName,
+          );
           break;
         case "choose-amount":
-          result = await this.payChooseAmount(orderId, amount, tipAmount, paymentMethodId, userId, guestName);
+          result = await this.payChooseAmount(
+            orderId,
+            amount,
+            tipAmount,
+            paymentMethodId,
+            userId,
+            guestName,
+          );
           break;
         default:
           throw new Error(`Tipo de pago no soportado: ${paymentType}`);
@@ -307,7 +360,7 @@ class TapPayService {
         {
           p_order_id: orderId,
           p_amount_to_add: totalAmount,
-        }
+        },
       );
 
       if (updateError) {
@@ -328,7 +381,7 @@ class TapPayService {
       // Sincronizar pago con POS (fire and forget)
       // amount=0 significa pago completo
       this.syncPaymentWithPOS(orderId, 0).catch((err) =>
-        console.error("Error sincronizando pago full con POS:", err)
+        console.error("Error sincronizando pago full con POS:", err),
       );
 
       return {
@@ -342,7 +395,14 @@ class TapPayService {
     }
   }
 
-  async paySelectedItems(orderId, selectedItems, tipAmount, paymentMethodId, userId, guestName) {
+  async paySelectedItems(
+    orderId,
+    selectedItems,
+    tipAmount,
+    paymentMethodId,
+    userId,
+    guestName,
+  ) {
     try {
       if (!selectedItems || selectedItems.length === 0) {
         throw new Error("No se han seleccionado items");
@@ -356,7 +416,11 @@ class TapPayService {
       if (dishesError) throw dishesError;
 
       const itemsTotal = dishes.reduce((sum, dish) => {
-        return sum + (parseFloat(dish.price) + parseFloat(dish.extra_price || 0)) * dish.quantity;
+        return (
+          sum +
+          (parseFloat(dish.price) + parseFloat(dish.extra_price || 0)) *
+            dish.quantity
+        );
       }, 0);
 
       const totalAmount = itemsTotal + (tipAmount || 0);
@@ -379,7 +443,7 @@ class TapPayService {
         {
           p_order_id: orderId,
           p_amount_to_add: totalAmount,
-        }
+        },
       );
 
       if (updateError) throw updateError;
@@ -395,7 +459,7 @@ class TapPayService {
 
       // Sincronizar pago con POS (fire and forget)
       this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
-        console.error("Error sincronizando pago items con POS:", err)
+        console.error("Error sincronizando pago items con POS:", err),
       );
 
       return {
@@ -409,7 +473,14 @@ class TapPayService {
     }
   }
 
-  async payEqualShare(orderId, tipAmount, paymentMethodId, userId, guestId, guestName) {
+  async payEqualShare(
+    orderId,
+    tipAmount,
+    paymentMethodId,
+    userId,
+    guestId,
+    guestName,
+  ) {
     try {
       const order = await this.getOrderById(orderId);
       if (!order) {
@@ -420,7 +491,8 @@ class TapPayService {
         throw new Error("División de cuenta no está activa");
       }
 
-      const splitAmount = parseFloat(order.remaining_amount) / order.number_of_splits;
+      const splitAmount =
+        parseFloat(order.remaining_amount) / order.number_of_splits;
       const totalAmount = splitAmount + (tipAmount || 0);
 
       // TODO: Descomentar cuando se agregue restaurant_id al flujo
@@ -443,12 +515,18 @@ class TapPayService {
         {
           p_order_id: orderId,
           p_amount_to_add: totalAmount,
-        }
+        },
       );
 
       if (updateError) throw updateError;
 
-      await this.addOrUpdateActiveUser(orderId, userId, guestId, guestName, totalAmount);
+      await this.addOrUpdateActiveUser(
+        orderId,
+        userId,
+        guestId,
+        guestName,
+        totalAmount,
+      );
 
       const { error: splitError } = await supabase
         .from("tap_pay_orders")
@@ -456,6 +534,11 @@ class TapPayService {
         .eq("id", orderId);
 
       if (splitError) throw splitError;
+
+      // Sincronizar pago con POS (fire and forget)
+      this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
+        console.error("Error sincronizando pago equal share con POS:", err),
+      );
 
       return {
         transaction_id: `temp-${Date.now()}`, // Temporal hasta que se implemente correctamente
@@ -468,7 +551,15 @@ class TapPayService {
     }
   }
 
-  async payChooseAmount(orderId, amount, tipAmount, paymentMethodId, userId, guestId, guestName) {
+  async payChooseAmount(
+    orderId,
+    amount,
+    tipAmount,
+    paymentMethodId,
+    userId,
+    guestId,
+    guestName,
+  ) {
     try {
       if (!amount || amount <= 0) {
         throw new Error("Monto inválido");
@@ -496,16 +587,22 @@ class TapPayService {
         {
           p_order_id: orderId,
           p_amount_to_add: totalAmount,
-        }
+        },
       );
 
       if (updateError) throw updateError;
 
-      await this.addOrUpdateActiveUser(orderId, userId, guestId, guestName, totalAmount);
+      await this.addOrUpdateActiveUser(
+        orderId,
+        userId,
+        guestId,
+        guestName,
+        totalAmount,
+      );
 
       // Sincronizar pago con POS (fire and forget)
       this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
-        console.error("Error sincronizando pago monto con POS:", err)
+        console.error("Error sincronizando pago monto con POS:", err),
       );
 
       return {
@@ -530,7 +627,9 @@ class TapPayService {
         throw new Error("Platillo no encontrado");
       }
 
-      const totalPrice = (parseFloat(dish.price) + parseFloat(dish.extra_price || 0)) * dish.quantity;
+      const totalPrice =
+        (parseFloat(dish.price) + parseFloat(dish.extra_price || 0)) *
+        dish.quantity;
 
       // TODO: Descomentar cuando se agregue restaurant_id al flujo
       // const { error: transactionError } = await supabase
@@ -557,15 +656,26 @@ class TapPayService {
         {
           p_order_id: dish.tap_pay_order_id,
           p_amount_to_add: totalPrice,
-        }
+        },
       );
 
       if (updateOrderError) throw updateOrderError;
 
       // Registrar el pago en active_tap_pay_users
-      await this.addOrUpdateActiveUser(dish.tap_pay_order_id, userId, guestId, guestName, totalPrice);
+      await this.addOrUpdateActiveUser(
+        dish.tap_pay_order_id,
+        userId,
+        guestId,
+        guestName,
+        totalPrice,
+      );
 
       await this.checkAndCompleteOrder(dish.tap_pay_order_id);
+
+      // Sincronizar pago con POS (fire and forget)
+      this.syncPaymentWithPOS(dish.tap_pay_order_id, totalPrice).catch((err) =>
+        console.error("Error sincronizando pago dish con POS:", err),
+      );
 
       return { dishId, amountPaid: totalPrice };
     } catch (error) {
@@ -574,9 +684,24 @@ class TapPayService {
     }
   }
 
-  async payOrderAmount({ orderId, amount, paymentMethodId, userId, guestId, guestName }) {
+  async payOrderAmount({
+    orderId,
+    amount,
+    paymentMethodId,
+    userId,
+    guestId,
+    guestName,
+  }) {
     try {
-      return await this.payChooseAmount(orderId, amount, 0, paymentMethodId, userId, guestId, guestName);
+      return await this.payChooseAmount(
+        orderId,
+        amount,
+        0,
+        paymentMethodId,
+        userId,
+        guestId,
+        guestName,
+      );
     } catch (error) {
       console.error("Error in payOrderAmount:", error);
       throw error;
@@ -619,9 +744,22 @@ class TapPayService {
     }
   }
 
-  async paySplitAmount({ orderId, userId, guestId, guestName, paymentMethodId }) {
+  async paySplitAmount({
+    orderId,
+    userId,
+    guestId,
+    guestName,
+    paymentMethodId,
+  }) {
     try {
-      return await this.payEqualShare(orderId, 0, paymentMethodId, userId, guestId, guestName);
+      return await this.payEqualShare(
+        orderId,
+        0,
+        paymentMethodId,
+        userId,
+        guestId,
+        guestName,
+      );
     } catch (error) {
       console.error("Error in paySplitAmount:", error);
       throw error;
@@ -674,8 +812,8 @@ class TapPayService {
 
       // Obtener los user_ids que no son null
       const userIds = activeUsers
-        .filter(u => u.user_id)
-        .map(u => u.user_id);
+        .filter((u) => u.user_id)
+        .map((u) => u.user_id);
 
       let profiles = [];
       if (userIds.length > 0) {
@@ -691,19 +829,20 @@ class TapPayService {
       }
 
       // Mapear los profiles a los active users
-      const formattedData = activeUsers.map(activeUser => {
-        const profile = profiles.find(p => p.id === activeUser.user_id);
+      const formattedData = activeUsers.map((activeUser) => {
+        const profile = profiles.find((p) => p.id === activeUser.user_id);
 
         return {
           ...activeUser,
           profile,
-          display_name: activeUser.guest_name ||
-                       (profile?.first_name && profile?.last_name
-                         ? `${profile.first_name} ${profile.last_name}`
-                         : profile?.first_name) ||
-                       profile?.email ||
-                       profile?.phone ||
-                       'Usuario',
+          display_name:
+            activeUser.guest_name ||
+            (profile?.first_name && profile?.last_name
+              ? `${profile.first_name} ${profile.last_name}`
+              : profile?.first_name) ||
+            profile?.email ||
+            profile?.phone ||
+            "Usuario",
         };
       });
 
@@ -750,7 +889,13 @@ class TapPayService {
     }
   }
 
-  async getDashboardMetrics({ restaurantId, branchNumber, timeRange, startDate, endDate }) {
+  async getDashboardMetrics({
+    restaurantId,
+    branchNumber,
+    timeRange,
+    startDate,
+    endDate,
+  }) {
     try {
       const now = new Date();
       let calculatedStartDate = startDate;
@@ -764,13 +909,19 @@ class TapPayService {
             calculatedStartDate = calculatedStartDate.toISOString();
             break;
           case "weekly":
-            calculatedStartDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            calculatedStartDate = new Date(
+              now.getTime() - 7 * 24 * 60 * 60 * 1000,
+            ).toISOString();
             break;
           case "monthly":
-            calculatedStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            calculatedStartDate = new Date(
+              now.getTime() - 30 * 24 * 60 * 60 * 1000,
+            ).toISOString();
             break;
           default:
-            calculatedStartDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            calculatedStartDate = new Date(
+              now.getTime() - 7 * 24 * 60 * 60 * 1000,
+            ).toISOString();
         }
       }
 
@@ -790,8 +941,13 @@ class TapPayService {
       if (error) throw error;
 
       const totalOrders = orders.length;
-      const completedOrders = orders.filter((o) => o.order_status === "completed").length;
-      const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+      const completedOrders = orders.filter(
+        (o) => o.order_status === "completed",
+      ).length;
+      const totalRevenue = orders.reduce(
+        (sum, o) => sum + parseFloat(o.total_amount || 0),
+        0,
+      );
       const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
       return {
@@ -809,9 +965,12 @@ class TapPayService {
 
   async checkAndCompleteOrder(orderId) {
     try {
-      const { data: wasCompleted, error } = await supabase.rpc("check_and_complete_tap_pay_order", {
-        p_order_id: orderId,
-      });
+      const { data: wasCompleted, error } = await supabase.rpc(
+        "check_and_complete_tap_pay_order",
+        {
+          p_order_id: orderId,
+        },
+      );
 
       if (error) {
         console.error("Error checking and completing order:", error);
@@ -862,7 +1021,10 @@ class TapPayService {
       }
 
       // Obtener branch_id
-      const branchId = await this.getBranchId(order.restaurant_id, order.branch_number);
+      const branchId = await this.getBranchId(
+        order.restaurant_id,
+        order.branch_number,
+      );
       if (!branchId) {
         console.log(`❌ No se encontró branch_id para sync`);
         return null;
@@ -872,10 +1034,12 @@ class TapPayService {
       const result = await POSSyncService.syncTapPayPayment(
         order.pos_order_id,
         branchId,
-        amount
+        amount,
       );
 
-      console.log(`✅ Pago Tap&Pay sincronizado con POS: ${order.pos_order_id}`);
+      console.log(
+        `✅ Pago Tap&Pay sincronizado con POS: ${order.pos_order_id}`,
+      );
       return result;
     } catch (error) {
       console.error("Error in syncPaymentWithPOS:", error);
@@ -886,7 +1050,11 @@ class TapPayService {
   async addOrUpdateActiveUser(orderId, userId, guestId, guestName, amountPaid) {
     try {
       // Buscar por userId o guestId (preferir userId, luego guestId, luego guestName)
-      const searchKey = userId ? "user_id" : (guestId ? "guest_id" : "guest_name");
+      const searchKey = userId
+        ? "user_id"
+        : guestId
+          ? "guest_id"
+          : "guest_name";
       const searchValue = userId || guestId || guestName;
 
       // Usar maybeSingle() para evitar errores si no existe o si hay múltiples
@@ -908,7 +1076,7 @@ class TapPayService {
           .from("active_tap_pay_users")
           .update({
             amount_paid: parseFloat(existing.amount_paid) + amountPaid,
-            guest_name: guestName || existing.guest_name || "Invitado" // Actualizar nombre si cambió
+            guest_name: guestName || existing.guest_name || "Invitado", // Actualizar nombre si cambió
           })
           .eq("id", existing.id);
       } else {
