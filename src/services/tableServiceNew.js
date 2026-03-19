@@ -185,6 +185,7 @@ class TableService {
             guest_name,
             guest_id,
             table_order!inner(
+              id,
               tables!inner(
                 table_number,
                 branches!inner(restaurant_id, branch_number)
