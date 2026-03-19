@@ -265,13 +265,17 @@ class TableService {
       // Sincronizar pago con POS (fire and forget)
       if (dishData) {
         const tableOrderId = dishData.user_order?.table_order?.id;
-        console.log(`🔍 Sync pago POS: tableOrderId=${tableOrderId}, amount=${amountPaid}`);
+        console.log(
+          `🔍 Sync pago POS: tableOrderId=${tableOrderId}, amount=${amountPaid}`,
+        );
         if (tableOrderId) {
           POSSyncService.syncFlexBillPayment(tableOrderId, amountPaid).catch(
             (err) => console.error("Error sincronizando pago en POS:", err),
           );
         } else {
-          console.warn("⚠️ No se encontró tableOrderId para sincronizar pago POS");
+          console.warn(
+            "⚠️ No se encontró tableOrderId para sincronizar pago POS",
+          );
         }
       }
 
@@ -346,38 +350,34 @@ class TableService {
       }
 
       // Sincronizar pago con POS (fire and forget)
-      // Buscar el table_order_id para esta mesa
-      const { data: tableData } = await supabase
-        .from("tables")
-        .select(
-          `
-          id,
-          table_order!inner(id, status)
-        `,
-        )
-        .eq("restaurant_id", restaurantId)
-        .eq("table_number", tableNumber)
-        .in("table_order.status", ["not_paid", "partial", "paid"])
-        .order("table_order.created_at", { ascending: false })
+      // Buscar el table_order_id directamente en table_order
+      const { data: tableOrderData } = await supabase
+        .from("table_order")
+        .select("id, status, tables!inner(restaurant_id, table_number)")
+        .eq("tables.restaurant_id", restaurantId)
+        .eq("tables.table_number", tableNumber)
+        .in("status", ["not_paid", "partial"])
+        .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      console.log("🔍 tableData para sync pago:", JSON.stringify({
-        hasTableData: !!tableData,
-        hasTableOrder: !!tableData?.table_order,
-        tableOrderLength: tableData?.table_order?.length,
-        tableOrderId: tableData?.table_order?.[0]?.id
-      }));
+      console.log(
+        "🔍 tableOrderData para sync pago:",
+        JSON.stringify({
+          hasData: !!tableOrderData,
+          tableOrderId: tableOrderData?.id,
+          status: tableOrderData?.status,
+        }),
+      );
 
-      if (tableData?.table_order?.[0]?.id) {
-        POSSyncService.syncFlexBillPayment(
-          tableData.table_order[0].id,
-          amount,
-        ).catch((err) =>
-          console.error("Error sincronizando pago en POS:", err),
+      if (tableOrderData?.id) {
+        POSSyncService.syncFlexBillPayment(tableOrderData.id, amount).catch(
+          (err) => console.error("Error sincronizando pago en POS:", err),
         );
       } else {
-        console.warn("⚠️ No se encontró table_order para sincronizar pago POS");
+        console.warn(
+          "⚠️ No se encontró table_order activo para sincronizar pago POS",
+        );
       }
 
       return data;
