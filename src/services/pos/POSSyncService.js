@@ -700,23 +700,57 @@ class POSSyncService {
 
     const mappedItems = await Promise.all(
       posItems.map(async (posItem) => {
-        // Buscar mapeo por pos_item_id
-        const { data: mapping } = await supabaseAdmin
+        // pos_item_id puede venir como número (1001) o string con padding ("01001")
+        // Intentar ambos formatos
+        const posItemIdNum = String(posItem.menuItemId);
+        const posItemIdPadded = String(posItem.menuItemId).padStart(5, "0");
+
+        console.log(
+          `🔍 Buscando mapeo para POS item: ${posItemIdNum} / ${posItemIdPadded}`,
+        );
+
+        // Buscar mapeo por pos_item_id (intentar ambos formatos)
+        let mapping = null;
+        const { data: mapping1 } = await supabaseAdmin
           .from("pos_menu_mapping")
           .select(
             `
             menu_item_id,
             pos_item_id,
             pos_item_code,
-            menu_items!inner(id, name, description, price, images)
+            menu_items!inner(id, name, description, price, image_url)
           `,
           )
           .eq("integration_id", integrationId)
-          .eq("pos_item_id", String(posItem.menuItemId))
+          .eq("pos_item_id", posItemIdNum)
           .single();
+
+        if (mapping1) {
+          mapping = mapping1;
+        } else {
+          // Intentar con padding
+          const { data: mapping2 } = await supabaseAdmin
+            .from("pos_menu_mapping")
+            .select(
+              `
+              menu_item_id,
+              pos_item_id,
+              pos_item_code,
+              menu_items!inner(id, name, description, price, image_url)
+            `,
+            )
+            .eq("integration_id", integrationId)
+            .eq("pos_item_id", posItemIdPadded)
+            .single();
+
+          mapping = mapping2;
+        }
 
         if (mapping && mapping.menu_items) {
           // Item mapeado - usar datos de Xquisito
+          console.log(
+            `✅ Mapeo encontrado: ${posItem.menuItemId} → ${mapping.menu_items.name}`,
+          );
           return {
             pos_item_id: posItem.menuItemId,
             menu_item_id: mapping.menu_item_id,
@@ -725,11 +759,14 @@ class POSSyncService {
             price: posItem.unitPrice || posItem.total / posItem.quantity,
             quantity: posItem.quantity,
             total: posItem.total,
-            images: mapping.menu_items.images || [],
+            images: mapping.menu_items.image_url
+              ? [mapping.menu_items.image_url]
+              : [],
             mapped: true,
           };
         } else {
           // Item no mapeado - usar datos del POS
+          console.log(`⚠️ Sin mapeo para POS item: ${posItem.menuItemId}`);
           return {
             pos_item_id: posItem.menuItemId,
             menu_item_id: null,
