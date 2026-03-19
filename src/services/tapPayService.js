@@ -97,6 +97,22 @@ class TapPayService {
     }
   }
 
+  // Obtener table_id a partir de table_number y branch
+  async getTableId(restaurantId, branchNumber, tableNumber) {
+    // Primero obtener el branch_id
+    const branchId = await this.getBranchId(restaurantId, branchNumber);
+    if (!branchId) return null;
+
+    const { data } = await supabaseAdmin
+      .from("tables")
+      .select("id")
+      .eq("branch_id", branchId)
+      .eq("table_number", tableNumber)
+      .single();
+
+    return data?.id || null;
+  }
+
   // Crear orden en Supabase a partir de datos del POS
   async createOrderFromPOS({
     restaurantId,
@@ -110,6 +126,18 @@ class TapPayService {
     try {
       console.log(`📝 Creando orden local desde POS check ${posOrderId}...`);
 
+      // Obtener table_id (la tabla tap_pay_orders usa table_id, no table_number)
+      const tableId = await this.getTableId(
+        restaurantId,
+        branchNumber,
+        tableNumber,
+      );
+      if (!tableId) {
+        throw new Error(
+          `Mesa ${tableNumber} no encontrada en branch ${branchNumber}`,
+        );
+      }
+
       // Calcular total de items
       const totalAmount =
         totals?.checkTotal ||
@@ -121,7 +149,7 @@ class TapPayService {
         .insert({
           restaurant_id: restaurantId,
           branch_number: branchNumber,
-          table_number: tableNumber,
+          table_id: tableId,
           pos_order_id: posOrderId,
           pos_check_number: checkNumber,
           total_amount: totalAmount,
@@ -164,22 +192,38 @@ class TapPayService {
         `✅ Orden local ${order.id} creada desde POS check ${posOrderId}`,
       );
 
-      // Actualizar pos_order_sync con el local_order_id
+      // Crear registro en pos_order_sync (el record se crea aquí cuando ya tenemos local_order_id)
       const branchId = await this.getBranchId(restaurantId, branchNumber);
       if (branchId) {
-        const { error: syncError } = await supabaseAdmin
-          .from("pos_order_sync")
-          .update({ local_order_id: order.id })
-          .eq("pos_order_id", posOrderId)
-          .eq("sync_direction", "pull")
-          .is("local_order_id", null);
+        // Obtener integration_id
+        const { data: integration } = await supabaseAdmin
+          .from("pos_integrations")
+          .select("id")
+          .eq("branch_id", branchId)
+          .eq("is_active", true)
+          .single();
 
-        if (syncError) {
-          console.error("Error updating pos_order_sync:", syncError);
-        } else {
-          console.log(
-            `✅ pos_order_sync actualizado con local_order_id ${order.id}`,
-          );
+        if (integration) {
+          const { error: syncError } = await supabaseAdmin
+            .from("pos_order_sync")
+            .insert({
+              integration_id: integration.id,
+              local_order_id: order.id,
+              local_order_type: "tap_pay_orders",
+              pos_order_id: posOrderId,
+              pos_table_id: tableNumber,
+              sync_status: "synced",
+              sync_direction: "pull",
+              last_synced_at: new Date().toISOString(),
+            });
+
+          if (syncError) {
+            console.error("Error creating pos_order_sync:", syncError);
+          } else {
+            console.log(
+              `✅ pos_order_sync creado con local_order_id ${order.id}`,
+            );
+          }
         }
       }
 
