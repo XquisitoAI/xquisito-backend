@@ -747,18 +747,22 @@ class POSSyncService {
         }
 
         if (mapping && mapping.menu_items) {
-          // Item mapeado - usar datos de Xquisito
+          // Item mapeado - usar datos de Xquisito (nombre, descripción, precio, imagen)
+          const price =
+            parseFloat(mapping.menu_items.price) ||
+            posItem.unitPrice ||
+            posItem.total / posItem.quantity;
           console.log(
-            `✅ Mapeo encontrado: ${posItem.menuItemId} → ${mapping.menu_items.name}`,
+            `✅ Mapeo encontrado: ${posItem.menuItemId} → ${mapping.menu_items.name} ($${price})`,
           );
           return {
             pos_item_id: posItem.menuItemId,
             menu_item_id: mapping.menu_item_id,
             name: mapping.menu_items.name,
             description: mapping.menu_items.description,
-            price: posItem.unitPrice || posItem.total / posItem.quantity,
+            price: price,
             quantity: posItem.quantity,
-            total: posItem.total,
+            total: price * posItem.quantity,
             images: mapping.menu_items.image_url
               ? [mapping.menu_items.image_url]
               : [],
