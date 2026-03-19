@@ -199,7 +199,9 @@ class POSSyncService {
       return [];
     }
 
-    console.log(`📋 Encontrados ${dishOrders.length} items para orden ${orderId}`);
+    console.log(
+      `📋 Encontrados ${dishOrders.length} items para orden ${orderId}`,
+    );
 
     // Mapear items con sus códigos POS
     const itemsWithMapping = await Promise.all(
@@ -218,7 +220,9 @@ class POSSyncService {
         }
 
         if (!menuItemId) {
-          console.warn(`Item "${dishOrder.item}" no tiene menu_item_id y no se encontró por nombre`);
+          console.warn(
+            `Item "${dishOrder.item}" no tiene menu_item_id y no se encontró por nombre`,
+          );
           return null;
         }
 
@@ -231,7 +235,9 @@ class POSSyncService {
           .single();
 
         if (!mapping) {
-          console.warn(`Item ${menuItemId} (${dishOrder.item}) no tiene mapeo POS`);
+          console.warn(
+            `Item ${menuItemId} (${dishOrder.item}) no tiene mapeo POS`,
+          );
           return null;
         }
 
@@ -247,7 +253,9 @@ class POSSyncService {
 
     // Filtrar items sin mapeo
     const mappedItems = itemsWithMapping.filter((item) => item !== null);
-    console.log(`✅ ${mappedItems.length}/${dishOrders.length} items mapeados a POS`);
+    console.log(
+      `✅ ${mappedItems.length}/${dishOrders.length} items mapeados a POS`,
+    );
     return mappedItems;
   }
 
@@ -489,7 +497,7 @@ class POSSyncService {
         `💳 Sincronizando pago de $${amount} para table_order ${tableOrderId}...`,
       );
 
-      // Buscar sync existente
+      // Buscar sync existente - buscar cualquier registro con folio válido
       const { data: sync } = await supabaseAdmin
         .from("pos_order_sync")
         .select(
@@ -503,13 +511,22 @@ class POSSyncService {
         )
         .eq("local_order_id", tableOrderId)
         .eq("local_order_type", "table_order")
-        .eq("sync_status", "synced")
+        .not("pos_order_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .single();
 
       if (!sync || !sync.pos_order_id) {
-        console.log(`❌ No hay check POS para aplicar pago`);
+        console.log(
+          `❌ No hay check POS para aplicar pago de table_order ${tableOrderId}`,
+        );
+        console.log(
+          `   Posible causa: La orden nunca se sincronizó correctamente con el POS`,
+        );
         return null;
       }
+
+      console.log(`📋 Encontrado folio ${sync.pos_order_id} para aplicar pago`);
 
       const integration = sync.pos_integrations;
       const posService = POSFactory.createPOSService(
