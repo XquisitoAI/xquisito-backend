@@ -350,13 +350,13 @@ class TableService {
       }
 
       // Sincronizar pago con POS (fire and forget)
-      // Buscar el table_order_id directamente en table_order
+      // Buscar el table_order_id - incluir "paid" para pagos subsecuentes (tips, ajustes)
       const { data: tableOrderData } = await supabase
         .from("table_order")
         .select("id, status, tables!inner(restaurant_id, table_number)")
         .eq("tables.restaurant_id", restaurantId)
         .eq("tables.table_number", tableNumber)
-        .in("status", ["not_paid", "partial"])
+        .in("status", ["not_paid", "partial", "paid"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
