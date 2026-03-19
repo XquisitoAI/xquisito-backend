@@ -666,28 +666,8 @@ class POSSyncService {
         integration.id,
       );
 
-      // 5. Crear registro de sync si no existe
-      const { data: existingSync } = await supabaseAdmin
-        .from("pos_order_sync")
-        .select("*")
-        .eq("integration_id", integration.id)
-        .eq("pos_order_id", check.checkRef)
-        .eq("sync_direction", "pull")
-        .single();
-
-      if (!existingSync) {
-        await this.createOrderSync({
-          integration_id: integration.id,
-          local_order_id: null, // Se llenará cuando se cree el tap_pay_order
-          local_order_type: "tap_pay_orders",
-          pos_order_id: check.checkRef,
-          pos_table_id: check.tableName,
-          sync_status: "synced",
-          sync_direction: "pull",
-          last_synced_at: new Date().toISOString(),
-          response_payload: check.rawResponse,
-        });
-      }
+      // 5. NO crear registro de sync aquí - se crea en createOrderFromPOS
+      // cuando tengamos el local_order_id (NOT NULL constraint en DB)
 
       console.log(
         `✅ Check ${check.checkRef} recuperado con ${mappedItems.length} items`,
