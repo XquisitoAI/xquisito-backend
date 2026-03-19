@@ -639,11 +639,13 @@ const getAllBranches = async () => {
         room_ranges,
         branch_number,
         active,
+        deleted,
         created_at,
         updated_at,
         client:clients(id, name, owner_name, email, phone)
       `,
       )
+      .neq("deleted", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -676,11 +678,13 @@ const getBranchesByClient = async (clientId) => {
         room_ranges,
         branch_number,
         active,
+        deleted,
         created_at,
         updated_at
       `,
       )
       .eq("client_id", clientId)
+      .neq("deleted", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -956,11 +960,13 @@ const getMainPortalStats = async () => {
   try {
     const { data: clientStats, error: clientError } = await supabase
       .from("clients")
-      .select("id, active");
+      .select("id, active, deleted")
+      .neq("deleted", true);
 
     const { data: branchStats, error: branchError } = await supabase
       .from("branches")
-      .select("id, active, tables, rooms");
+      .select("id, active, tables, rooms, deleted")
+      .neq("deleted", true);
 
     if (clientError || branchError) {
       throw new Error(
