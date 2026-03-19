@@ -175,9 +175,12 @@ class TapPayService {
           status: "delivered", // Items del POS ya están entregados
           payment_status: "not_paid",
           images: item.images || [],
-          pos_item_id: item.pos_item_id,
-          menu_item_id: item.menu_item_id || null,
+          // menu_item_id es integer, solo incluir si es número válido
+          menu_item_id:
+            typeof item.menu_item_id === "number" ? item.menu_item_id : null,
         }));
+
+        console.log(`📋 Insertando ${dishOrders.length} dish_orders`);
 
         const { error: dishError } = await supabaseAdmin
           .from("dish_order")
@@ -185,7 +188,11 @@ class TapPayService {
 
         if (dishError) {
           console.error("Error creating dish_orders:", dishError);
+        } else {
+          console.log(`✅ ${dishOrders.length} dish_orders creados`);
         }
+      } else {
+        console.log("⚠️ No hay items para crear dish_orders");
       }
 
       console.log(
