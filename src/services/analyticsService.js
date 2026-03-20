@@ -565,6 +565,8 @@ class AnalyticsService {
         paidAmount: tx.paid_amount !== null ? parseFloat(tx.paid_amount) : null,
         remainingAmount:
           tx.remaining_amount !== null ? parseFloat(tx.remaining_amount) : null,
+        // Folio de la orden (POS o interno)
+        folio: tx.folio || null,
       }));
 
       return {
