@@ -500,6 +500,7 @@ class PickAndGoService {
         .select(
           `
                     id,
+                    folio,
                     clerk_user_id,
                     customer_name,
                     total_amount,
@@ -536,8 +537,9 @@ class PickAndGoService {
             success: true,
             hasActiveOrder: true,
             data: {
-              order: {
+              pick_and_go_order: {
                 id: order.id,
+                folio: order.folio,
                 clerk_user_id: order.clerk_user_id,
                 customer_name: order.customer_name,
                 total_amount: order.total_amount,
