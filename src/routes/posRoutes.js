@@ -33,4 +33,18 @@ router.post("/branch/:branchId/test-agent-order", posController.testAgentOrder);
 // Test: Ver agentes conectados (solo para desarrollo)
 router.get("/agents/connected", posController.getConnectedAgents);
 
+// ==================== SYNC DE MENÚ ====================
+
+// Estado del agente POS
+router.get("/branch/:branchId/agent-status", posController.getAgentStatus);
+
+// Sincronizar menú (bidireccional)
+router.post("/branch/:branchId/sync-menu", posController.syncMenu);
+
+// Obtener mapeos de secciones
+router.get("/branch/:branchId/section-mappings", posController.getSectionMappings);
+
+// Obtener mapeos de items
+router.get("/branch/:branchId/item-mappings", posController.getItemMappings);
+
 module.exports = router;

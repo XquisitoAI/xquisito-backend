@@ -54,13 +54,15 @@ class SoftRestaurantPOSService extends BasePOSService {
 
       console.log(`✅ Orden creada en SR: folio=${response.folio}`);
 
+      const isPrepaid = orderData.prepagado || false;
+
       return {
         success: true,
         posOrderId: String(response.folio),
         posCheckNumber: response.folio,
         posTableId: orderData.table_number,
-        status: "open",
-        isClosed: false,
+        status: isPrepaid ? "closed" : "open",
+        isClosed: isPrepaid,
         totals: response.totals || {},
         rawResponse: response,
       };

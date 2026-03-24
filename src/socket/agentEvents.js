@@ -199,6 +199,46 @@ function setupAgentNamespace(io) {
       });
     });
 
+    // === ACK DE SYNC MENU PULL ===
+    socket.on("sync_menu_pull_ack", (data) => {
+      console.log(`✅ [/sync] Sync Menu Pull ACK: ${data.groups?.length || 0} grupos, ${data.products?.length || 0} productos`);
+
+      agentConnectionManager.handleResponse(socket.id, {
+        requestId: data.requestId,
+        success: data.success !== false,
+        groups: data.groups,
+        products: data.products,
+        error: data.error,
+      });
+    });
+
+    // === ACK DE SYNC MENU PUSH GROUP ===
+    socket.on("sync_menu_push_group_ack", (data) => {
+      console.log(`✅ [/sync] Sync Menu Push Group ACK: ${data.idgrupo}`);
+
+      agentConnectionManager.handleResponse(socket.id, {
+        requestId: data.requestId,
+        success: data.success !== false,
+        idgrupo: data.idgrupo,
+        descripcion: data.descripcion,
+        error: data.error,
+      });
+    });
+
+    // === ACK DE SYNC MENU PUSH PRODUCT ===
+    socket.on("sync_menu_push_product_ack", (data) => {
+      console.log(`✅ [/sync] Sync Menu Push Product ACK: ${data.idproducto}`);
+
+      agentConnectionManager.handleResponse(socket.id, {
+        requestId: data.requestId,
+        success: data.success !== false,
+        idproducto: data.idproducto,
+        descripcion: data.descripcion,
+        precio: data.precio,
+        error: data.error,
+      });
+    });
+
     // === PING/PONG ===
     socket.on("ping", () => {
       if (registeredBranchId) {
