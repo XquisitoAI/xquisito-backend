@@ -1,6 +1,7 @@
 const supabase = require("../config/supabase");
 const POSFactory = require("../services/pos/POSFactory");
 const agentConnectionManager = require("../socket/agentConnectionManager");
+const POSMenuSyncService = require("../services/pos/POSMenuSyncService");
 
 class POSController {
   // Obtener tenders disponibles por branch_id
@@ -434,6 +435,147 @@ class POSController {
       });
     } catch (error) {
       console.error("Error en test de orden:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // ==================== SYNC DE MENÚ ====================
+
+  // Obtener estado del agente para una sucursal
+  async getAgentStatus(req, res) {
+    try {
+      const { branchId } = req.params;
+      const status = await POSMenuSyncService.getAgentStatus(branchId);
+
+      res.json({
+        success: true,
+        branch_id: branchId,
+        ...status,
+      });
+    } catch (error) {
+      console.error("Error obteniendo estado del agente:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Sincronizar menú bidireccional (PULL + PUSH)
+  async syncMenu(req, res) {
+    try {
+      const { branchId } = req.params;
+
+      console.log(`🔄 Iniciando sync de menú para branch ${branchId}...`);
+
+      const result = await POSMenuSyncService.syncMenu(branchId);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          errors: result.errors,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Sincronización completada",
+        pulled: result.pulled,
+        pushed: result.pushed,
+      });
+    } catch (error) {
+      console.error("Error en sync de menú:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener mapeos de secciones
+  async getSectionMappings(req, res) {
+    try {
+      const { branchId } = req.params;
+
+      // Obtener integración
+      const { data: integration } = await supabase
+        .from("pos_integrations")
+        .select("id")
+        .eq("branch_id", branchId)
+        .single();
+
+      if (!integration) {
+        return res.status(404).json({
+          success: false,
+          error: "No hay integración POS para esta sucursal",
+        });
+      }
+
+      // Obtener mapeos
+      const { data: mappings, error } = await supabase
+        .from("pos_section_mapping")
+        .select(`
+          *,
+          menu_sections(id, name, display_order)
+        `)
+        .eq("integration_id", integration.id);
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        branch_id: branchId,
+        mappings,
+      });
+    } catch (error) {
+      console.error("Error obteniendo mapeos de secciones:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  // Obtener mapeos de items
+  async getItemMappings(req, res) {
+    try {
+      const { branchId } = req.params;
+
+      // Obtener integración
+      const { data: integration } = await supabase
+        .from("pos_integrations")
+        .select("id")
+        .eq("branch_id", branchId)
+        .single();
+
+      if (!integration) {
+        return res.status(404).json({
+          success: false,
+          error: "No hay integración POS para esta sucursal",
+        });
+      }
+
+      // Obtener mapeos
+      const { data: mappings, error } = await supabase
+        .from("pos_menu_mapping")
+        .select(`
+          *,
+          menu_items(id, name, price, section_id)
+        `)
+        .eq("integration_id", integration.id);
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        branch_id: branchId,
+        mappings,
+      });
+    } catch (error) {
+      console.error("Error obteniendo mapeos de items:", error);
       res.status(500).json({
         success: false,
         error: error.message,
