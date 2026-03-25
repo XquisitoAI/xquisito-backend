@@ -302,10 +302,10 @@ class TableController {
       const { dishId } = req.params;
       const { status, restaurantId, branchNumber, tableNumber } = req.body;
 
-      if (!["pending", "cooking", "delivered"].includes(status)) {
+      if (!["preparing", "ready", "delivered"].includes(status)) {
         return res.status(400).json({
           success: false,
-          message: "Estado inválido. Debe ser: pending, cooking, o delivered",
+          message: "Estado inválido. Debe ser: preparing, ready, o delivered",
         });
       }
 
