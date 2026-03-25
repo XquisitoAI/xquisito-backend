@@ -176,7 +176,7 @@ class TapDishOrderService {
   // Actualizar estado de preparación
   async updateStatus(dish_order_id, status) {
     try {
-      const validStatuses = ['pending', 'cooking', 'delivered'];
+      const validStatuses = ['preparing', 'ready', 'delivered'];
       if (!validStatuses.includes(status)) {
         return { success: false, error: 'Invalid status' };
       }

@@ -547,7 +547,7 @@ class TapPayController {
         });
       }
 
-      const validStatuses = ["pending", "cooking", "delivered"];
+      const validStatuses = ["preparing", "ready", "delivered"];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({
           success: false,
