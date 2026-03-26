@@ -1,5 +1,5 @@
-const supabase = require('../config/supabase');
-const tapOrderService = require('./tapOrderService');
+const supabase = require("../config/supabase");
+const tapOrderService = require("./tapOrderService");
 
 class TapDishOrderService {
   // Crear dish order para tap order existente
@@ -11,20 +11,22 @@ class TapDishOrderService {
         price,
         images = [],
         custom_fields = null,
-        extra_price = 0
+        extra_price = 0,
       } = dishData;
 
       // Usar función SQL para agregar platillo a tap order existente
-      const { data, error } = await supabase
-        .rpc('add_dish_to_existing_tap_order', {
+      const { data, error } = await supabase.rpc(
+        "add_dish_to_existing_tap_order",
+        {
           p_tap_order_id: tap_order_id,
           p_item: item,
           p_price: price,
           p_quantity: quantity,
           p_images: images,
           p_custom_fields: custom_fields,
-          p_extra_price: extra_price
-        });
+          p_extra_price: extra_price,
+        },
+      );
 
       if (error) throw error;
 
@@ -36,8 +38,8 @@ class TapDishOrderService {
           table_id: data.table_id,
           item: data.item,
           quantity: data.quantity,
-          price: data.price
-        }
+          price: data.price,
+        },
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -45,7 +47,13 @@ class TapDishOrderService {
   }
 
   // Crear orden Y primer dish order (para el flujo de primer item)
-  async createOrderWithFirstDish(restaurant_id, branch_number, table_number, dishData, customerData = {}) {
+  async createOrderWithFirstDish(
+    restaurant_id,
+    branch_number,
+    table_number,
+    dishData,
+    customerData = {},
+  ) {
     try {
       // Usar función SQL que crea tap_order + primer dish en una transacción
       const result = await tapOrderService.createTapOrderWithFirstDish(
@@ -53,7 +61,7 @@ class TapDishOrderService {
         branch_number,
         table_number,
         dishData,
-        customerData
+        customerData,
       );
 
       if (!result.success) {
@@ -63,7 +71,7 @@ class TapDishOrderService {
       return {
         success: true,
         data: result.data,
-        isNew: result.isNew
+        isNew: result.isNew,
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -74,9 +82,9 @@ class TapDishOrderService {
   async getDishOrdersByTapOrder(tap_order_id) {
     try {
       const { data, error } = await supabase
-        .from('dish_order')
-        .select('*')
-        .eq('tap_order_id', tap_order_id);
+        .from("dish_order")
+        .select("*")
+        .eq("tap_order_id", tap_order_id);
 
       if (error) throw error;
       return { success: true, data };
@@ -88,19 +96,25 @@ class TapDishOrderService {
   // Actualizar dish order
   async updateDishOrder(dish_order_id, updateData) {
     try {
-      const allowedFields = ['quantity', 'status', 'payment_status', 'custom_fields', 'extra_price'];
+      const allowedFields = [
+        "quantity",
+        "status",
+        "payment_status",
+        "custom_fields",
+        "extra_price",
+      ];
       const filteredData = {};
 
-      Object.keys(updateData).forEach(key => {
+      Object.keys(updateData).forEach((key) => {
         if (allowedFields.includes(key)) {
           filteredData[key] = updateData[key];
         }
       });
 
       const { data, error } = await supabase
-        .from('dish_order')
+        .from("dish_order")
         .update(filteredData)
-        .eq('id', dish_order_id)
+        .eq("id", dish_order_id)
         .select()
         .single();
 
@@ -122,18 +136,18 @@ class TapDishOrderService {
     try {
       // Primero obtener el dish order para saber el tap_order_id
       const { data: dishOrder, error: fetchError } = await supabase
-        .from('dish_order')
-        .select('tap_order_id')
-        .eq('id', dish_order_id)
+        .from("dish_order")
+        .select("tap_order_id")
+        .eq("id", dish_order_id)
         .single();
 
       if (fetchError) throw fetchError;
 
       // Eliminar el dish order
       const { error } = await supabase
-        .from('dish_order')
+        .from("dish_order")
         .delete()
-        .eq('id', dish_order_id);
+        .eq("id", dish_order_id);
 
       if (error) throw error;
 
@@ -142,7 +156,7 @@ class TapDishOrderService {
         await tapOrderService.updateTotal(dishOrder.tap_order_id);
       }
 
-      return { success: true, message: 'Dish order deleted successfully' };
+      return { success: true, message: "Dish order deleted successfully" };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -166,7 +180,7 @@ class TapDishOrderService {
   async markAsPaid(dish_order_id) {
     try {
       return await this.updateDishOrder(dish_order_id, {
-        payment_status: 'paid'
+        payment_status: "paid",
       });
     } catch (error) {
       return { success: false, error: error.message };
@@ -176,9 +190,9 @@ class TapDishOrderService {
   // Actualizar estado de preparación
   async updateStatus(dish_order_id, status) {
     try {
-      const validStatuses = ['preparing', 'ready', 'delivered'];
+      const validStatuses = ["preparing", "ready", "delivered"];
       if (!validStatuses.includes(status)) {
-        return { success: false, error: 'Invalid status' };
+        return { success: false, error: "Invalid status" };
       }
 
       return await this.updateDishOrder(dish_order_id, { status });
@@ -191,9 +205,9 @@ class TapDishOrderService {
   async getDishOrdersSummary(tap_order_id) {
     try {
       const { data, error } = await supabase
-        .from('dish_order')
-        .select('status, payment_status, quantity, price, extra_price')
-        .eq('tap_order_id', tap_order_id);
+        .from("dish_order")
+        .select("status, payment_status, quantity, price, extra_price")
+        .eq("tap_order_id", tap_order_id);
 
       if (error) throw error;
 
@@ -201,18 +215,19 @@ class TapDishOrderService {
         total_items: 0,
         total_amount: 0,
         by_status: {
-          pending: 0,
-          cooking: 0,
-          delivered: 0
+          prepating: 0,
+          ready: 0,
+          delivered: 0,
         },
         by_payment: {
           not_paid: 0,
-          paid: 0
-        }
+          paid: 0,
+        },
       };
 
-      data.forEach(dish => {
-        const dishTotal = (dish.price + (dish.extra_price || 0)) * dish.quantity;
+      data.forEach((dish) => {
+        const dishTotal =
+          (dish.price + (dish.extra_price || 0)) * dish.quantity;
         summary.total_items += dish.quantity;
         summary.total_amount += dishTotal;
         summary.by_status[dish.status] += dish.quantity;
@@ -228,21 +243,21 @@ class TapDishOrderService {
   // Agregar múltiples dish orders de una vez (carrito)
   async addMultipleDishOrders(tap_order_id, dishOrders) {
     try {
-      const dishOrdersToInsert = dishOrders.map(dish => ({
+      const dishOrdersToInsert = dishOrders.map((dish) => ({
         user_order_id: null,
         tap_order_id,
         item: dish.item,
         quantity: dish.quantity || 1,
         price: dish.price,
-        status: 'pending',
-        payment_status: 'not_paid',
+        status: "pending",
+        payment_status: "not_paid",
         images: dish.images || [],
         custom_fields: dish.custom_fields || null,
-        extra_price: dish.extra_price || 0
+        extra_price: dish.extra_price || 0,
       }));
 
       const { data, error } = await supabase
-        .from('dish_order')
+        .from("dish_order")
         .insert(dishOrdersToInsert)
         .select();
 
