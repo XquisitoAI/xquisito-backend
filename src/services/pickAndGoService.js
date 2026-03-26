@@ -467,7 +467,7 @@ class PickAndGoService {
             item: item,
             quantity: quantity,
             price: price,
-            status: "pending",
+            status: "preparing",
             payment_status: "not_paid",
             images: images || [],
             custom_fields: customFields || {},
@@ -565,7 +565,7 @@ class PickAndGoService {
   /**
    * Actualizar estado de un dish order de Pick & Go
    * @param {string} dishId - ID del dish order
-   * @param {string} status - Nuevo estado (pending, cooking, delivered)
+   * @param {string} status - Nuevo estado
    * @returns {Object} - Resultado de la operación
    */
   async updateDishStatus(dishId, status) {
