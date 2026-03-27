@@ -330,12 +330,16 @@ class POSMenuSyncService {
     }
 
     // Buscar mapeo existente del item
-    const { data: existingMapping } = await supabaseAdmin
+    const { data: existingMapping, error: mappingError } = await supabaseAdmin
       .from("pos_menu_mapping")
       .select("id, menu_item_id")
       .eq("integration_id", integrationId)
-      .eq("pos_item_id", posProduct.idproducto)
-      .single();
+      .eq("pos_item_id", String(posProduct.idproducto))
+      .maybeSingle();
+
+    if (mappingError) {
+      console.error(`❌ Error buscando mapeo para ${posProduct.idproducto}:`, mappingError.message);
+    }
 
     if (existingMapping) {
       // Actualizar item existente (POS gana)
