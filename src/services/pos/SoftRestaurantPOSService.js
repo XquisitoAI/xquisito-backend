@@ -53,6 +53,9 @@ class SoftRestaurantPOSService extends BasePOSService {
       });
 
       console.log(`✅ Orden creada en SR: folio=${response.folio}`);
+      if (response.totals?.descuento > 0) {
+        console.log(`🏷️ Descuento aplicado: $${response.totals.descuento}`);
+      }
 
       const isPrepaid = orderData.prepagado || false;
 
@@ -63,7 +66,14 @@ class SoftRestaurantPOSService extends BasePOSService {
         posTableId: orderData.table_number,
         status: isPrepaid ? "closed" : "open",
         isClosed: isPrepaid,
-        totals: response.totals || {},
+        totals: {
+          subtotal: response.totals?.subtotal || 0,
+          tax: response.totals?.tax || 0,
+          total: response.totals?.total || 0,
+          descuento: response.totals?.descuento || 0,
+          totalSinDescuento:
+            response.totals?.totalSinDescuento || response.totals?.total || 0,
+        },
         rawResponse: response,
       };
     } catch (error) {
@@ -127,7 +137,11 @@ class SoftRestaurantPOSService extends BasePOSService {
         success: true,
         posOrderId: posOrderId,
         status: "open",
-        totals: response.totals || {},
+        totals: {
+          subtotal: response.totals?.subtotal || 0,
+          tax: response.totals?.tax || 0,
+          total: response.totals?.total || 0,
+        },
         menuItems: response.items || [],
         rawResponse: response,
       };
