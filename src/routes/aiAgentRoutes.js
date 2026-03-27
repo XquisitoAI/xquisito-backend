@@ -72,7 +72,7 @@ function getApiKeyForContext(message) {
  */
 router.post("/chat", async (req, res) => {
   try {
-    const { message, session_id } = req.body;
+    const { message, session_id, user_context } = req.body;
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({
@@ -94,13 +94,14 @@ router.post("/chat", async (req, res) => {
       {
         message,
         session_id: session_id || null,
+        user_context,
       },
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     res.status(200).json(response.data);
@@ -130,7 +131,7 @@ router.post("/chat", async (req, res) => {
  */
 router.post("/chat/stream", async (req, res) => {
   try {
-    const { message, session_id } = req.body;
+    const { message, session_id, user_context } = req.body;
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({
@@ -166,9 +167,25 @@ router.post("/chat/stream", async (req, res) => {
           message,
           session_id: session_id || null,
           stream: true,
+          user_context: user_context || null,
         }),
-      }
+        /**
+         * {
+            "message": "Hola, necesito ayuda",
+            "session_id": "opcional-para-continuar-conversacion",
+            "metadata": {},
+            "stream": false,
+            "user_context": "Nombre: Juan López. Plan: Premium. Empresa: Acme Corp."
+          }
+         */
+      },
     );
+    console.log({
+      message,
+      session_id: session_id || null,
+      stream: true,
+      user_context,
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -179,7 +196,9 @@ router.post("/chat/stream", async (req, res) => {
           details: errorText,
         });
       }
-      res.write(`data: ${JSON.stringify({ type: "error", content: "Error del agente" })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "error", content: "Error del agente" })}\n\n`,
+      );
       res.end();
       return;
     }
@@ -236,7 +255,9 @@ router.post("/chat/stream", async (req, res) => {
     }
 
     // Si ya estamos en streaming, enviar error como evento
-    res.write(`data: ${JSON.stringify({ type: "error", content: "Error de conexion" })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ type: "error", content: "Error de conexion" })}\n\n`,
+    );
     res.end();
   }
 });
