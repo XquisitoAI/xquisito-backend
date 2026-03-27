@@ -317,6 +317,18 @@ class POSMenuSyncService {
       return result;
     }
 
+    // Calcular precios considerando promociones del POS
+    // Si tiene_promo, usar precio_promo como precio final y precio_original como base
+    const finalPrice = posProduct.tiene_promo && posProduct.precio_promo
+      ? posProduct.precio_promo
+      : posProduct.precio || 0;
+    const basePrice = posProduct.precio_original || posProduct.preciosinimpuestos || posProduct.precio || 0;
+    const discountPercent = posProduct.descuento_porcentaje || 0;
+
+    if (posProduct.tiene_promo) {
+      console.log(`🏷️ Producto con promo: ${posProduct.descripcion} - Original: $${basePrice}, Promo: $${finalPrice} (${discountPercent}% desc)`);
+    }
+
     // Buscar mapeo existente del item
     const { data: existingMapping } = await supabaseAdmin
       .from("pos_menu_mapping")
@@ -332,8 +344,9 @@ class POSMenuSyncService {
         .update({
           name: posProduct.descripcion,
           description: posProduct.descripcionmenuelectronico || null,
-          price: posProduct.precio || 0,
-          base_price: posProduct.preciosinimpuestos || posProduct.precio || 0,
+          price: finalPrice,
+          base_price: basePrice,
+          discount: discountPercent,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingMapping.menu_item_id);
@@ -357,8 +370,9 @@ class POSMenuSyncService {
           section_id: sectionMapping.menu_section_id,
           name: posProduct.descripcion,
           description: posProduct.descripcionmenuelectronico || null,
-          price: posProduct.precio || 0,
-          base_price: posProduct.preciosinimpuestos || posProduct.precio || 0,
+          price: finalPrice,
+          base_price: basePrice,
+          discount: discountPercent,
           is_available: true,
           display_order: 0,
         })

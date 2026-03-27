@@ -119,6 +119,7 @@ class ProfileController {
             birthDate: profile.birth_date,
             gender: profile.gender,
             photoUrl: profile.photo_url,
+            userContext: profile.user_context,
             accountType: profile.account_type,
             createdAt: profile.created_at,
             updatedAt: profile.updated_at,
@@ -172,6 +173,7 @@ class ProfileController {
             birthDate: profile.birth_date,
             gender: profile.gender,
             photoUrl: profile.photo_url,
+            userContext: profile.user_context,
             accountType: profile.account_type,
             createdAt: profile.created_at,
             updatedAt: profile.updated_at,
@@ -255,6 +257,7 @@ class ProfileController {
             birthDate: profile.birth_date,
             gender: profile.gender,
             photoUrl: profile.photo_url,
+            userContext: profile.user_context,
             accountType: profile.account_type,
             createdAt: profile.created_at,
             updatedAt: profile.updated_at,
@@ -283,7 +286,10 @@ class ProfileController {
         });
       }
 
-      console.log(`📤 User ${authUser.id} uploading profile photo:`, file.originalname);
+      console.log(
+        `📤 User ${authUser.id} uploading profile photo:`,
+        file.originalname,
+      );
 
       // Obtener foto anterior para eliminarla
       const { data: profile } = await supabase
@@ -302,7 +308,7 @@ class ProfileController {
         file,
         "profile",
         authUser.id,
-        oldPhotoUrl
+        oldPhotoUrl,
       );
 
       // Actualizar el perfil con la nueva URL
@@ -310,7 +316,7 @@ class ProfileController {
         .from("profiles")
         .update({
           photo_url: photoUrl,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq("id", authUser.id)
         .select()
@@ -324,7 +330,9 @@ class ProfileController {
         });
       }
 
-      console.log(`✅ Profile photo uploaded successfully for user ${authUser.id}`);
+      console.log(
+        `✅ Profile photo uploaded successfully for user ${authUser.id}`,
+      );
 
       res.json({
         success: true,
@@ -340,6 +348,7 @@ class ProfileController {
             birthDate: updatedProfile.birth_date,
             gender: updatedProfile.gender,
             photoUrl: updatedProfile.photo_url,
+            userContext: profile.user_context,
             accountType: updatedProfile.account_type,
             createdAt: updatedProfile.created_at,
             updatedAt: updatedProfile.updated_at,
