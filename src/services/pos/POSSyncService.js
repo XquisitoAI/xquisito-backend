@@ -196,6 +196,7 @@ class POSSyncService {
     }
 
     return {
+      order_id: order.id,
       check_number: checkNumber,
       table_number: tableNumber,
       guest_count: 1,
