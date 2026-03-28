@@ -173,9 +173,31 @@ class POSSyncService {
     // Generar check number único
     const checkNumber = `XQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Obtener table_number o room_number según el tipo de orden
+    let tableNumber = null;
+    if (order.table_id) {
+      // Orden de mesa - obtener table_number
+      const { data: table } = await supabaseAdmin
+        .from("tables")
+        .select("table_number")
+        .eq("id", order.table_id)
+        .single();
+
+      tableNumber = table?.table_number || null;
+    } else if (order.room_id) {
+      // Orden de room service - obtener room_number
+      const { data: room } = await supabaseAdmin
+        .from("rooms")
+        .select("room_number")
+        .eq("id", order.room_id)
+        .single();
+
+      tableNumber = room?.room_number || null;
+    }
+
     return {
       check_number: checkNumber,
-      table_number: order.table_number || null,
+      table_number: tableNumber,
       guest_count: 1,
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
