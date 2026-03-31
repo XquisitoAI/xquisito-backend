@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require("../../config/supabaseAuth");
 const agentConnectionManager = require("../../socket/agentConnectionManager");
+const { getIO, isSocketInitialized } = require("../../socket/socketServer");
 
 /**
  * POSMenuSyncService
@@ -9,6 +10,28 @@ const agentConnectionManager = require("../../socket/agentConnectionManager");
  * Tablas POS: grupos, productos, productosdetalle
  */
 class POSMenuSyncService {
+  // Emite evento de progreso de sincronización al frontend
+  static emitSyncProgress(branchId, restaurantId, step, status, details = {}) {
+    if (!isSocketInitialized()) return;
+
+    try {
+      const io = getIO();
+      const roomName = `restaurant:${restaurantId}`;
+
+      io.to(roomName).emit("sync:progress", {
+        branchId,
+        step,
+        status, // 'started' | 'in_progress' | 'completed' | 'error'
+        details,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`📡 Sync progress emitted: ${step} - ${status}`);
+    } catch (error) {
+      console.error("Error emitting sync progress:", error);
+    }
+  }
+
   /**
    * Sincronización completa bidireccional
    * 1. PULL: Trae grupos y productos del POS
@@ -27,7 +50,15 @@ class POSMenuSyncService {
       errors: [],
     };
 
+    // Obtener restaurantId para emitir eventos
+    const restaurantId = await this.getRestaurantId(branchId);
+
     try {
+      // Emitir inicio de sincronización
+      this.emitSyncProgress(branchId, restaurantId, "connecting", "started", {
+        message: "Conectando con el agente POS...",
+      });
+
       // Verificar integración activa
       const integration = await this.getIntegration(branchId);
       if (!integration) {
@@ -39,37 +70,87 @@ class POSMenuSyncService {
         throw new Error("El agente POS no está conectado");
       }
 
+      this.emitSyncProgress(branchId, restaurantId, "connecting", "completed", {
+        message: "Conexión establecida",
+      });
+
       // 1. PULL: POS → Xquisito
+      this.emitSyncProgress(branchId, restaurantId, "pulling", "started", {
+        message: "Obteniendo datos del POS...",
+      });
+
       console.log("📥 Fase PULL: Obteniendo datos del POS...");
-      const pullResult = await this.pullFromPOS(branchId, integration);
+      const pullResult = await this.pullFromPOS(
+        branchId,
+        integration,
+        restaurantId,
+      );
       result.pulled = pullResult;
 
+      this.emitSyncProgress(branchId, restaurantId, "pulling", "completed", {
+        message: "Datos obtenidos del POS",
+        sections: pullResult.sections,
+        items: pullResult.items,
+      });
+
       // 2. PUSH: Xquisito → POS
+      this.emitSyncProgress(branchId, restaurantId, "pushing", "started", {
+        message: "Enviando cambios al POS...",
+      });
+
       console.log("📤 Fase PUSH: Enviando datos al POS...");
-      const pushResult = await this.pushToPOS(branchId, integration);
+      const pushResult = await this.pushToPOS(
+        branchId,
+        integration,
+        restaurantId,
+      );
       result.pushed = pushResult;
+
+      this.emitSyncProgress(branchId, restaurantId, "pushing", "completed", {
+        message: "Cambios enviados al POS",
+        sections: pushResult.sections,
+        items: pushResult.items,
+      });
+
+      // Finalización
+      this.emitSyncProgress(branchId, restaurantId, "finalizing", "started", {
+        message: "Finalizando sincronización...",
+      });
 
       result.success = true;
       console.log(`✅ Sync completado:`, result);
+
+      this.emitSyncProgress(branchId, restaurantId, "finalizing", "completed", {
+        message: "Sincronización completada",
+        result,
+      });
 
       return result;
     } catch (error) {
       console.error(`❌ Error en sync de menú:`, error);
       result.errors.push(error.message);
+
+      this.emitSyncProgress(branchId, restaurantId, "error", "error", {
+        message: error.message,
+        errors: result.errors,
+      });
+
       return result;
     }
   }
 
-  /**
-   * PULL: Obtener menú del POS y sincronizar a Xquisito
-   */
-  static async pullFromPOS(branchId, integration) {
+  // PULL: Obtener menú del POS y sincronizar a Xquisito
+  static async pullFromPOS(branchId, integration, restaurantId) {
     const result = {
       sections: { created: 0, updated: 0 },
       items: { created: 0, updated: 0 },
     };
 
     // 1. Solicitar menú completo al agente
+    this.emitSyncProgress(branchId, restaurantId, "pulling", "in_progress", {
+      message: "Solicitando menú al agente POS...",
+    });
+
     const posData = await agentConnectionManager.sendAndWait(
       branchId,
       "sync_menu_pull",
@@ -86,14 +167,20 @@ class POSMenuSyncService {
       `📦 Recibido: ${posData.groups.length} grupos, ${posData.products.length} productos`,
     );
 
-    // 2. Obtener restaurant_id de la sucursal
-    const restaurantId = await this.getRestaurantId(branchId);
+    this.emitSyncProgress(branchId, restaurantId, "pulling", "in_progress", {
+      message: `Procesando ${posData.groups.length} grupos y ${posData.products.length} productos...`,
+      totalGroups: posData.groups.length,
+      totalProducts: posData.products.length,
+    });
+
+    // 2. Verificar restaurant_id
     if (!restaurantId) {
       throw new Error("No se pudo determinar el restaurant_id de la sucursal");
     }
 
     // 3. Sincronizar grupos → menu_sections
-    for (const group of posData.groups) {
+    for (let i = 0; i < posData.groups.length; i++) {
+      const group = posData.groups[i];
       const sectionResult = await this.syncSection(
         integration.id,
         restaurantId,
@@ -101,27 +188,61 @@ class POSMenuSyncService {
       );
       if (sectionResult.created) result.sections.created++;
       if (sectionResult.updated) result.sections.updated++;
+
+      // Emitir progreso cada 5 grupos o al final
+      if ((i + 1) % 5 === 0 || i === posData.groups.length - 1) {
+        this.emitSyncProgress(
+          branchId,
+          restaurantId,
+          "pulling",
+          "in_progress",
+          {
+            message: `Sincronizando secciones... (${i + 1}/${posData.groups.length})`,
+            progress: {
+              current: i + 1,
+              total: posData.groups.length,
+              type: "sections",
+            },
+          },
+        );
+      }
     }
 
     // 4. Sincronizar productos → menu_items
-    for (const product of posData.products) {
+    for (let i = 0; i < posData.products.length; i++) {
+      const product = posData.products[i];
       const itemResult = await this.syncItem(integration.id, branchId, product);
       if (itemResult.created) result.items.created++;
       if (itemResult.updated) result.items.updated++;
+
+      // Emitir progreso cada 10 productos o al final
+      if ((i + 1) % 10 === 0 || i === posData.products.length - 1) {
+        this.emitSyncProgress(
+          branchId,
+          restaurantId,
+          "pulling",
+          "in_progress",
+          {
+            message: `Sincronizando productos... (${i + 1}/${posData.products.length})`,
+            progress: {
+              current: i + 1,
+              total: posData.products.length,
+              type: "items",
+            },
+          },
+        );
+      }
     }
 
     return result;
   }
 
   // PUSH: Enviar items sin mapeo de Xquisito al POS
-  static async pushToPOS(branchId, integration) {
+  static async pushToPOS(branchId, integration, restaurantId) {
     const result = {
       sections: { created: 0 },
       items: { created: 0 },
     };
-
-    // Obtener restaurant_id
-    const restaurantId = await this.getRestaurantId(branchId);
 
     // 1. Buscar secciones sin mapeo
     const unmappedSections = await this.getUnmappedSections(
@@ -132,7 +253,13 @@ class POSMenuSyncService {
       `📤 ${unmappedSections.length} secciones sin mapeo para enviar al POS`,
     );
 
-    for (const section of unmappedSections) {
+    this.emitSyncProgress(branchId, restaurantId, "pushing", "in_progress", {
+      message: `Encontradas ${unmappedSections.length} secciones para enviar al POS...`,
+      totalSections: unmappedSections.length,
+    });
+
+    for (let i = 0; i < unmappedSections.length; i++) {
+      const section = unmappedSections[i];
       try {
         const posGroup = await agentConnectionManager.sendAndWait(
           branchId,
@@ -154,6 +281,21 @@ class POSMenuSyncService {
           );
           result.sections.created++;
         }
+        // Emitir progreso
+        this.emitSyncProgress(
+          branchId,
+          restaurantId,
+          "pushing",
+          "in_progress",
+          {
+            message: `Enviando secciones al POS... (${i + 1}/${unmappedSections.length})`,
+            progress: {
+              current: i + 1,
+              total: unmappedSections.length,
+              type: "sections",
+            },
+          },
+        );
       } catch (error) {
         console.error(
           `❌ Error enviando sección ${section.name}:`,
@@ -171,7 +313,13 @@ class POSMenuSyncService {
       `📤 ${unmappedItems.length} items sin mapeo para enviar al POS`,
     );
 
-    for (const item of unmappedItems) {
+    this.emitSyncProgress(branchId, restaurantId, "pushing", "in_progress", {
+      message: `Encontrados ${unmappedItems.length} items para enviar al POS...`,
+      totalItems: unmappedItems.length,
+    });
+
+    for (let i = 0; i < unmappedItems.length; i++) {
+      const item = unmappedItems[i];
       try {
         // Primero verificar que la sección tenga mapeo
         const sectionMapping = await this.getSectionMapping(
@@ -206,6 +354,24 @@ class POSMenuSyncService {
             item.name,
           );
           result.items.created++;
+        }
+
+        // Emitir progreso cada 5 items o al final
+        if ((i + 1) % 5 === 0 || i === unmappedItems.length - 1) {
+          this.emitSyncProgress(
+            branchId,
+            restaurantId,
+            "pushing",
+            "in_progress",
+            {
+              message: `Enviando items al POS... (${i + 1}/${unmappedItems.length})`,
+              progress: {
+                current: i + 1,
+                total: unmappedItems.length,
+                type: "items",
+              },
+            },
+          );
         }
       } catch (error) {
         console.error(`❌ Error enviando item ${item.name}:`, error.message);
@@ -329,7 +495,10 @@ class POSMenuSyncService {
       .maybeSingle();
 
     if (mappingError) {
-      console.error(`❌ Error buscando mapeo para ${posProduct.idproducto}:`, mappingError.message);
+      console.error(
+        `❌ Error buscando mapeo para ${posProduct.idproducto}:`,
+        mappingError.message,
+      );
     }
 
     if (existingMapping) {
