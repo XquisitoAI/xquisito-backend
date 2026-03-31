@@ -327,6 +327,49 @@ class PickAndGoController {
   }
 
   /**
+   * Vincular orden a cliente (después de verificación de teléfono)
+   * PUT /api/pick-and-go/orders/:orderId/link-customer
+   */
+  async linkOrderToCustomer(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { customer_phone, customer_id } = req.body;
+
+      if (!orderId) {
+        return res.status(400).json({
+          success: false,
+          error: "orderId is required",
+        });
+      }
+
+      if (!customer_phone) {
+        return res.status(400).json({
+          success: false,
+          error: "customer_phone is required",
+        });
+      }
+
+      const result = await pickAndGoService.linkOrderToCustomer(
+        orderId,
+        customer_phone,
+        customer_id,
+      );
+
+      if (!result.success) {
+        return res.status(500).json(result);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("💥 Error in linkOrderToCustomer controller:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  }
+
+  /**
    * Obtener órdenes del restaurante
    * GET /api/pick-and-go/restaurant/:restaurantId/orders
    */
