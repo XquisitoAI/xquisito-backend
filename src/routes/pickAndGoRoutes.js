@@ -73,6 +73,21 @@ router.put(
   pickAndGoController.updatePaymentStatus,
 );
 
+/**
+ * Vincular orden a cliente (después de verificación de teléfono)
+ * PUT /api/pick-and-go/orders/:orderId/link-customer
+ *
+ * Body:
+ * {
+ *   "customer_phone": "+525551234567",
+ *   "customer_id": "uuid-del-usuario" // opcional
+ * }
+ */
+router.put(
+  "/orders/:orderId/link-customer",
+  pickAndGoController.linkOrderToCustomer,
+);
+
 // ===================================
 // GESTIÓN DE ITEMS
 // ===================================

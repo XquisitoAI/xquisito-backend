@@ -273,6 +273,77 @@ class PickAndGoService {
     }
   }
 
+  // Vincular orden a cliente (después de verificación de teléfono)
+  async linkOrderToCustomer(orderId, customerPhone, customerId = null) {
+    try {
+      console.log("🔗 Linking order to customer:", orderId, customerPhone);
+
+      // Quitar el "+" del teléfono si existe
+      const cleanPhone = customerPhone.replace(/^\+/, "");
+
+      const updateData = {
+        customer_phone: cleanPhone,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Si hay customerId, consultar el perfil para obtener el nombre
+      if (customerId) {
+        updateData.clerk_user_id = customerId;
+
+        // Consultar el perfil para obtener el nombre
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name")
+          .eq("id", customerId)
+          .single();
+
+        if (profile && profile.first_name) {
+          updateData.customer_name = profile.first_name;
+          console.log(
+            "👤 Updated customer_name from profile:",
+            updateData.customer_name,
+          );
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("pick_and_go_orders")
+        .update(updateData)
+        .eq("id", orderId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("❌ Error linking order to customer:", error);
+        throw error;
+      }
+
+      // También actualizar payment_transactions si hay customerId
+      if (customerId) {
+        const { error: transactionError } = await supabase
+          .from("payment_transactions")
+          .update({ user_id: customerId })
+          .eq("id_pick_and_go_order", orderId);
+
+        if (transactionError) {
+          console.error(
+            "⚠️ Error updating payment_transactions:",
+            transactionError,
+          );
+          // No lanzar error, solo log - la orden ya se actualizó
+        } else {
+          console.log("✅ Payment transaction linked to user");
+        }
+      }
+
+      console.log("✅ Order linked to customer successfully");
+      return { success: true, data };
+    } catch (error) {
+      console.error("💥 Error in linkOrderToCustomer:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
   /**
    * Obtener órdenes por restaurante (para el dashboard del restaurante)
    * @param {number} restaurantId - ID del restaurante
