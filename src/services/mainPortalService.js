@@ -642,7 +642,11 @@ const getAllBranches = async () => {
         deleted,
         created_at,
         updated_at,
-        client:clients(id, name, owner_name, email, phone)
+        client:clients(id, name, owner_name, email, phone),
+        pos_integrations!pos_integrations_branch_id_fkey(
+          provider_id,
+          is_active
+        )
       `,
       )
       .neq("deleted", true)
@@ -652,7 +656,19 @@ const getAllBranches = async () => {
       throw new Error(`Error getting branches: ${error.message}`);
     }
 
-    return data;
+    // Transformar para incluir pos_provider_id en el nivel superior
+    const transformedData = data.map((branch) => {
+      const posIntegration = branch.pos_integrations?.[0];
+      const { pos_integrations, ...branchData } = branch;
+      return {
+        ...branchData,
+        pos_provider_id: posIntegration?.is_active
+          ? posIntegration.provider_id
+          : null,
+      };
+    });
+
+    return transformedData;
   } catch (error) {
     console.error("❌ Error in getAllBranches:", error.message);
     throw error;
@@ -680,7 +696,11 @@ const getBranchesByClient = async (clientId) => {
         active,
         deleted,
         created_at,
-        updated_at
+        updated_at,
+        pos_integrations!pos_integrations_branch_id_fkey(
+          provider_id,
+          is_active
+        )
       `,
       )
       .eq("client_id", clientId)
@@ -691,7 +711,19 @@ const getBranchesByClient = async (clientId) => {
       throw new Error(`Error getting branches for client: ${error.message}`);
     }
 
-    return data;
+    // Transformar para incluir pos_provider_id en el nivel superior
+    const transformedData = data.map((branch) => {
+      const posIntegration = branch.pos_integrations?.[0];
+      const { pos_integrations, ...branchData } = branch;
+      return {
+        ...branchData,
+        pos_provider_id: posIntegration?.is_active
+          ? posIntegration.provider_id
+          : null,
+      };
+    });
+
+    return transformedData;
   } catch (error) {
     console.error("❌ Error in getBranchesByClient:", error.message);
     throw error;
