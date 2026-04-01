@@ -6,11 +6,20 @@ const router = express.Router();
 // Listar proveedores POS disponibles
 router.get("/providers", posController.getProviders);
 
+// Obtener todas las integraciones POS (batch loading)
+router.get("/integrations", posController.getAllIntegrations);
+
 // Obtener integración POS de una sucursal
 router.get(
   "/branch/:branchId/integration",
   posController.getIntegrationByBranch,
 );
+
+// Crear o actualizar integración POS de una sucursal
+router.put("/branch/:branchId/integration", posController.setIntegration);
+
+// Eliminar integración POS de una sucursal
+router.delete("/branch/:branchId/integration", posController.deleteIntegration);
 
 // Obtener tenders disponibles para una sucursal
 router.get("/branch/:branchId/tenders", posController.getTendersByBranch);
@@ -42,7 +51,10 @@ router.get("/branch/:branchId/agent-status", posController.getAgentStatus);
 router.post("/branch/:branchId/sync-menu", posController.syncMenu);
 
 // Obtener mapeos de secciones
-router.get("/branch/:branchId/section-mappings", posController.getSectionMappings);
+router.get(
+  "/branch/:branchId/section-mappings",
+  posController.getSectionMappings,
+);
 
 // Obtener mapeos de items
 router.get("/branch/:branchId/item-mappings", posController.getItemMappings);

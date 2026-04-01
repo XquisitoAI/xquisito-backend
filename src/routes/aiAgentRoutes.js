@@ -2,34 +2,12 @@ const express = require("express");
 const axios = require("axios");
 const router = express.Router();
 
-/**
- * Mapeo de servicios a sus API keys y nombres
- */
+// Mapeo de servicios a sus API keys y nombres
 const SERVICE_CONFIG = {
-  flex_bill: {
-    apiKey: () => process.env.AI_AGENT_FLEX_BILL_API_KEY,
-    keyName: "AI_AGENT_FLEX_BILL_API_KEY",
-    agentType: "Flex Bill",
-  },
-  pick_and_go: {
-    apiKey: () => process.env.AI_AGENT_PICK_AND_GO_API_KEY,
-    keyName: "AI_AGENT_PICK_AND_GO_API_KEY",
-    agentType: "Pick & Go",
-  },
-  tap_and_pay: {
-    apiKey: () => process.env.AI_AGENT_TAP_AND_PAY_API_KEY,
-    keyName: "AI_AGENT_TAP_AND_PAY_API_KEY",
-    agentType: "Tap & Pay",
-  },
-  room_service: {
-    apiKey: () => process.env.AI_AGENT_ROOM_SERVICE_API_KEY,
-    keyName: "AI_AGENT_ROOM_SERVICE_API_KEY",
-    agentType: "Room Service",
-  },
-  tap_order_and_pay: {
-    apiKey: () => process.env.AI_AGENT_TAP_ORDER_AND_PAY_API_KEY,
-    keyName: "AI_AGENT_TAP_ORDER_AND_PAY_API_KEY",
-    agentType: "Tap, Order & Pay",
+  services: {
+    apiKey: () => process.env.AI_AGENT_SERVICES,
+    keyName: "AI_AGENT_SERVICES",
+    agentType: "Services",
   },
   admin_portal: {
     apiKey: () => process.env.AI_AGENT_ADMIN_API_KEY,
@@ -43,9 +21,7 @@ const SERVICE_CONFIG = {
   },
 };
 
-/**
- * Función helper para obtener la API key según el servicio
- */
+// Función helper para obtener la API key según el servicio
 function getApiKeyForContext(message) {
   for (const [serviceId, config] of Object.entries(SERVICE_CONFIG)) {
     if (message.includes(`service=${serviceId}`)) {
@@ -57,19 +33,15 @@ function getApiKeyForContext(message) {
     }
   }
 
-  // Default: Flex Bill
+  // Default: Services
   return {
-    apiKey: SERVICE_CONFIG.flex_bill.apiKey(),
-    keyName: SERVICE_CONFIG.flex_bill.keyName,
-    agentType: SERVICE_CONFIG.flex_bill.agentType,
+    apiKey: SERVICE_CONFIG.services.apiKey(),
+    keyName: SERVICE_CONFIG.services.keyName,
+    agentType: SERVICE_CONFIG.services.agentType,
   };
 }
 
-/**
- * POST /api/ai-agent/chat
- * Endpoint seguro para comunicarse con el agente de AI (non-streaming)
- * Body: { message: string, session_id?: string }
- */
+// Endpoint seguro para comunicarse con el agente de AI (non-streaming)
 router.post("/chat", async (req, res) => {
   try {
     const { message, session_id, user_context } = req.body;
@@ -125,10 +97,7 @@ router.post("/chat", async (req, res) => {
   }
 });
 
-/**
- * POST /api/ai-agent/chat/stream
- * Endpoint con streaming real desde la API externa
- */
+// Endpoint con streaming real desde la API externa
 router.post("/chat/stream", async (req, res) => {
   try {
     const { message, session_id, user_context } = req.body;
