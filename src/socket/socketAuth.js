@@ -145,6 +145,44 @@ async function authenticateSocket(socket, next) {
       return next();
     }
 
+    // Caso 4: Main Portal (Clerk token con proyecto separado)
+    if (token && clientType === "main-portal") {
+      const mainPortalConfig = getClerkConfig("mainPortal");
+      const mainPortalClerk = createClerkClient({
+        secretKey: mainPortalConfig.secretKey,
+      });
+
+      const verifiedToken = await mainPortalClerk.verifyToken(token);
+
+      if (!verifiedToken || !verifiedToken.sub) {
+        console.log(
+          "⚠️ Socket connection rejected: Invalid Main Portal Clerk token",
+        );
+        return next(new Error("Invalid token"));
+      }
+
+      const clerkUser = await mainPortalClerk.users.getUser(verifiedToken.sub);
+
+      // Main Portal: Solo autenticación con Clerk (super admins sin registro en BD)
+      socket.user = {
+        id: clerkUser.id,
+        email: clerkUser.emailAddresses?.[0]?.emailAddress,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        adminUserId: null, // Super admins no requieren ID de BD
+        restaurantId: null, // Super admins ven todos los restaurantes
+        restaurantName: null,
+        isGuest: false,
+        clientType: "main-portal",
+        isSuperAdmin: true, // Flag para identificar super admins
+      };
+
+      console.log(
+        `✅ Socket authenticated (Main Portal - Super Admin): User ${socket.user.id}`,
+      );
+      return next();
+    }
+
     // Si no hay token ni guestId, rechazar
     console.log("⚠️ Socket connection rejected: No credentials provided");
     return next(new Error("Authentication required"));

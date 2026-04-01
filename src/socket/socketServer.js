@@ -13,9 +13,10 @@ function initializeSocket(httpServer) {
     cors: {
       origin: [
         "http://localhost:3000", // FlexBill
-        "http://localhost:3001", // FlexBill alt
+        "http://localhost:3001", // Main Portal
         "http://localhost:3002", // Admin Portal
         process.env.ADMIN_PORTAL_URL,
+        process.env.MAIN_PORTAL_URL,
         process.env.FLEXBILL_URL,
         process.env.TAP_PAY_URL,
       ].filter(Boolean),
@@ -33,8 +34,8 @@ function initializeSocket(httpServer) {
     // Registrar handlers según el tipo de cliente
     const clientType = socket.user?.clientType;
 
-    if (clientType === "admin-portal") {
-      // Handlers para Admin Portal (dashboard)
+    if (clientType === "admin-portal" || clientType === "main-portal") {
+      // Handlers para Admin Portal y Main Portal (dashboard)
       registerDashboardHandlers(io, socket);
     }
 

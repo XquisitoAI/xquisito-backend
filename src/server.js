@@ -1,9 +1,9 @@
-const http = require('http');
-const app = require('./app');
-const { validateClerkConfigs } = require('./config/clerkConfig');
-const { validateSupabaseAuthConfig } = require('./config/supabaseAuth');
-const { initializeSocket } = require('./socket/socketServer');
-const renewalJob = require('./jobs/renewalJob');
+const http = require("http");
+const app = require("./app");
+const { validateClerkConfigs } = require("./config/clerkConfig");
+const { validateSupabaseAuthConfig } = require("./config/supabaseAuth");
+const { initializeSocket } = require("./socket/socketServer");
+const renewalJob = require("./jobs/renewalJob");
 
 const PORT = process.env.PORT || 5000;
 
@@ -14,15 +14,18 @@ validateClerkConfigs();
 try {
   validateSupabaseAuthConfig();
 } catch (error) {
-  console.error('⚠️ Supabase Auth configuration error:', error.message);
-  console.error('   The server will continue but Supabase Auth features may not work properly.');
+  console.error("⚠️ Supabase Auth configuration error:", error.message);
+  console.error(
+    "   The server will continue but Supabase Auth features may not work properly.",
+  );
 }
 
 // Crear servidor HTTP
 const httpServer = http.createServer(app);
 
-// Inicializar Socket.IO
-initializeSocket(httpServer);
+// Inicializar Socket.IO y guardar instancia en app
+const io = initializeSocket(httpServer);
+app.set("io", io);
 
 // Usar httpServer.listen en lugar de app.listen
 httpServer.listen(PORT, () => {
@@ -32,8 +35,11 @@ httpServer.listen(PORT, () => {
 
   // Iniciar cron job de renovacion de suscripciones
   // Solo iniciar si no estamos en ambiente de pruebas
-  if (process.env.NODE_ENV !== 'test' && process.env.ENABLE_RENEWAL_JOB !== 'false') {
+  if (
+    process.env.NODE_ENV !== "test" &&
+    process.env.ENABLE_RENEWAL_JOB !== "false"
+  ) {
     renewalJob.start();
-    console.log('📅 Cron job de renovacion de suscripciones iniciado');
+    console.log("📅 Cron job de renovacion de suscripciones iniciado");
   }
 });
