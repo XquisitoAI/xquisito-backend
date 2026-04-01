@@ -1288,6 +1288,32 @@ class PaymentController {
         nuevoTotal: totalAmount,
       });
 
+      // Notificar nuevo pago a través de WebSocket para actualización de estadísticas en tiempo real
+      console.log(
+        "🔔 [Payment] Attempting to send WebSocket notification for restaurant:",
+        transactionData.restaurant_id,
+      );
+      try {
+        const PaymentNotificationService = require("../services/paymentNotificationService");
+        const io = req.app.get("io");
+        if (!io) {
+          console.error("⚠️ [Payment] Socket.IO instance not available");
+        } else {
+          console.log(
+            "✅ [Payment] Socket.IO instance found, sending notification",
+          );
+          const notificationService = new PaymentNotificationService(io);
+          notificationService.notifyNewPayment(transactionData.restaurant_id);
+          console.log("✅ [Payment] WebSocket notification sent successfully");
+        }
+      } catch (notificationError) {
+        // No fallar la transacción si falla la notificación
+        console.error(
+          "⚠️ Failed to send payment notification:",
+          notificationError,
+        );
+      }
+
       res.status(201).json({
         success: true,
         message: "Payment transaction created successfully",

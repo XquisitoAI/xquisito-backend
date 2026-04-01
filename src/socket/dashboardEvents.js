@@ -1,3 +1,5 @@
+const superAdminService = require("../services/superAdminService");
+
 // Registra los handlers de eventos del dashboard para un socket
 function registerDashboardHandlers(io, socket) {
   const { user } = socket;
@@ -55,6 +57,45 @@ function registerDashboardHandlers(io, socket) {
 
     // Emitir confirmación de que se recibió la solicitud
     socket.emit("refresh:acknowledged", { restaurantId, dataType });
+  });
+
+  // Unirse a la sala de super-admin (para estadísticas globales)
+  socket.on("join:super-admin", () => {
+    const roomName = "super-admin";
+    socket.join(roomName);
+    console.log(`👑 User ${user.id} joined room ${roomName}`);
+
+    // Confirmar unión a la sala
+    socket.emit("room:joined", { roomName });
+  });
+
+  // Solicitar estadísticas en tiempo real
+  socket.on("request:stats", async (filters) => {
+    try {
+      console.log(`[Dashboard] Stats requested by ${user.id}:`, filters);
+
+      // Llamar al servicio de super admin para obtener stats
+      const statsResponse = await superAdminService.getSuperAdminStats(filters);
+
+      // Emitir stats actualizados al cliente (extraer solo la parte 'data')
+      socket.emit("stats:updated", {
+        success: true,
+        data: statsResponse.data, // Solo enviar la parte 'data' del response
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(
+        `[Dashboard] Stats sent to ${user.id}, filters:`,
+        Object.keys(filters).join(", "),
+      );
+    } catch (error) {
+      console.error(`[Dashboard] Error getting stats for ${user.id}:`, error);
+      socket.emit("stats:error", {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // Auto-unirse a la sala del restaurante del usuario al conectar

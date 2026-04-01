@@ -95,15 +95,23 @@ class POSController {
         .eq("branch_id", branchId)
         .single();
 
-      if (error || !integration) {
-        return res.status(404).json({
-          success: false,
-          error: "No hay integración POS para esta sucursal",
+      // Si no hay integración, devolver respuesta exitosa indicando que no existe
+      if (error && error.code === "PGRST116") {
+        return res.json({
+          success: true,
+          hasIntegration: false,
+          integration: null,
         });
+      }
+
+      // Si hay otro tipo de error, devolver error 500
+      if (error) {
+        throw error;
       }
 
       res.json({
         success: true,
+        hasIntegration: true,
         integration,
       });
     } catch (error) {
