@@ -47,6 +47,7 @@ const allowedOrigins = [
   "https://admin-portal.xquisito.ai",
   "https://main-portal.xquisito.ai",
   "https://xquisito-flexbill-git-dev-leonardo-xquisito.vercel.app",
+  "https://xquisito-pick-and-go-git-adrian-pick-and-go-xquisito.vercel.app/",
 
   // Solo desarrollo
   ...(process.env.NODE_ENV === "development"
