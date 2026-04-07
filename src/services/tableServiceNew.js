@@ -172,7 +172,7 @@ class TableService {
   }
 
   // Pagar un platillo individual
-  async payDishOrder(dishOrderId, paymentMethodId = null) {
+  async payDishOrder(dishOrderId, paymentMethodId = null, tip = 0) {
     try {
       // Obtener información del dish order antes de pagarlo, incluyendo restaurant_id y branch_number
       const { data: dishData, error: dishError } = await supabase
@@ -270,8 +270,12 @@ class TableService {
           `🔍 Sync pago POS: tableOrderId=${tableOrderId}, amount=${amountPaid}`,
         );
         if (tableOrderId) {
-          POSSyncService.syncFlexBillPayment(tableOrderId, amountPaid).catch(
-            (err) => console.error("Error sincronizando pago en POS:", err),
+          POSSyncService.syncFlexBillPayment(
+            tableOrderId,
+            amountPaid,
+            tip || 0,
+          ).catch((err) =>
+            console.error("Error sincronizando pago en POS:", err),
           );
         } else {
           console.warn(
@@ -295,6 +299,7 @@ class TableService {
     userId = null,
     guestName = null,
     paymentMethodId = null,
+    tip = 0,
   ) {
     try {
       const { data, error } = await supabase.rpc("pay_table_amount", {
@@ -372,8 +377,12 @@ class TableService {
       );
 
       if (tableOrderData?.id) {
-        POSSyncService.syncFlexBillPayment(tableOrderData.id, amount).catch(
-          (err) => console.error("Error sincronizando pago en POS:", err),
+        POSSyncService.syncFlexBillPayment(
+          tableOrderData.id,
+          amount,
+          tip || 0,
+        ).catch((err) =>
+          console.error("Error sincronizando pago en POS:", err),
         );
       } else {
         console.warn(
@@ -767,6 +776,7 @@ class TableService {
     userId = null,
     guestName = null,
     paymentMethodId = null,
+    tip = 0,
   ) {
     try {
       // IMPORTANTE: Recalcular el split antes de pagar, en caso de que hayan habido pagos individuales
@@ -849,6 +859,7 @@ class TableService {
         userId,
         guestName,
         paymentMethodId,
+        tip || 0,
       );
 
       // Verificar si la mesa sigue activa después del pago

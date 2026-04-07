@@ -1,5 +1,4 @@
 const supabase = require("../config/supabase");
-const POSSyncService = require("./pos/POSSyncService");
 
 /**
  * Servicio para gestionar pedidos Pick & Go
@@ -224,14 +223,8 @@ class PickAndGoService {
 
       console.log("✅ Order status updated successfully");
 
-      // Sincronizar con POS al completar orden (orden prepagada)
-      if (orderStatus === "completed") {
-        POSSyncService.syncPaidOrder(
-          orderId,
-          "pick_and_go_orders",
-          data.total_amount || 0,
-        ).catch((err) => console.error("Error en sincronización POS:", err));
-      }
+      // POS sync ahora se hace desde PaymentTransactionService.createTransaction
+      // cuando se crea el pago, donde ya tenemos acceso directo al tip_amount
 
       return { success: true, data };
     } catch (error) {

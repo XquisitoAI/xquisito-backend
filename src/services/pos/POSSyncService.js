@@ -8,44 +8,113 @@ class POSSyncService {
    */
   static async syncOrder(orderId, orderType) {
     try {
-      console.log(
-        `🔄 Intentando sincronizar orden ${orderId} - (${orderType})...`,
-      );
+      console.log(`\n${"=".repeat(60)}`);
+      console.log(`🔄 [syncOrder] INICIO`);
+      console.log(`   orderId: ${orderId}`);
+      console.log(`   orderType: ${orderType}`);
+      console.log(`${"=".repeat(60)}`);
 
       // 1. Obtener la orden local
+      console.log(`\n📋 [syncOrder] Obteniendo orden local...`);
       const order = await this.getLocalOrder(orderId, orderType);
       if (!order) {
-        console.warn(`⚠️ Orden ${orderId} no encontrada en ${orderType}`);
+        console.warn(`\n❌ [syncOrder] Orden ${orderId} no encontrada en ${orderType}`);
+        console.log(`${"=".repeat(60)}\n`);
         return null;
+      }
+      console.log(`   ✅ Orden encontrada`);
+      console.log(`   table_id: ${order.table_id || "N/A"}`);
+      console.log(`   room_id: ${order.room_id || "N/A"}`);
+      console.log(`   branch_id: ${order.branch_id || "N/A"}`);
+
+      // 1.1 Verificar si ya fue sincronizada (evitar duplicados)
+      console.log(`\n🔍 [syncOrder] Verificando si ya fue sincronizada...`);
+      const { data: existingSync, error: existingSyncError } = await supabaseAdmin
+        .from("pos_order_sync")
+        .select("id, pos_order_id, sync_status")
+        .eq("local_order_id", orderId)
+        .eq("local_order_type", orderType)
+        .in("sync_status", ["synced", "closed"])
+        .single();
+
+      console.log(`   existingSync: ${JSON.stringify(existingSync)}`);
+      if (existingSyncError && existingSyncError.code !== "PGRST116") {
+        console.log(`   existingSyncError: ${existingSyncError.message}`);
+      }
+
+      if (existingSync && existingSync.pos_order_id) {
+        console.log(`\n⏭️ [syncOrder] Ya sincronizada, retornando folio existente`);
+        console.log(`   folio: ${existingSync.pos_order_id}`);
+        console.log(`${"=".repeat(60)}\n`);
+        return {
+          success: true,
+          posOrderId: existingSync.pos_order_id,
+          alreadySynced: true,
+        };
       }
 
       // 2. Verificar si la sucursal tiene POS integrado
+      console.log(`\n🔌 [syncOrder] Obteniendo integración POS...`);
       const integration = await this.getPOSIntegration(order);
       if (!integration) {
-        console.log(`❌ Sucursal sin POS integrado, saltando sincronización`);
+        console.log(`\n❌ [syncOrder] Sucursal sin POS integrado`);
+        console.log(`${"=".repeat(60)}\n`);
         return null;
       }
+      console.log(`   ✅ Integración encontrada`);
+      console.log(`   integration.id: ${integration.id}`);
+      console.log(`   provider_code: ${integration.provider_code}`);
+      console.log(`   branch_id: ${integration.branch_id}`);
 
       // 3. Verificar que el proveedor esté activo
       if (!integration.is_active) {
-        console.log(`❌ Integración POS está inactiva para esta sucursal`);
+        console.log(`\n❌ [syncOrder] Integración inactiva`);
+        console.log(`${"=".repeat(60)}\n`);
         return null;
       }
+      console.log(`   is_active: true`);
 
       // 4. Crear instancia del servicio POS
+      console.log(`\n🏭 [syncOrder] Creando servicio POS...`);
       const posService = POSFactory.createPOSService(
         integration,
         integration.provider_code,
       );
+      console.log(`   ✅ Servicio POS creado`);
 
       // 5. Transformar orden al formato POS
+      console.log(`\n🔄 [syncOrder] Transformando orden a formato POS...`);
       const posOrderData = await this.transformOrderToPOS(order, integration);
+      console.log(`   order_id: ${posOrderData.order_id}`);
+      console.log(`   check_number: ${posOrderData.check_number}`);
+      console.log(`   table_number: ${posOrderData.table_number}`);
+      console.log(`   items count: ${posOrderData.items?.length || 0}`);
+
+      // 5.1 Verificar que hay items mapeados antes de enviar
+      if (!posOrderData.items || posOrderData.items.length === 0) {
+        console.log(`\n⚠️ [syncOrder] Sin items mapeados, saltando sync`);
+        console.log(`${"=".repeat(60)}\n`);
+        return null;
+      }
+
+      // Log de cada item
+      console.log(`   Items a enviar:`);
+      posOrderData.items.forEach((item, idx) => {
+        console.log(`     [${idx}] ${item.name} x${item.quantity} @ $${item.price} (pos_id: ${item.pos_item_id})`);
+      });
 
       // 6. Enviar a POS
+      console.log(`\n📤 [syncOrder] Enviando a POS...`);
       try {
         const posResponse = await posService.createOrder(posOrderData);
+        console.log(`\n✅ [syncOrder] Respuesta del POS:`);
+        console.log(`   posOrderId: ${posResponse.posOrderId}`);
+        console.log(`   posCheckNumber: ${posResponse.posCheckNumber}`);
+        console.log(`   status: ${posResponse.status}`);
+        console.log(`   totals: ${JSON.stringify(posResponse.totals)}`);
 
         // 7. Registrar sincronización exitosa
+        console.log(`\n📝 [syncOrder] Creando registro en pos_order_sync...`);
         await this.createOrderSync({
           integration_id: integration.id,
           local_order_id: orderId,
@@ -57,10 +126,27 @@ class POSSyncService {
           last_synced_at: new Date().toISOString(),
           response_payload: posResponse,
         });
+        console.log(`   ✅ Registro creado`);
 
-        console.log(
-          `✅ Orden sincronizada exitosamente con POS. ID: ${posResponse.posOrderId}`,
-        );
+        // 7.1 Actualizar folio en la tabla de la orden
+        if (posResponse.posOrderId) {
+          console.log(`\n📝 [syncOrder] Guardando folio en ${orderType}...`);
+          const { error: folioError } = await supabaseAdmin
+            .from(orderType)
+            .update({ folio: posResponse.posOrderId })
+            .eq("id", orderId);
+
+          if (folioError) {
+            console.warn(`   ⚠️ Error: ${folioError.message}`);
+          } else {
+            console.log(`   ✅ Folio ${posResponse.posOrderId} guardado`);
+          }
+        }
+
+        console.log(`\n${"=".repeat(60)}`);
+        console.log(`🔄 [syncOrder] FIN - ÉXITO`);
+        console.log(`   posOrderId: ${posResponse.posOrderId}`);
+        console.log(`${"=".repeat(60)}\n`);
 
         return {
           success: true,
@@ -69,6 +155,9 @@ class POSSyncService {
         };
       } catch (error) {
         // 8. Registrar error de sincronización
+        console.error(`\n❌ [syncOrder] Error creando orden en POS:`);
+        console.error(`   mensaje: ${error.message}`);
+
         await this.createOrderSync({
           integration_id: integration.id,
           local_order_id: orderId,
@@ -79,9 +168,7 @@ class POSSyncService {
           request_payload: posOrderData,
         });
 
-        // No lanzar error para no bloquear el flujo principal de Xquisito
-        console.error(`❌ Error sincronizando con POS:`, error.message);
-
+        console.log(`${"=".repeat(60)}\n`);
         return {
           success: false,
           error: error.message,
@@ -89,8 +176,10 @@ class POSSyncService {
         };
       }
     } catch (error) {
-      console.error(`❌ Error en POSSyncService.syncOrder:`, error);
-      // No lanzar error para no bloquear el flujo principal
+      console.error(`\n❌ [syncOrder] Error general:`);
+      console.error(`   mensaje: ${error.message}`);
+      console.error(`   stack: ${error.stack}`);
+      console.log(`${"=".repeat(60)}\n`);
       return null;
     }
   }
@@ -209,30 +298,38 @@ class POSSyncService {
 
   // Obtener items de la orden con su mapeo POS
   static async getOrderItemsWithMapping(orderId, integrationId) {
+    console.log(`\n📦 [getOrderItemsWithMapping] Buscando items para orden ${orderId}`);
+
     // Buscar items en dish_order (columnas correctas según la tabla)
     const { data: dishOrders, error } = await supabaseAdmin
       .from("dish_order")
-      .select("id, item, quantity, price, menu_item_id")
+      .select("id, item, quantity, price, extra_price, menu_item_id, custom_fields")
       .or(
         `tap_order_id.eq.${orderId},room_order_id.eq.${orderId},pick_and_go_order_id.eq.${orderId},tap_pay_order_id.eq.${orderId}`,
       );
 
     if (error || !dishOrders || dishOrders.length === 0) {
-      console.warn(`No se encontraron items para la orden ${orderId}`);
+      console.warn(`   ⚠️ No se encontraron items para la orden ${orderId}`);
+      if (error) console.warn(`   Error: ${error.message}`);
       return [];
     }
 
-    console.log(
-      `📋 Encontrados ${dishOrders.length} items para orden ${orderId}`,
-    );
+    console.log(`   ✅ Encontrados ${dishOrders.length} items en dish_order`);
 
     // Mapear items con sus códigos POS
     const itemsWithMapping = await Promise.all(
-      dishOrders.map(async (dishOrder) => {
+      dishOrders.map(async (dishOrder, idx) => {
+        console.log(`\n   [Item ${idx}] "${dishOrder.item}"`);
+        console.log(`      quantity: ${dishOrder.quantity}`);
+        console.log(`      price: $${dishOrder.price}`);
+        console.log(`      extra_price: $${dishOrder.extra_price || 0}`);
+        console.log(`      menu_item_id: ${dishOrder.menu_item_id || "N/A"}`);
+
         let menuItemId = dishOrder.menu_item_id;
 
         // Si no tiene menu_item_id, intentar buscar por nombre
         if (!menuItemId) {
+          console.log(`      Buscando menu_item por nombre...`);
           const { data: menuItem } = await supabaseAdmin
             .from("menu_items")
             .select("id")
@@ -240,12 +337,13 @@ class POSSyncService {
             .single();
 
           menuItemId = menuItem?.id;
+          if (menuItemId) {
+            console.log(`      ✅ Encontrado: ${menuItemId}`);
+          }
         }
 
         if (!menuItemId) {
-          console.warn(
-            `Item "${dishOrder.item}" no tiene menu_item_id y no se encontró por nombre`,
-          );
+          console.warn(`      ❌ Sin menu_item_id, saltando`);
           return null;
         }
 
@@ -258,10 +356,16 @@ class POSSyncService {
           .single();
 
         if (!mapping) {
-          console.warn(
-            `Item ${menuItemId} (${dishOrder.item}) no tiene mapeo POS`,
-          );
+          console.warn(`      ❌ Sin mapeo POS, saltando`);
           return null;
+        }
+
+        console.log(`      ✅ Mapeo POS: ${mapping.pos_item_id}`);
+
+        // Formatear custom_fields como comentario
+        const comment = this.formatCustomFieldsAsComment(dishOrder.custom_fields);
+        if (comment) {
+          console.log(`      📝 Comentario: ${comment}`);
         }
 
         return {
@@ -269,17 +373,54 @@ class POSSyncService {
           pos_item_code: mapping.pos_item_code,
           quantity: dishOrder.quantity,
           price: dishOrder.price,
+          extraPrice: dishOrder.extra_price || 0,
           name: dishOrder.item,
+          comment: comment,
         };
       }),
     );
 
     // Filtrar items sin mapeo
     const mappedItems = itemsWithMapping.filter((item) => item !== null);
-    console.log(
-      `✅ ${mappedItems.length}/${dishOrders.length} items mapeados a POS`,
-    );
+    console.log(`\n   📊 Resumen: ${mappedItems.length}/${dishOrders.length} items mapeados a POS`);
     return mappedItems;
+  }
+
+  // Formatear custom_fields a string legible para comentario en POS
+  static formatCustomFieldsAsComment(customFields) {
+    if (!customFields || !Array.isArray(customFields) || customFields.length === 0) {
+      return "";
+    }
+
+    const parts = [];
+    for (const field of customFields) {
+      if (!field.selectedOptions || field.selectedOptions.length === 0) continue;
+
+      for (const option of field.selectedOptions) {
+        let text = "";
+
+        // Nombre del campo + opción seleccionada
+        if (field.fieldName && option.optionName) {
+          text = `${field.fieldName}: ${option.optionName}`;
+        } else if (option.optionName) {
+          text = option.optionName;
+        }
+
+        // Agregar cantidad si existe y es > 1
+        if (option.quantity && option.quantity > 1) {
+          text += ` x${option.quantity}`;
+        }
+
+        // Agregar precio si es > 0
+        if (option.price && option.price > 0) {
+          text += ` (+$${option.price})`;
+        }
+
+        if (text) parts.push(text);
+      }
+    }
+
+    return parts.join(", ");
   }
 
   // Crear registro de sincronización
@@ -443,6 +584,20 @@ class POSSyncService {
             response_payload: posResponse,
           });
 
+          // Actualizar folio en table_order
+          if (posResponse.posOrderId) {
+            const { error: folioError } = await supabaseAdmin
+              .from("table_order")
+              .update({ folio: posResponse.posOrderId })
+              .eq("id", tableOrderId);
+
+            if (folioError) {
+              console.warn(`⚠️ No se pudo actualizar folio en table_order:`, folioError.message);
+            } else {
+              console.log(`✅ Folio ${posResponse.posOrderId} guardado en table_order`);
+            }
+          }
+
           console.log(`✅ Check creado en POS: ${posResponse.posOrderId}`);
         }
 
@@ -504,20 +659,25 @@ class POSSyncService {
       return null;
     }
 
+    // Formatear custom_fields como comentario
+    const comment = this.formatCustomFieldsAsComment(dishOrder.custom_fields);
+
     return {
       pos_item_id: mapping.pos_item_id,
       pos_item_code: mapping.pos_item_code,
       quantity: dishOrder.quantity,
       price: dishOrder.price,
+      extraPrice: dishOrder.extra_price || 0,
+      comment: comment,
       name: dishOrder.item,
     };
   }
 
   // Sincronizar un pago/abono de FlexBill con el POS
-  static async syncFlexBillPayment(tableOrderId, amount) {
+  static async syncFlexBillPayment(tableOrderId, amount, tip = 0) {
     try {
       console.log(
-        `💳 Sincronizando pago de $${amount} para table_order ${tableOrderId}...`,
+        `💳 Sincronizando pago de $${amount} (propina: $${tip}) para table_order ${tableOrderId}...`,
       );
 
       // Buscar sync existente - buscar cualquier registro con folio válido
@@ -560,6 +720,7 @@ class POSSyncService {
       // Aplicar tender con el monto específico (abono parcial)
       const result = await posService.applyTender(sync.pos_order_id, {
         amount,
+        tip,
       });
 
       // Actualizar registro de sync
@@ -821,50 +982,113 @@ class POSSyncService {
    * Sincronizar orden prepagada con el POS
    * Crea la orden en POS y aplica el pago en una sola operación
    * Usado por: Tap Order & Pay, Pick & Go, Room Service
+   * @param {string} orderId - ID de la orden
+   * @param {string} orderType - Tipo de orden (tap_pay_orders, pick_and_go_orders, room_orders)
+   * @param {number} paymentAmount - Monto del pago
+   * @param {number} tip - Propina (default 0)
    */
-  static async syncPaidOrder(orderId, orderType, paymentAmount) {
+  static async syncPaidOrder(orderId, orderType, paymentAmount, tip = 0) {
     try {
-      console.log(
-        `🔄 Sincronizando orden prepagada: ${orderId} ($${paymentAmount})...`,
-      );
+      console.log(`\n${"=".repeat(60)}`);
+      console.log(`🔄 [syncPaidOrder] INICIO`);
+      console.log(`   orderId: ${orderId}`);
+      console.log(`   orderType: ${orderType}`);
+      console.log(`   paymentAmount: $${paymentAmount}`);
+      console.log(`   tip: $${tip}`);
 
-      // 1. Primero sincronizar la orden
-      const orderResult = await this.syncOrder(orderId, orderType);
+      // El tip ahora viene directamente desde PaymentTransactionService.createTransaction
+      const tipAmount = tip || 0;
+      console.log(`${"=".repeat(60)}`);
 
-      if (!orderResult || !orderResult.success) {
-        console.warn(`⚠️ No se pudo sincronizar orden ${orderId}`);
-        return orderResult;
+      let posOrderId = null;
+
+      // 0. Verificar si ya fue sincronizada
+      console.log(`\n📋 [syncPaidOrder] Buscando sync existente...`);
+      const { data: existingSync, error: syncError } = await supabaseAdmin
+        .from("pos_order_sync")
+        .select("id, pos_order_id, sync_status")
+        .eq("local_order_id", orderId)
+        .eq("local_order_type", orderType)
+        .not("pos_order_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      console.log(`   existingSync: ${JSON.stringify(existingSync)}`);
+      if (syncError) console.log(`   syncError: ${syncError.message}`);
+
+      if (existingSync && existingSync.pos_order_id) {
+        // Orden ya existe en POS, usar el folio existente para aplicar pago
+        posOrderId = existingSync.pos_order_id;
+        console.log(`\n✅ [syncPaidOrder] Orden YA EXISTE en POS`);
+        console.log(`   Usando folio existente: ${posOrderId}`);
+      } else {
+        // 1. Crear la orden en POS primero
+        console.log(`\n🆕 [syncPaidOrder] Orden NO existe, creando en POS...`);
+        const orderResult = await this.syncOrder(orderId, orderType);
+
+        console.log(`   syncOrder resultado: ${JSON.stringify(orderResult)}`);
+
+        if (!orderResult || !orderResult.success) {
+          console.warn(`\n❌ [syncPaidOrder] syncOrder FALLÓ`);
+          return orderResult;
+        }
+
+        posOrderId = orderResult.posOrderId;
+        console.log(`   Nuevo folio: ${posOrderId}`);
       }
 
-      const posOrderId = orderResult.posOrderId;
-      console.log(`✅ Orden creada en POS: ${posOrderId}`);
+      if (!posOrderId) {
+        console.warn(`\n❌ [syncPaidOrder] No se obtuvo posOrderId`);
+        console.log(`${"=".repeat(60)}\n`);
+        return { success: false, error: "No se pudo obtener folio POS" };
+      }
+      console.log(`\n✅ [syncPaidOrder] Folio POS listo: ${posOrderId}`);
 
       // 2. Obtener la integración para aplicar el pago
+      console.log(`\n📋 [syncPaidOrder] Obteniendo orden e integración...`);
       const order = await this.getLocalOrder(orderId, orderType);
+      console.log(`   order encontrada: ${order ? "SI" : "NO"}`);
+
       const integration = await this.getPOSIntegration(order);
+      console.log(`   integration encontrada: ${integration ? "SI" : "NO"}`);
 
       if (!integration) {
-        return orderResult; // Ya se creó la orden, solo retornar
+        console.warn(`\n⚠️ [syncPaidOrder] Sin integración, no se puede aplicar pago`);
+        console.log(`${"=".repeat(60)}\n`);
+        return { success: true, posOrderId, orderCreated: true, paymentApplied: false };
       }
 
+      console.log(`   provider_code: ${integration.provider_code}`);
+      console.log(`   branch_id: ${integration.branch_id}`);
+
       // 3. Crear instancia del POS service y aplicar pago
+      console.log(`\n💳 [syncPaidOrder] Aplicando pago al POS...`);
+      console.log(`   folio: ${posOrderId}`);
+      console.log(`   amount: $${paymentAmount || 0}`);
+      console.log(`   tip: $${tipAmount}`);
+      console.log(`   reference: XQ-${orderId.substring(0, 8)}`);
+
       const posService = POSFactory.createPOSService(
         integration,
         integration.provider_code,
       );
 
       try {
-        // Aplicar pago completo (amount = 0 significa pagar todo)
+        // Aplicar pago completo (amount = 0 significa pagar todo) con propina
         const paymentResult = await posService.applyTender(posOrderId, {
           amount: paymentAmount || 0,
+          tip: tipAmount,
           reference: `XQ-${orderId.substring(0, 8)}`,
         });
 
-        console.log(
-          `✅ Pago aplicado. Check ${posOrderId} status: ${paymentResult.status}`,
-        );
+        console.log(`\n✅ [syncPaidOrder] Pago aplicado exitosamente`);
+        console.log(`   status: ${paymentResult.status}`);
+        console.log(`   isClosed: ${paymentResult.isClosed}`);
+        console.log(`   totals: ${JSON.stringify(paymentResult.totals)}`);
 
         // 4. Actualizar registro de sync con estado cerrado
+        console.log(`\n📝 [syncPaidOrder] Actualizando pos_order_sync...`);
         const { data: sync } = await supabaseAdmin
           .from("pos_order_sync")
           .select("id")
@@ -874,14 +1098,23 @@ class POSSyncService {
 
         if (sync) {
           const newStatus = paymentResult.isClosed ? "closed" : "synced";
+          console.log(`   sync.id: ${sync.id}`);
+          console.log(`   newStatus: ${newStatus}`);
           await this.updateOrderSync(sync.id, {
             sync_status: newStatus,
             response_payload: {
-              order: orderResult,
+              posOrderId,
               payment: paymentResult,
             },
           });
+          console.log(`   ✅ Sync actualizado`);
+        } else {
+          console.log(`   ⚠️ No se encontró sync para actualizar`);
         }
+
+        console.log(`\n${"=".repeat(60)}`);
+        console.log(`🔄 [syncPaidOrder] FIN - ÉXITO`);
+        console.log(`${"=".repeat(60)}\n`);
 
         return {
           success: true,
@@ -892,9 +1125,10 @@ class POSSyncService {
           isClosed: paymentResult.isClosed,
         };
       } catch (paymentError) {
-        console.error(
-          `⚠️ Orden creada pero error aplicando pago: ${paymentError.message}`,
-        );
+        console.error(`\n❌ [syncPaidOrder] Error aplicando pago:`);
+        console.error(`   mensaje: ${paymentError.message}`);
+        console.error(`   stack: ${paymentError.stack}`);
+        console.log(`${"=".repeat(60)}\n`);
 
         return {
           success: true,
@@ -906,16 +1140,19 @@ class POSSyncService {
         };
       }
     } catch (error) {
-      console.error(`❌ Error en syncPaidOrder:`, error);
+      console.error(`\n❌ [syncPaidOrder] Error general:`);
+      console.error(`   mensaje: ${error.message}`);
+      console.error(`   stack: ${error.stack}`);
+      console.log(`${"=".repeat(60)}\n`);
       return null;
     }
   }
 
   // Sincronizar pago de Tap & Pay con el POS
-  static async syncTapPayPayment(posOrderId, branchId, amount) {
+  static async syncTapPayPayment(posOrderId, branchId, amount, tip = 0) {
     try {
       console.log(
-        `💳 Sincronizando pago Tap&Pay de $${amount} para check ${posOrderId}...`,
+        `💳 Sincronizando pago Tap&Pay de $${amount} (propina: $${tip}) para check ${posOrderId}...`,
       );
 
       // Obtener integración
@@ -942,7 +1179,7 @@ class POSSyncService {
       );
 
       // Aplicar tender
-      const result = await posService.applyTender(posOrderId, { amount });
+      const result = await posService.applyTender(posOrderId, { amount, tip });
 
       // Actualizar registro de sync
       const { data: sync } = await supabaseAdmin
