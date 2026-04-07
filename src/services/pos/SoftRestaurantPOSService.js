@@ -33,17 +33,26 @@ class SoftRestaurantPOSService extends BasePOSService {
     console.log(`📝 Creando orden en SR: branch=${this.branchId}`);
 
     try {
+      // Determinar área de restaurante según tipo de orden
+      // dine_in (FlexBill/Tap & Pay) → "01" (COMEDOR)
+      // Otros (pick_and_go, room_service, etc.) → "03" (RAPIDO)
+      const orderType = orderData.order_type || "dine_in";
+      const idarearestaurant = orderType === "dine_in" ? "01" : "03";
+
       const response = await this.sendToAgent("new_order", {
         id: orderData.order_id || orderData.id,
         tableNumber: orderData.table_number,
-        orderType: orderData.order_type || "dine_in",
+        orderType: orderType,
         guests: orderData.guest_count || 1,
+        idarearestaurant: idarearestaurant,
         items: orderData.items.map((item) => ({
           productId: item.pos_item_id,
           sku: item.sku || item.pos_item_id,
           name: item.name,
           quantity: item.quantity,
           price: item.price,
+          extraPrice: item.extraPrice || 0,
+          comment: item.comment || "",
           modifiers: item.modifiers || [],
           notes: item.notes || "",
         })),
@@ -51,6 +60,14 @@ class SoftRestaurantPOSService extends BasePOSService {
         prepaid: orderData.prepagado || false,
         paymentMethod: orderData.forma_pago || null,
       });
+
+      // Validar que la respuesta fue exitosa y tiene folio
+      if (!response.success && response.error) {
+        throw new Error(response.error);
+      }
+      if (!response.folio) {
+        throw new Error("El agente no retornó un folio válido");
+      }
 
       console.log(`✅ Orden creada en SR: folio=${response.folio}`);
       if (response.totals?.descuento > 0) {
@@ -95,6 +112,8 @@ class SoftRestaurantPOSService extends BasePOSService {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
+          extraPrice: item.extraPrice || 0,
+          comment: item.comment || "",
           modifiers: item.modifiers || [],
           notes: item.notes || "",
         })),
@@ -126,6 +145,8 @@ class SoftRestaurantPOSService extends BasePOSService {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
+          extraPrice: item.extraPrice || 0,
+          comment: item.comment || "",
           modifiers: item.modifiers || [],
           notes: item.notes || "",
         })),
@@ -211,6 +232,16 @@ class SoftRestaurantPOSService extends BasePOSService {
 
   // Aplicar pago a una orden
   async applyTender(posOrderId, tenderData = {}) {
+    // Validar folio antes de proceder
+    if (!posOrderId || posOrderId === "undefined" || posOrderId === "null") {
+      throw new Error(`Folio inválido: ${posOrderId}`);
+    }
+
+    const folioNum = parseInt(posOrderId, 10);
+    if (isNaN(folioNum) || folioNum <= 0) {
+      throw new Error(`Folio no es un número válido: ${posOrderId}`);
+    }
+
     const amount = tenderData.amount || 0;
     console.log(`💳 Aplicando pago de $${amount} a folio ${posOrderId}`);
     console.log(
@@ -219,7 +250,7 @@ class SoftRestaurantPOSService extends BasePOSService {
 
     try {
       const response = await this.sendToAgent("apply_payment", {
-        folio: parseInt(posOrderId, 10),
+        folio: folioNum,
         amount: amount,
         tenderId: tenderData.tender_id || tenderData.forma_pago || null,
         reference: tenderData.reference || "XQUISITO",

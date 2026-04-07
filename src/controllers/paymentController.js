@@ -5,6 +5,7 @@ const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
 const paymentTransactionService = require("../services/paymentTransactionService");
 const socketEmitter = require("../services/socketEmitter");
 const { pciLog, PCI_ACTIONS } = require("../utils/pciLog");
+const POSSyncService = require("../services/pos/POSSyncService");
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -1312,6 +1313,26 @@ class PaymentController {
           "⚠️ Failed to send payment notification:",
           notificationError,
         );
+      }
+
+      // Sincronizar pago con POS (solo FlexBill - los demás se sincronizan desde sus servicios)
+      try {
+        if (transactionData.id_table_order) {
+          const tip = transactionData.tip_amount || 0;
+          const amount = transactionData.base_amount || 0;
+          // FlexBill - sincronizar pago con propina
+          POSSyncService.syncFlexBillPayment(
+            transactionData.id_table_order,
+            amount,
+            tip,
+          ).catch((err) =>
+            console.error("Error sincronizando pago FlexBill con POS:", err),
+          );
+        }
+        // NOTA: Tap Order & Pay, Pick & Go, Room Service se sincronizan
+        // desde sus respectivos servicios cuando el status cambia a "completed"
+      } catch (posSyncError) {
+        console.error("⚠️ Failed to sync payment with POS:", posSyncError);
       }
 
       res.status(201).json({

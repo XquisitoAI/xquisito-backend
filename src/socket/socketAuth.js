@@ -6,29 +6,29 @@ const supabase = require("../config/supabase");
  * Middleware de autenticación para Socket.IO
  * Soporta:
  * 1. Token de Clerk (Admin Portal)
- * 2. Guest ID (FlexBill - usuarios invitados)
- * 3. Token de Supabase (FlexBill - usuarios autenticados)
+ * 2. Guest ID (FlexBill y Tap&Pay - usuarios invitados)
+ * 3. Token de Supabase (FlexBill y Tap&Pay - usuarios autenticados)
  */
 async function authenticateSocket(socket, next) {
   try {
     const { token, guestId, guestName, clientType } = socket.handshake.auth;
 
-    // Caso 1: Guest de FlexBill (sin autenticación, solo guest_id)
-    if (guestId && clientType === "flexbill") {
+    // Caso 1: Guest de FlexBill o Tap&Pay (sin autenticación, solo guest_id)
+    if (guestId && (clientType === "flexbill" || clientType === "tap-pay")) {
       socket.user = {
         id: guestId,
         guestId: guestId,
         guestName: guestName || "Invitado",
         isGuest: true,
-        clientType: "flexbill",
+        clientType: clientType,
       };
 
-      console.log(`✅ Socket authenticated (FlexBill Guest): ${guestId}`);
+      console.log(`✅ Socket authenticated (${clientType} Guest): ${guestId}`);
       return next();
     }
 
-    // Caso 2: Usuario autenticado de FlexBill (Supabase token)
-    if (token && clientType === "flexbill") {
+    // Caso 2: Usuario autenticado de FlexBill o Tap&Pay (Supabase token)
+    if (token && (clientType === "flexbill" || clientType === "tap-pay")) {
       try {
         // Verificar token con Supabase
         const {
@@ -44,10 +44,10 @@ async function authenticateSocket(socket, next) {
               guestId: guestId,
               guestName: guestName || "Invitado",
               isGuest: true,
-              clientType: "flexbill",
+              clientType: clientType,
             };
             console.log(
-              `✅ Socket authenticated (FlexBill Guest Fallback): ${guestId}`,
+              `✅ Socket authenticated (${clientType} Guest Fallback): ${guestId}`,
             );
             return next();
           }
@@ -59,10 +59,10 @@ async function authenticateSocket(socket, next) {
           id: user.id,
           email: user.email,
           isGuest: false,
-          clientType: "flexbill",
+          clientType: clientType,
         };
 
-        console.log(`✅ Socket authenticated (FlexBill User): ${user.id}`);
+        console.log(`✅ Socket authenticated (${clientType} User): ${user.id}`);
         return next();
       } catch (supabaseError) {
         // Si hay error, permitir como guest
@@ -72,10 +72,10 @@ async function authenticateSocket(socket, next) {
             guestId: guestId,
             guestName: guestName || "Invitado",
             isGuest: true,
-            clientType: "flexbill",
+            clientType: clientType,
           };
           console.log(
-            `✅ Socket authenticated (FlexBill Guest after error): ${guestId}`,
+            `✅ Socket authenticated (${clientType} Guest after error): ${guestId}`,
           );
           return next();
         }

@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const POSSyncService = require("./pos/POSSyncService");
 
 class PaymentTransactionService {
   // Detecta el tipo de tarjeta (crédito o débito)
@@ -243,6 +244,44 @@ class PaymentTransactionService {
       }
 
       console.log("✅ Transacción guardada exitosamente:", data.id);
+
+      // Sincronizar con POS después de guardar la transacción
+      // Determinar el tipo de orden y su ID
+      let orderId = null;
+      let orderType = null;
+
+      if (id_tap_orders_and_pay) {
+        orderId = id_tap_orders_and_pay;
+        orderType = "tap_orders_and_pay";
+      } else if (id_tap_pay_order) {
+        orderId = id_tap_pay_order;
+        orderType = "tap_pay_orders";
+      } else if (pick_and_go_order_id) {
+        orderId = pick_and_go_order_id;
+        orderType = "pick_and_go_orders";
+      } else if (id_room_order) {
+        orderId = id_room_order;
+        orderType = "room_orders";
+      }
+
+      if (orderId && orderType) {
+        console.log(`\n🔄 [PaymentTransaction] Sincronizando pago con POS...`);
+        console.log(`   orderId: ${orderId}`);
+        console.log(`   orderType: ${orderType}`);
+        console.log(`   base_amount: $${baseAmountNum}`);
+        console.log(`   tip_amount: $${tipAmountNum}`);
+
+        // Sincronizar en background (no bloquear respuesta al cliente)
+        POSSyncService.syncPaidOrder(orderId, orderType, baseAmountNum, tipAmountNum)
+          .then((result) => {
+            if (result?.success) {
+              console.log(`✅ [PaymentTransaction] POS sync exitoso: folio ${result.posOrderId}`);
+            } else {
+              console.warn(`⚠️ [PaymentTransaction] POS sync falló:`, result?.error || "Sin integración");
+            }
+          })
+          .catch((err) => console.error(`❌ [PaymentTransaction] Error en POS sync:`, err.message));
+      }
 
       return {
         success: true,

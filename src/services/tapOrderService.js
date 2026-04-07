@@ -1,5 +1,4 @@
 const supabase = require("../config/supabase");
-const POSSyncService = require("./pos/POSSyncService");
 
 class TapOrderService {
   // Ya no necesitamos generar QR tokens para el flujo de URL directa
@@ -197,7 +196,7 @@ class TapOrderService {
   }
 
   // Actualizar estado de la orden
-  async updateOrderStatus(tap_order_id, status) {
+  async updateOrderStatus(tap_order_id, status, additionalData = {}) {
     try {
       const validStatuses = [
         "active",
@@ -229,14 +228,8 @@ class TapOrderService {
 
       if (error) throw error;
 
-      // Sincronizar con POS al completar orden (orden prepagada)
-      if (status === "completed") {
-        POSSyncService.syncPaidOrder(
-          tap_order_id,
-          "tap_orders_and_pay",
-          data.total_amount || 0,
-        ).catch((err) => console.error("Error en sincronización POS:", err));
-      }
+      // POS sync ahora se hace desde PaymentTransactionService.createTransaction
+      // cuando se crea el pago, donde ya tenemos acceso directo al tip_amount
 
       return { success: true, data };
     } catch (error) {

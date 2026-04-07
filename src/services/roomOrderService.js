@@ -1,5 +1,4 @@
 const { createClient } = require("@supabase/supabase-js");
-const POSSyncService = require("./pos/POSSyncService");
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -188,7 +187,7 @@ class RoomOrderService {
   }
 
   // Actualizar estado de orden
-  async updateOrderStatus(orderId, orderStatus) {
+  async updateOrderStatus(orderId, orderStatus, additionalData = {}) {
     try {
       const { data, error } = await supabase
         .from("room_orders")
@@ -202,14 +201,8 @@ class RoomOrderService {
 
       if (error) throw error;
 
-      // Sincronizar con POS al completar orden (orden prepagada)
-      if (orderStatus === "completed") {
-        POSSyncService.syncPaidOrder(
-          orderId,
-          "room_orders",
-          data.total_amount || 0,
-        ).catch((err) => console.error("Error en sincronización POS:", err));
-      }
+      // POS sync ahora se hace desde PaymentTransactionService.createTransaction
+      // cuando se crea el pago, donde ya tenemos acceso directo al tip_amount
 
       return data;
     } catch (error) {

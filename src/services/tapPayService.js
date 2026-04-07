@@ -429,9 +429,9 @@ class TapPayService {
 
       await this.addOrUpdateActiveUser(orderId, userId, guestName, totalAmount);
 
-      // Sincronizar pago con POS (fire and forget)
+      // Sincronizar pago con POS (fire and forget) - incluir propina
       // amount=0 significa pago completo
-      this.syncPaymentWithPOS(orderId, 0).catch((err) =>
+      this.syncPaymentWithPOS(orderId, 0, tipAmount || 0).catch((err) =>
         console.error("Error sincronizando pago full con POS:", err),
       );
 
@@ -508,8 +508,8 @@ class TapPayService {
 
       await this.addOrUpdateActiveUser(orderId, userId, guestName, totalAmount);
 
-      // Sincronizar pago con POS (fire and forget)
-      this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
+      // Sincronizar pago con POS (fire and forget) - incluir propina
+      this.syncPaymentWithPOS(orderId, totalAmount, tipAmount).catch((err) =>
         console.error("Error sincronizando pago items con POS:", err),
       );
 
@@ -586,9 +586,10 @@ class TapPayService {
 
       if (splitError) throw splitError;
 
-      // Sincronizar pago con POS (fire and forget)
-      this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
-        console.error("Error sincronizando pago equal share con POS:", err),
+      // Sincronizar pago con POS (fire and forget) - incluir propina
+      this.syncPaymentWithPOS(orderId, totalAmount, tipAmount || 0).catch(
+        (err) =>
+          console.error("Error sincronizando pago equal share con POS:", err),
       );
 
       return {
@@ -651,9 +652,9 @@ class TapPayService {
         totalAmount,
       );
 
-      // Sincronizar pago con POS (fire and forget)
-      this.syncPaymentWithPOS(orderId, totalAmount).catch((err) =>
-        console.error("Error sincronizando pago monto con POS:", err),
+      // Sincronizar pago con POS (fire and forget) - incluir propina
+      this.syncPaymentWithPOS(orderId, totalAmount, tipAmount || 0).catch(
+        (err) => console.error("Error sincronizando pago monto con POS:", err),
       );
 
       return {
@@ -1056,8 +1057,9 @@ class TapPayService {
    * Sincronizar pago con POS
    * @param {string} orderId - ID de la orden local
    * @param {number} amount - Monto a pagar (0 = pago completo)
+   * @param {number} tip - Propina
    */
-  async syncPaymentWithPOS(orderId, amount) {
+  async syncPaymentWithPOS(orderId, amount, tip = 0) {
     try {
       // Obtener la orden con pos_order_id
       const { data: order, error } = await supabaseAdmin
@@ -1086,10 +1088,11 @@ class TapPayService {
         order.pos_order_id,
         branchId,
         amount,
+        tip,
       );
 
       console.log(
-        `✅ Pago Tap&Pay sincronizado con POS: ${order.pos_order_id}`,
+        `✅ Pago Tap&Pay sincronizado con POS: ${order.pos_order_id} (propina: $${tip})`,
       );
       return result;
     } catch (error) {
