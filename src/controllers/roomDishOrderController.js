@@ -14,6 +14,7 @@ exports.createOrderWithFirstDish = async (req, res) => {
       customer_phone,
       images = [],
       custom_fields = {},
+      menu_item_id = null,
     } = req.body;
 
     // Validaciones
@@ -51,6 +52,7 @@ exports.createOrderWithFirstDish = async (req, res) => {
       customerPhone: customer_phone,
       images,
       customFields: custom_fields,
+      menuItemId: menu_item_id,
     });
 
     // result es un JSON con room_order_id, dish_order_id, etc.
@@ -83,6 +85,7 @@ exports.addDishToOrder = async (req, res) => {
       extra_price = 0,
       images = [],
       custom_fields = {},
+      menu_item_id = null,
     } = req.body;
 
     // Validaciones
@@ -100,6 +103,7 @@ exports.addDishToOrder = async (req, res) => {
       extraPrice: extra_price,
       images,
       customFields: custom_fields,
+      menuItemId: menu_item_id,
     });
 
     res.status(201).json({
