@@ -263,26 +263,7 @@ class TableService {
         );
       }
 
-      // Sincronizar pago con POS (fire and forget)
-      if (dishData) {
-        const tableOrderId = dishData.user_order?.table_order?.id;
-        console.log(
-          `🔍 Sync pago POS: tableOrderId=${tableOrderId}, amount=${amountPaid}`,
-        );
-        if (tableOrderId) {
-          POSSyncService.syncFlexBillPayment(
-            tableOrderId,
-            amountPaid,
-            tip || 0,
-          ).catch((err) =>
-            console.error("Error sincronizando pago en POS:", err),
-          );
-        } else {
-          console.warn(
-            "⚠️ No se encontró tableOrderId para sincronizar pago POS",
-          );
-        }
-      }
+      // Nota: La sincronización con POS se hace en paymentController.createPaymentTransaction
 
       return data;
     } catch (error) {
@@ -376,19 +357,7 @@ class TableService {
         }),
       );
 
-      if (tableOrderData?.id) {
-        POSSyncService.syncFlexBillPayment(
-          tableOrderData.id,
-          amount,
-          tip || 0,
-        ).catch((err) =>
-          console.error("Error sincronizando pago en POS:", err),
-        );
-      } else {
-        console.warn(
-          "⚠️ No se encontró table_order activo para sincronizar pago POS",
-        );
-      }
+      // Nota: La sincronización con POS se hace en paymentController.createPaymentTransaction
 
       return data;
     } catch (error) {

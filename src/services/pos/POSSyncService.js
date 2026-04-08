@@ -18,7 +18,9 @@ class POSSyncService {
       console.log(`\n📋 [syncOrder] Obteniendo orden local...`);
       const order = await this.getLocalOrder(orderId, orderType);
       if (!order) {
-        console.warn(`\n❌ [syncOrder] Orden ${orderId} no encontrada en ${orderType}`);
+        console.warn(
+          `\n❌ [syncOrder] Orden ${orderId} no encontrada en ${orderType}`,
+        );
         console.log(`${"=".repeat(60)}\n`);
         return null;
       }
@@ -29,13 +31,14 @@ class POSSyncService {
 
       // 1.1 Verificar si ya fue sincronizada (evitar duplicados)
       console.log(`\n🔍 [syncOrder] Verificando si ya fue sincronizada...`);
-      const { data: existingSync, error: existingSyncError } = await supabaseAdmin
-        .from("pos_order_sync")
-        .select("id, pos_order_id, sync_status")
-        .eq("local_order_id", orderId)
-        .eq("local_order_type", orderType)
-        .in("sync_status", ["synced", "closed"])
-        .single();
+      const { data: existingSync, error: existingSyncError } =
+        await supabaseAdmin
+          .from("pos_order_sync")
+          .select("id, pos_order_id, sync_status")
+          .eq("local_order_id", orderId)
+          .eq("local_order_type", orderType)
+          .in("sync_status", ["synced", "closed"])
+          .single();
 
       console.log(`   existingSync: ${JSON.stringify(existingSync)}`);
       if (existingSyncError && existingSyncError.code !== "PGRST116") {
@@ -43,7 +46,9 @@ class POSSyncService {
       }
 
       if (existingSync && existingSync.pos_order_id) {
-        console.log(`\n⏭️ [syncOrder] Ya sincronizada, retornando folio existente`);
+        console.log(
+          `\n⏭️ [syncOrder] Ya sincronizada, retornando folio existente`,
+        );
         console.log(`   folio: ${existingSync.pos_order_id}`);
         console.log(`${"=".repeat(60)}\n`);
         return {
@@ -100,7 +105,9 @@ class POSSyncService {
       // Log de cada item
       console.log(`   Items a enviar:`);
       posOrderData.items.forEach((item, idx) => {
-        console.log(`     [${idx}] ${item.name} x${item.quantity} @ $${item.price} (pos_id: ${item.pos_item_id})`);
+        console.log(
+          `     [${idx}] ${item.name} x${item.quantity} @ $${item.price} (pos_id: ${item.pos_item_id})`,
+        );
       });
 
       // 6. Enviar a POS
@@ -298,12 +305,16 @@ class POSSyncService {
 
   // Obtener items de la orden con su mapeo POS
   static async getOrderItemsWithMapping(orderId, integrationId) {
-    console.log(`\n📦 [getOrderItemsWithMapping] Buscando items para orden ${orderId}`);
+    console.log(
+      `\n📦 [getOrderItemsWithMapping] Buscando items para orden ${orderId}`,
+    );
 
     // Buscar items en dish_order (columnas correctas según la tabla)
     const { data: dishOrders, error } = await supabaseAdmin
       .from("dish_order")
-      .select("id, item, quantity, price, extra_price, menu_item_id, custom_fields")
+      .select(
+        "id, item, quantity, price, extra_price, menu_item_id, custom_fields",
+      )
       .or(
         `tap_order_id.eq.${orderId},room_order_id.eq.${orderId},pick_and_go_order_id.eq.${orderId},tap_pay_order_id.eq.${orderId}`,
       );
@@ -363,7 +374,9 @@ class POSSyncService {
         console.log(`      ✅ Mapeo POS: ${mapping.pos_item_id}`);
 
         // Formatear custom_fields como comentario
-        const comment = this.formatCustomFieldsAsComment(dishOrder.custom_fields);
+        const comment = this.formatCustomFieldsAsComment(
+          dishOrder.custom_fields,
+        );
         if (comment) {
           console.log(`      📝 Comentario: ${comment}`);
         }
@@ -382,19 +395,26 @@ class POSSyncService {
 
     // Filtrar items sin mapeo
     const mappedItems = itemsWithMapping.filter((item) => item !== null);
-    console.log(`\n   📊 Resumen: ${mappedItems.length}/${dishOrders.length} items mapeados a POS`);
+    console.log(
+      `\n   📊 Resumen: ${mappedItems.length}/${dishOrders.length} items mapeados a POS`,
+    );
     return mappedItems;
   }
 
   // Formatear custom_fields a string legible para comentario en POS
   static formatCustomFieldsAsComment(customFields) {
-    if (!customFields || !Array.isArray(customFields) || customFields.length === 0) {
+    if (
+      !customFields ||
+      !Array.isArray(customFields) ||
+      customFields.length === 0
+    ) {
       return "";
     }
 
     const parts = [];
     for (const field of customFields) {
-      if (!field.selectedOptions || field.selectedOptions.length === 0) continue;
+      if (!field.selectedOptions || field.selectedOptions.length === 0)
+        continue;
 
       for (const option of field.selectedOptions) {
         let text = "";
@@ -592,9 +612,14 @@ class POSSyncService {
               .eq("id", tableOrderId);
 
             if (folioError) {
-              console.warn(`⚠️ No se pudo actualizar folio en table_order:`, folioError.message);
+              console.warn(
+                `⚠️ No se pudo actualizar folio en table_order:`,
+                folioError.message,
+              );
             } else {
-              console.log(`✅ Folio ${posResponse.posOrderId} guardado en table_order`);
+              console.log(
+                `✅ Folio ${posResponse.posOrderId} guardado en table_order`,
+              );
             }
           }
 
@@ -1054,9 +1079,16 @@ class POSSyncService {
       console.log(`   integration encontrada: ${integration ? "SI" : "NO"}`);
 
       if (!integration) {
-        console.warn(`\n⚠️ [syncPaidOrder] Sin integración, no se puede aplicar pago`);
+        console.warn(
+          `\n⚠️ [syncPaidOrder] Sin integración, no se puede aplicar pago`,
+        );
         console.log(`${"=".repeat(60)}\n`);
-        return { success: true, posOrderId, orderCreated: true, paymentApplied: false };
+        return {
+          success: true,
+          posOrderId,
+          orderCreated: true,
+          paymentApplied: false,
+        };
       }
 
       console.log(`   provider_code: ${integration.provider_code}`);
