@@ -12,10 +12,13 @@ class MenuAdminPortalService {
   async getAllSections(clerkUserId) {
     try {
       // Obtener restaurant_id del usuario
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) {
         // Usuario sin restaurante, devolver array vacío en lugar de error
-        console.log('ℹ️ User has no restaurant, returning empty sections array');
+        console.log(
+          "ℹ️ User has no restaurant, returning empty sections array",
+        );
         return [];
       }
 
@@ -39,12 +42,13 @@ class MenuAdminPortalService {
   async createSection(clerkUserId, sectionData) {
     try {
       // Obtener restaurant_id del usuario
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) {
-        throw new Error('Restaurant not found for user');
+        throw new Error("Restaurant not found for user");
       }
 
-      const { name, display_order = 0 } = sectionData;
+      const { name, display_order = 0, clasificacion } = sectionData;
 
       const { data, error } = await supabase
         .from("menu_sections")
@@ -52,7 +56,8 @@ class MenuAdminPortalService {
           restaurant_id: restaurant.id,
           name,
           display_order,
-          is_active: true
+          clasificacion: clasificacion || null,
+          is_active: true,
         })
         .select()
         .single();
@@ -72,15 +77,16 @@ class MenuAdminPortalService {
       // Verificar que la sección pertenezca al usuario
       const isOwner = await this.verifySectionOwnership(clerkUserId, sectionId);
       if (!isOwner) {
-        throw new Error('Section not found or access denied');
+        throw new Error("Section not found or access denied");
       }
 
-      const { name, is_active, display_order } = sectionData;
+      const { name, is_active, display_order, clasificacion } = sectionData;
 
       const updateData = {};
       if (name !== undefined) updateData.name = name;
       if (is_active !== undefined) updateData.is_active = is_active;
       if (display_order !== undefined) updateData.display_order = display_order;
+      if (clasificacion !== undefined) updateData.clasificacion = clasificacion;
 
       const { data, error } = await supabase
         .from("menu_sections")
@@ -104,7 +110,7 @@ class MenuAdminPortalService {
       // Verificar que la sección pertenezca al usuario
       const isOwner = await this.verifySectionOwnership(clerkUserId, sectionId);
       if (!isOwner) {
-        throw new Error('Section not found or access denied');
+        throw new Error("Section not found or access denied");
       }
 
       // Verificar si la sección tiene platillos
@@ -138,21 +144,25 @@ class MenuAdminPortalService {
   async reorderSections(clerkUserId, sections) {
     try {
       // Obtener restaurant_id del usuario
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) {
-        throw new Error('Restaurant not found for user');
+        throw new Error("Restaurant not found for user");
       }
 
       // Validar que todas las secciones pertenezcan al usuario
       for (const section of sections) {
-        const isOwner = await this.verifySectionOwnership(clerkUserId, section.id);
+        const isOwner = await this.verifySectionOwnership(
+          clerkUserId,
+          section.id,
+        );
         if (!isOwner) {
           throw new Error(`Section ${section.id} not found or access denied`);
         }
       }
 
       // Actualizar display_order de cada sección
-      const updatePromises = sections.map(section => {
+      const updatePromises = sections.map((section) => {
         return supabase
           .from("menu_sections")
           .update({ display_order: section.display_order })
@@ -185,18 +195,19 @@ class MenuAdminPortalService {
   async getAllItemsByBranch(clerkUserId, branchId = null) {
     try {
       // Obtener restaurant_id del usuario
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) {
         // Usuario sin restaurante, devolver array vacío en lugar de error
-        console.log('ℹ️ User has no restaurant, returning empty items array');
+        console.log("ℹ️ User has no restaurant, returning empty items array");
         return [];
       }
 
       if (branchId) {
         // Usar la función SQL que filtra por sucursal
-        const { data, error } = await supabase.rpc('get_menu_by_branch', {
+        const { data, error } = await supabase.rpc("get_menu_by_branch", {
           p_restaurant_id: restaurant.id,
-          p_branch_id: branchId
+          p_branch_id: branchId,
         });
 
         if (error) throw error;
@@ -204,9 +215,9 @@ class MenuAdminPortalService {
         // Extraer los items de todas las secciones
         const items = [];
         if (data) {
-          data.forEach(section => {
+          data.forEach((section) => {
             if (section.items) {
-              section.items.forEach(item => {
+              section.items.forEach((item) => {
                 // CRITICAL FIX: section_id is missing from get_menu_by_branch response
                 // Add it manually from the parent section
                 if (!item.section_id && section.id) {
@@ -216,9 +227,10 @@ class MenuAdminPortalService {
                 // Parse custom_fields si existe
                 if (item.custom_fields) {
                   try {
-                    item.custom_fields = typeof item.custom_fields === 'string'
-                      ? JSON.parse(item.custom_fields)
-                      : item.custom_fields;
+                    item.custom_fields =
+                      typeof item.custom_fields === "string"
+                        ? JSON.parse(item.custom_fields)
+                        : item.custom_fields;
                   } catch (e) {
                     item.custom_fields = [];
                   }
@@ -230,17 +242,17 @@ class MenuAdminPortalService {
         }
 
         // Obtener availableBranches para cada item
-        const itemIds = items.map(item => item.id);
+        const itemIds = items.map((item) => item.id);
         if (itemIds.length > 0) {
           const { data: branchData, error: branchError } = await supabase
-            .from('item_branch_availability')
-            .select('item_id, branch_id, is_available')
-            .in('item_id', itemIds);
+            .from("item_branch_availability")
+            .select("item_id, branch_id, is_available")
+            .in("item_id", itemIds);
 
           if (!branchError && branchData) {
             // Crear un mapa de item_id -> availableBranches
             const branchMap = {};
-            branchData.forEach(row => {
+            branchData.forEach((row) => {
               if (row.is_available) {
                 if (!branchMap[row.item_id]) {
                   branchMap[row.item_id] = [];
@@ -250,7 +262,7 @@ class MenuAdminPortalService {
             });
 
             // Asignar availableBranches a cada item
-            items.forEach(item => {
+            items.forEach((item) => {
               item.availableBranches = branchMap[item.id] || [];
             });
           }
@@ -272,16 +284,18 @@ class MenuAdminPortalService {
   async getAllItems(clerkUserId, filters = {}) {
     try {
       // Obtener restaurant_id del usuario
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) {
         // Usuario sin restaurante, devolver array vacío en lugar de error
-        console.log('ℹ️ User has no restaurant, returning empty items array');
+        console.log("ℹ️ User has no restaurant, returning empty items array");
         return [];
       }
 
       let query = supabase
         .from("menu_items")
-        .select(`
+        .select(
+          `
           *,
           menu_sections!inner (
             id,
@@ -293,7 +307,8 @@ class MenuAdminPortalService {
             branch_id,
             is_available
           )
-        `)
+        `,
+        )
         .eq("menu_sections.restaurant_id", restaurant.id)
         .order("display_order", { ascending: true })
         .order("id", { ascending: true });
@@ -316,16 +331,16 @@ class MenuAdminPortalService {
       if (error) throw error;
 
       // Parse custom_fields and extract availableBranches
-      const parsedData = (data || []).map(item => {
+      const parsedData = (data || []).map((item) => {
         // Extraer los IDs de sucursales donde el item está disponible
         const availableBranches = (item.item_branch_availability || [])
-          .filter(iba => iba.is_available === true)
-          .map(iba => iba.branch_id);
+          .filter((iba) => iba.is_available === true)
+          .map((iba) => iba.branch_id);
 
         return {
           ...item,
           custom_fields: this.parseCustomFields(item.custom_fields),
-          availableBranches: availableBranches
+          availableBranches: availableBranches,
         };
       });
 
@@ -343,12 +358,13 @@ class MenuAdminPortalService {
       // Verificar que el item pertenezca al usuario
       const isOwner = await this.verifyItemOwnership(clerkUserId, itemId);
       if (!isOwner) {
-        throw new Error('Item not found or access denied');
+        throw new Error("Item not found or access denied");
       }
 
       const { data, error } = await supabase
         .from("menu_items")
-        .select(`
+        .select(
+          `
           *,
           menu_sections (
             id,
@@ -356,7 +372,8 @@ class MenuAdminPortalService {
             is_active,
             restaurant_id
           )
-        `)
+        `,
+        )
         .eq("id", itemId)
         .single();
 
@@ -381,9 +398,12 @@ class MenuAdminPortalService {
       const { section_id } = itemData;
 
       // Verificar que la sección pertenezca al usuario
-      const isOwner = await this.verifySectionOwnership(clerkUserId, section_id);
+      const isOwner = await this.verifySectionOwnership(
+        clerkUserId,
+        section_id,
+      );
       if (!isOwner) {
-        throw new Error('Section not found or access denied');
+        throw new Error("Section not found or access denied");
       }
 
       const {
@@ -395,7 +415,7 @@ class MenuAdminPortalService {
         discount = 0,
         custom_fields = [],
         display_order = 0,
-        availableBranches = [] // Array de branch IDs donde estará disponible
+        availableBranches = [], // Array de branch IDs donde estará disponible
       } = itemData;
 
       const { data, error } = await supabase
@@ -410,9 +430,10 @@ class MenuAdminPortalService {
           discount,
           custom_fields: JSON.stringify(custom_fields),
           display_order,
-          is_available: true
+          is_available: true,
         })
-        .select(`
+        .select(
+          `
           *,
           menu_sections (
             id,
@@ -420,7 +441,8 @@ class MenuAdminPortalService {
             is_active,
             restaurant_id
           )
-        `)
+        `,
+        )
         .single();
 
       if (error) throw error;
@@ -435,17 +457,20 @@ class MenuAdminPortalService {
         try {
           const restaurantId = data.menu_sections.restaurant_id;
 
-          const { error: branchError } = await supabase.rpc('set_item_branch_availability', {
-            p_item_id: data.id,
-            p_restaurant_id: restaurantId,
-            p_selected_branch_ids: availableBranches
-          });
+          const { error: branchError } = await supabase.rpc(
+            "set_item_branch_availability",
+            {
+              p_item_id: data.id,
+              p_restaurant_id: restaurantId,
+              p_selected_branch_ids: availableBranches,
+            },
+          );
 
           if (branchError) {
-            console.error('Error setting branch availability:', branchError);
+            console.error("Error setting branch availability:", branchError);
           }
         } catch (branchError) {
-          console.error('Exception setting branch availability:', branchError);
+          console.error("Exception setting branch availability:", branchError);
         }
       }
 
@@ -463,7 +488,7 @@ class MenuAdminPortalService {
       // Verificar que el item pertenezca al usuario
       const isOwner = await this.verifyItemOwnership(clerkUserId, itemId);
       if (!isOwner) {
-        throw new Error('Item not found or access denied');
+        throw new Error("Item not found or access denied");
       }
 
       const {
@@ -477,15 +502,18 @@ class MenuAdminPortalService {
         custom_fields,
         is_available,
         display_order,
-        availableBranches // Array de branch IDs donde estará disponible
+        availableBranches, // Array de branch IDs donde estará disponible
       } = itemData;
 
       const updateData = {};
       if (section_id !== undefined) {
         // Verificar que la nueva sección también pertenezca al usuario
-        const isSectionOwner = await this.verifySectionOwnership(clerkUserId, section_id);
+        const isSectionOwner = await this.verifySectionOwnership(
+          clerkUserId,
+          section_id,
+        );
         if (!isSectionOwner) {
-          throw new Error('Target section not found or access denied');
+          throw new Error("Target section not found or access denied");
         }
         updateData.section_id = section_id;
       }
@@ -495,7 +523,8 @@ class MenuAdminPortalService {
       if (price !== undefined) updateData.price = price;
       if (base_price !== undefined) updateData.base_price = base_price;
       if (discount !== undefined) updateData.discount = discount;
-      if (custom_fields !== undefined) updateData.custom_fields = JSON.stringify(custom_fields);
+      if (custom_fields !== undefined)
+        updateData.custom_fields = JSON.stringify(custom_fields);
       if (is_available !== undefined) updateData.is_available = is_available;
       if (display_order !== undefined) updateData.display_order = display_order;
 
@@ -503,7 +532,8 @@ class MenuAdminPortalService {
         .from("menu_items")
         .update(updateData)
         .eq("id", itemId)
-        .select(`
+        .select(
+          `
           *,
           menu_sections (
             id,
@@ -511,7 +541,8 @@ class MenuAdminPortalService {
             is_active,
             restaurant_id
           )
-        `)
+        `,
+        )
         .single();
 
       if (error) throw error;
@@ -527,18 +558,21 @@ class MenuAdminPortalService {
           const restaurantId = data.menu_sections.restaurant_id;
 
           // Call the PostgreSQL function to set branch availability
-          const { error: branchError } = await supabase.rpc('set_item_branch_availability', {
-            p_item_id: data.id,
-            p_restaurant_id: restaurantId,
-            p_selected_branch_ids: availableBranches
-          });
+          const { error: branchError } = await supabase.rpc(
+            "set_item_branch_availability",
+            {
+              p_item_id: data.id,
+              p_restaurant_id: restaurantId,
+              p_selected_branch_ids: availableBranches,
+            },
+          );
 
           if (branchError) {
-            console.error('Error updating branch availability:', branchError);
+            console.error("Error updating branch availability:", branchError);
             // Don't throw error here to avoid breaking item update
           }
         } catch (branchError) {
-          console.error('Error updating branch availability:', branchError);
+          console.error("Error updating branch availability:", branchError);
           // Continue without throwing error
         }
       }
@@ -557,7 +591,7 @@ class MenuAdminPortalService {
       // Verificar que el item pertenezca al usuario
       const isOwner = await this.verifyItemOwnership(clerkUserId, itemId);
       if (!isOwner) {
-        throw new Error('Item not found or access denied');
+        throw new Error("Item not found or access denied");
       }
 
       const { error } = await supabase
@@ -581,7 +615,8 @@ class MenuAdminPortalService {
    */
   async verifySectionOwnership(clerkUserId, sectionId) {
     try {
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) return false;
 
       const { data, error } = await supabase
@@ -603,17 +638,20 @@ class MenuAdminPortalService {
    */
   async verifyItemOwnership(clerkUserId, itemId) {
     try {
-      const restaurant = await userAdminPortalService.getUserRestaurant(clerkUserId);
+      const restaurant =
+        await userAdminPortalService.getUserRestaurant(clerkUserId);
       if (!restaurant) return false;
 
       const { data, error } = await supabase
         .from("menu_items")
-        .select(`
+        .select(
+          `
           id,
           menu_sections!inner (
             restaurant_id
           )
-        `)
+        `,
+        )
         .eq("id", itemId)
         .eq("menu_sections.restaurant_id", restaurant.id)
         .single();
@@ -640,7 +678,7 @@ class MenuAdminPortalService {
       }
 
       // Si es string, intentar parsearlo
-      if (typeof customFields === 'string') {
+      if (typeof customFields === "string") {
         return JSON.parse(customFields);
       }
 
@@ -652,7 +690,7 @@ class MenuAdminPortalService {
       // Para cualquier otro tipo, devolver array vacío
       return [];
     } catch (error) {
-      console.warn('Error parsing custom_fields:', error);
+      console.warn("Error parsing custom_fields:", error);
       return [];
     }
   }
@@ -669,4 +707,4 @@ class MenuAdminPortalService {
   }
 }
 
-module.exports = new MenuAdminPortalService();// Force restart
+module.exports = new MenuAdminPortalService(); // Force restart

@@ -178,20 +178,24 @@ class POSMenuSyncService {
 
     const { data: existingSectionMappings } = await supabaseAdmin
       .from("pos_section_mapping")
-      .select("id, menu_section_id, pos_group_id, pos_group_name, menu_sections(name, display_order)")
+      .select(
+        "id, menu_section_id, pos_group_id, pos_group_name, menu_sections(name, display_order, clasificacion)",
+      )
       .eq("integration_id", integration.id);
 
     const { data: existingItemMappings } = await supabaseAdmin
       .from("pos_menu_mapping")
-      .select("id, menu_item_id, pos_item_id, pos_item_name, menu_items(name, description, price, section_id)")
+      .select(
+        "id, menu_item_id, pos_item_id, pos_item_name, menu_items(name, description, price, section_id)",
+      )
       .eq("integration_id", integration.id);
 
     // Crear mapas para búsqueda rápida O(1)
     const sectionMapByPosId = new Map(
-      (existingSectionMappings || []).map((m) => [m.pos_group_id, m])
+      (existingSectionMappings || []).map((m) => [m.pos_group_id, m]),
     );
     const itemMapByPosId = new Map(
-      (existingItemMappings || []).map((m) => [String(m.pos_item_id), m])
+      (existingItemMappings || []).map((m) => [String(m.pos_item_id), m]),
     );
 
     console.log(
@@ -214,11 +218,17 @@ class POSMenuSyncService {
         // Verificar si cambió algo
         const currentName = existing.menu_sections?.name;
         const currentOrder = existing.menu_sections?.display_order;
-        if (currentName !== group.descripcion || currentOrder !== (group.prioridad || 0)) {
+        const currentClasificacion = existing.menu_sections?.clasificacion;
+        if (
+          currentName !== group.descripcion ||
+          currentOrder !== (group.prioridad || 0) ||
+          currentClasificacion !== group.clasificacion
+        ) {
           sectionsToUpdate.push({
             id: existing.menu_section_id,
             name: group.descripcion,
             display_order: group.prioridad || 0,
+            clasificacion: group.clasificacion || null,
             updated_at: new Date().toISOString(),
           });
           result.sections.updated++;
@@ -231,6 +241,7 @@ class POSMenuSyncService {
           restaurant_id: restaurantId,
           name: group.descripcion,
           display_order: group.prioridad || 0,
+          clasificacion: group.clasificacion || null,
           is_active: true,
           _pos_group_id: group.idgrupo, // temporal para mapeo
         });
@@ -239,7 +250,9 @@ class POSMenuSyncService {
 
     // Batch INSERT nuevas secciones
     if (sectionsToCreate.length > 0) {
-      const insertData = sectionsToCreate.map(({ _pos_group_id, ...rest }) => rest);
+      const insertData = sectionsToCreate.map(
+        ({ _pos_group_id, ...rest }) => rest,
+      );
       const { data: newSections, error } = await supabaseAdmin
         .from("menu_sections")
         .insert(insertData)
@@ -265,7 +278,9 @@ class POSMenuSyncService {
         result.sections.created = newSections.length;
 
         // Batch INSERT mapeos de secciones
-        await supabaseAdmin.from("pos_section_mapping").insert(newSectionMappings);
+        await supabaseAdmin
+          .from("pos_section_mapping")
+          .insert(newSectionMappings);
       }
     }
 
@@ -273,7 +288,12 @@ class POSMenuSyncService {
     for (const section of sectionsToUpdate) {
       await supabaseAdmin
         .from("menu_sections")
-        .update({ name: section.name, display_order: section.display_order, updated_at: section.updated_at })
+        .update({
+          name: section.name,
+          display_order: section.display_order,
+          clasificacion: section.clasificacion,
+          updated_at: section.updated_at,
+        })
         .eq("id", section.id);
     }
 
@@ -293,14 +313,16 @@ class POSMenuSyncService {
     for (const product of posData.products) {
       const sectionMapping = sectionMapByPosId.get(product.idgrupo);
       if (!sectionMapping) {
-        console.warn(`⚠️ Producto ${product.descripcion} sin sección mapeada (grupo ${product.idgrupo})`);
+        console.warn(
+          `⚠️ Producto ${product.descripcion} sin sección mapeada (grupo ${product.idgrupo})`,
+        );
         continue;
       }
 
       const existing = itemMapByPosId.get(String(product.idproducto));
       // POS: precio = CON IVA, preciosinimpuestos = SIN IVA
       const priceWithTax = product.precio || 0;
-      const priceWithoutTax = product.preciosinimpuestos || (priceWithTax / 1.16);
+      const priceWithoutTax = product.preciosinimpuestos || priceWithTax / 1.16;
 
       if (existing) {
         // Verificar si cambió nombre o descripción (NO el precio - Xquisito mantiene su propio precio)
@@ -326,8 +348,8 @@ class POSMenuSyncService {
           section_id: sectionMapping.menu_section_id,
           name: product.descripcion,
           description: product.descripcionmenuelectronico || null,
-          price: priceWithTax,           // CON IVA (lo que ve el cliente)
-          base_price: priceWithoutTax,   // SIN IVA (para cálculos)
+          price: priceWithTax, // CON IVA (lo que ve el cliente)
+          base_price: priceWithoutTax, // SIN IVA (para cálculos)
           is_available: true,
           display_order: 0,
           _pos_item_id: product.idproducto,
@@ -366,7 +388,9 @@ class POSMenuSyncService {
 
         // Batch INSERT mapeos y disponibilidad
         await supabaseAdmin.from("pos_menu_mapping").insert(newItemMappings);
-        await supabaseAdmin.from("item_branch_availability").insert(availabilityData);
+        await supabaseAdmin
+          .from("item_branch_availability")
+          .insert(availabilityData);
       }
     }
 
@@ -379,9 +403,13 @@ class POSMenuSyncService {
         batch.map((item) =>
           supabaseAdmin
             .from("menu_items")
-            .update({ name: item.name, description: item.description, updated_at: item.updated_at })
-            .eq("id", item.id)
-        )
+            .update({
+              name: item.name,
+              description: item.description,
+              updated_at: item.updated_at,
+            })
+            .eq("id", item.id),
+        ),
       );
     }
 
@@ -586,6 +614,7 @@ class POSMenuSyncService {
         .update({
           name: posGroup.descripcion,
           display_order: posGroup.prioridad || 0,
+          clasificacion: posGroup.clasificacion || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingMapping.menu_section_id);
@@ -606,6 +635,7 @@ class POSMenuSyncService {
           restaurant_id: restaurantId,
           name: posGroup.descripcion,
           display_order: posGroup.prioridad || 0,
+          clasificacion: posGroup.clasificacion || null,
           is_active: true,
         })
         .select("id")
