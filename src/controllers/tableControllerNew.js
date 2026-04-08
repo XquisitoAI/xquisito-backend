@@ -70,6 +70,7 @@ class TableController {
         images = [],
         customFields = null,
         extraPrice = 0,
+        menuItemId = null,
       } = req.body;
 
       // Validar campos requeridos
@@ -100,6 +101,7 @@ class TableController {
         images,
         customFields,
         parseFloat(extraPrice),
+        menuItemId,
       );
 
       // Emitir evento de socket para actualización en tiempo real

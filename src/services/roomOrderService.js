@@ -149,6 +149,7 @@ class RoomOrderService {
           p_user_id: params.userId || null,
           p_images: params.images || [],
           p_custom_fields: params.customFields || {},
+          p_menu_item_id: params.menuItemId || null,
         },
       );
 
@@ -346,6 +347,7 @@ class RoomOrderService {
           custom_fields: dishData.customFields || {},
           status: "pending",
           payment_status: "not_paid",
+          menu_item_id: dishData.menuItemId || null,
         })
         .select()
         .single();

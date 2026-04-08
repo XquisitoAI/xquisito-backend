@@ -518,6 +518,7 @@ class PickAndGoController {
         images = [],
         customFields = null,
         extraPrice = 0,
+        menuItemId = null,
       } = req.body;
 
       // Validaciones básicas
@@ -553,6 +554,7 @@ class PickAndGoController {
         images,
         customFields,
         parseFloat(extraPrice),
+        menuItemId,
       );
 
       if (!result.success) {
