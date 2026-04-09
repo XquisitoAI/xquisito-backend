@@ -15,6 +15,9 @@ function initializeSocket(httpServer) {
         "http://localhost:3000", // FlexBill
         "http://localhost:3001", // Main Portal
         "http://localhost:3002", // Admin Portal
+        "http://tauri.localhost",   // Xquisito Crew (Windows .exe)
+        "https://tauri.localhost",  // Xquisito Crew (Android APK)
+        "http://localhost:5173",   // Xquisito Crew (tauri:dev)
         process.env.ADMIN_PORTAL_URL,
         process.env.MAIN_PORTAL_URL,
         process.env.FLEXBILL_URL,

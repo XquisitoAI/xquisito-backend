@@ -30,6 +30,18 @@ class SocketEmitter {
 
   // Emite nueva transacción
   emitNewTransaction(restaurantId, transaction) {
+    // Push FCM a dispositivos de cocina
+    try {
+      const kitchenController = require("../controllers/kitchenController");
+      kitchenController.sendPushToRestaurant(
+        restaurantId,
+        "Nueva orden",
+        transaction?.identifier || "Ha llegado una nueva orden"
+      );
+    } catch (e) {
+      // No crítico
+    }
+
     return this.emitToRestaurant(restaurantId, "dashboard:new-transaction", {
       transaction,
       timestamp: new Date().toISOString(),
