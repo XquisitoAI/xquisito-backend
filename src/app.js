@@ -50,7 +50,11 @@ const allowedOrigins = [
   "https://xquisito-pick-and-go-git-adrian-pick-and-go-xquisito.vercel.app",
   "https://xquisito-flexbill-git-diego-branch-xquisito.vercel.app",
 
-  // Solo desarrollo
+  "http://tauri.localhost",   // Xquisito Crew (Windows .exe)
+  "https://tauri.localhost",  // Xquisito Crew (Android APK)
+  "http://localhost:5173",   // Xquisito Crew (tauri:dev)
+
+  // Solo desarrollo local
   ...(process.env.NODE_ENV === "development"
     ? [
         "http://localhost:3000",
@@ -65,7 +69,7 @@ app.disable("x-powered-by");
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) {
+if (!origin) {
         return callback(null, true);
       }
       if (allowedOrigins.includes(origin)) {
@@ -215,6 +219,10 @@ app.use("/api/subscriptions", subscriptionRoutes);
 
 // POS Integration
 app.use("/api/pos", posRoutes);
+
+// Kitchen (Xquisito Crew)
+const kitchenRoutes = require("./routes/kitchenRoutes");
+app.use("/api/kitchen", kitchenRoutes);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });

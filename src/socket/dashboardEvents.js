@@ -12,7 +12,8 @@ function registerDashboardHandlers(io, socket) {
   });
 
   // Unirse a la sala del restaurante
-  socket.on("join:restaurant", ({ restaurantId }) => {
+  socket.on("join:restaurant", (data) => {
+    const { restaurantId } = data || {};
     // Verificar que el usuario pertenece a este restaurante
     if (user.restaurantId !== restaurantId) {
       console.log(
@@ -33,7 +34,8 @@ function registerDashboardHandlers(io, socket) {
   });
 
   // Abandonar la sala del restaurante
-  socket.on("leave:restaurant", ({ restaurantId }) => {
+  socket.on("leave:restaurant", (data) => {
+    const { restaurantId } = data || {};
     const roomName = `restaurant:${restaurantId}`;
     socket.leave(roomName);
     console.log(`🚪 User ${user.id} left room ${roomName}`);
@@ -42,7 +44,8 @@ function registerDashboardHandlers(io, socket) {
   });
 
   // Solicitar actualización manual de datos
-  socket.on("request:refresh", async ({ restaurantId, dataType }) => {
+  socket.on("request:refresh", async (data) => {
+    const { restaurantId, dataType } = data || {};
     // Verificar permisos
     if (user.restaurantId !== restaurantId) {
       socket.emit("connection:error", {
