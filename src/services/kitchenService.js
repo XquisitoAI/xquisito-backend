@@ -36,7 +36,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("tap_orders_and_pay")
       .select(
-        `id, order_status, created_at,
+        `id, order_status, created_at, customer_name,
          tables!inner(table_number, restaurant_id),
          dish_order(id, item, quantity, status, images)`,
       )
@@ -52,6 +52,7 @@ class KitchenService {
         id: o.id,
         orderType: "tap",
         identifier: `Mesa ${o.tables.table_number}`,
+        customerName: o.customer_name || null,
         createdAt: o.created_at,
         dishes: this._mapDishes(o.dish_order),
       }))
@@ -146,7 +147,7 @@ class KitchenService {
         `id, status, created_at,
          tables(table_number),
          user_order(
-           id,
+           id, guest_name,
            dish_order(id, item, quantity, status, images)
          )`,
       )
@@ -159,9 +160,12 @@ class KitchenService {
 
     return (data || [])
       .map((o) => {
-        // Aplanar dishes de todos los user_orders dentro de la mesa
-        const allDishes = (o.user_order || []).flatMap(
-          (uo) => uo.dish_order || [],
+        // Aplanar dishes de todos los user_orders, incluyendo guest_name por dish
+        const allDishes = (o.user_order || []).flatMap((uo) =>
+          (uo.dish_order || []).map((d) => ({
+            ...d,
+            orderedBy: uo.guest_name || null,
+          })),
         );
         return {
           id: o.id,
@@ -181,6 +185,7 @@ class KitchenService {
       quantity: d.quantity,
       status: d.status,
       images: d.images || [],
+      orderedBy: d.orderedBy || null,
     }));
   }
 
