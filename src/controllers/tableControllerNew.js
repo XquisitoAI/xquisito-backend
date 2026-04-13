@@ -112,6 +112,15 @@ class TableController {
         result,
       );
 
+      // Notificar a cocina (xquisito-crew) sobre nueva orden FlexBill
+      socketEmitter.emitNewTransaction(parseInt(restaurantId), {
+        orderType: "flex_bill",
+        identifier: `Mesa ${tableNumber}`,
+        item,
+        quantity,
+        orderedBy: guestName || null,
+      });
+
       // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
       const summary = await tableService.getTableSummary(
         parseInt(restaurantId),
