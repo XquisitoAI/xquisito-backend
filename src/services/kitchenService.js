@@ -124,7 +124,7 @@ class KitchenService {
       .map((o) => ({
         id: o.id,
         orderType: "room",
-        identifier: `Cuarto ${o.rooms.room_number}`,
+        identifier: `Habitación ${o.rooms.room_number}`,
         createdAt: o.created_at,
         folio: o.folio ?? null,
         dishes: this._mapDishes(o.dish_order),

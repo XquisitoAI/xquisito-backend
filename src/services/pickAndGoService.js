@@ -551,7 +551,15 @@ class PickAndGoService {
       }
 
       console.log("✅ Pick & Go dish order created successfully:", data.id);
-      return { success: true, data };
+
+      // Obtener restaurant_id del orden padre para notificaciones de socket
+      const { data: parentOrder } = await supabase
+        .from("pick_and_go_orders")
+        .select("restaurant_id")
+        .eq("id", pickAndGoOrderId)
+        .single();
+
+      return { success: true, data, restaurant_id: parentOrder?.restaurant_id ?? null };
     } catch (error) {
       console.error("💥 Error in createDishOrder:", error);
       return { success: false, error: error.message };
