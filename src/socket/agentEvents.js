@@ -4,6 +4,7 @@
  */
 
 const agentConnectionManager = require("./agentConnectionManager");
+const { supabaseAdmin } = require("../config/supabaseAuth");
 
 // Configurar namespace /sync para agentes
 function setupAgentNamespace(io) {
@@ -53,6 +54,26 @@ function setupAgentNamespace(io) {
           branchId,
           timestamp: new Date().toISOString(),
         });
+
+        // Enviar configuración de impresoras activas
+        try {
+          const { data: printers } = await supabaseAdmin
+            .from("branch_printers")
+            .select("id, ip, port, role, name, is_active")
+            .eq("branch_id", branchId)
+            .eq("is_active", true);
+
+          if (printers && printers.length > 0) {
+            socket.emit("printers_config", { printers });
+            console.log(
+              `🖨️ [/sync] Enviadas ${printers.length} impresora(s) a branch ${branchId}`,
+            );
+          }
+        } catch (err) {
+          console.warn(
+            `⚠️ [/sync] No se pudo enviar printers_config: ${err.message}`,
+          );
+        }
 
         console.log(
           `✅ [/sync] Agente registrado: branch=${branchId}, version=${agentVersion}`,
@@ -201,7 +222,9 @@ function setupAgentNamespace(io) {
 
     // === ACK DE SYNC MENU PULL ===
     socket.on("sync_menu_pull_ack", (data) => {
-      console.log(`✅ [/sync] Sync Menu Pull ACK: ${data.groups?.length || 0} grupos, ${data.products?.length || 0} productos`);
+      console.log(
+        `✅ [/sync] Sync Menu Pull ACK: ${data.groups?.length || 0} grupos, ${data.products?.length || 0} productos`,
+      );
 
       agentConnectionManager.handleResponse(socket.id, {
         requestId: data.requestId,
@@ -235,6 +258,75 @@ function setupAgentNamespace(io) {
         idproducto: data.idproducto,
         descripcion: data.descripcion,
         precio: data.precio,
+        error: data.error,
+      });
+    });
+
+    // === REPORTE DE IMPRESORAS (iniciado desde el agente) ===
+    socket.on("printers_report", async (data) => {
+      const branchId = registeredBranchId || data?.branchId;
+      const printers = data?.printers || [];
+      console.log(
+        `🖨️ [/sync] Printers report: branch=${branchId}, ${printers.length} impresora(s)`,
+      );
+
+      if (!branchId || printers.length === 0) return;
+
+      try {
+        const rows = printers.map(({ ip, port }) => ({
+          branch_id: branchId,
+          ip,
+          port,
+          last_seen_at: new Date().toISOString(),
+        }));
+
+        await supabaseAdmin
+          .from("branch_printers")
+          .upsert(rows, {
+            onConflict: "branch_id,ip",
+            ignoreDuplicates: false,
+          });
+
+        console.log(
+          `✅ [/sync] ${printers.length} impresora(s) guardada(s) para branch ${branchId}`,
+        );
+
+        // Re-enviar configuración actualizada al agente
+        const { data: updated } = await supabaseAdmin
+          .from("branch_printers")
+          .select("id, ip, port, role, name, is_active")
+          .eq("branch_id", branchId)
+          .eq("is_active", true);
+        if (updated) socket.emit("printers_config", { printers: updated });
+      } catch (error) {
+        console.error("❌ [/sync] Error guardando impresoras:", error.message);
+      }
+    });
+
+    // === ACK DE TICKET DE PRUEBA ===
+    socket.on("print_test_ack", (data) => {
+      console.log(
+        `🖨️ [/sync] Print test ACK: ip=${data.ip}, success=${data.success}`,
+      );
+      agentConnectionManager.handleResponse(socket.id, {
+        requestId: data.requestId,
+        success: data.success !== false,
+        ip: data.ip,
+        error: data.error,
+      });
+    });
+
+    // === ACK DE SCAN DE IMPRESORAS ===
+    socket.on("scan_printers_ack", (data) => {
+      console.log(
+        `✅ [/sync] Scan Printers ACK: ${data.printers?.length || 0} impresora(s)`,
+      );
+
+      agentConnectionManager.handleResponse(socket.id, {
+        requestId: data.requestId,
+        success: data.success !== false,
+        subnet: data.subnet,
+        printers: data.printers,
         error: data.error,
       });
     });

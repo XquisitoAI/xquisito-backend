@@ -1,5 +1,6 @@
 const BasePOSService = require("./BasePOSService");
 const agentConnectionManager = require("../../socket/agentConnectionManager");
+const { enrichItemsWithClasificacion } = require("../printerEnrichService");
 
 class SoftRestaurantPOSService extends BasePOSService {
   constructor(integration) {
@@ -39,13 +40,11 @@ class SoftRestaurantPOSService extends BasePOSService {
       const orderType = orderData.order_type || "dine_in";
       const idarearestaurant = orderType === "dine_in" ? "01" : "03";
 
-      const response = await this.sendToAgent("new_order", {
-        id: orderData.order_id || orderData.id,
-        tableNumber: orderData.table_number,
-        orderType: orderType,
-        guests: orderData.guest_count || 1,
-        idarearestaurant: idarearestaurant,
-        items: orderData.items.map((item) => ({
+      // Enriquecer items con clasificacion para impresión
+      // El agente tiene SR → usará SQL directamente; este dato es fallback
+      const enrichedItems = await enrichItemsWithClasificacion(
+        this.branchId,
+        orderData.items.map((item) => ({
           productId: item.pos_item_id,
           sku: item.sku || item.pos_item_id,
           name: item.name,
@@ -55,7 +54,17 @@ class SoftRestaurantPOSService extends BasePOSService {
           comment: item.comment || "",
           modifiers: item.modifiers || [],
           notes: item.notes || "",
+          menuItemId: item.menu_item_id || item.id,
         })),
+      );
+
+      const response = await this.sendToAgent("new_order", {
+        id: orderData.order_id || orderData.id,
+        tableNumber: orderData.table_number,
+        orderType: orderType,
+        guests: orderData.guest_count || 1,
+        idarearestaurant: idarearestaurant,
+        items: enrichedItems,
         notes: orderData.notes || "",
         prepaid: orderData.prepagado || false,
         paymentMethod: orderData.forma_pago || null,
