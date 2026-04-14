@@ -53,7 +53,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("tap_orders_and_pay")
       .select(
-        `id, order_status, created_at, customer_name,
+        `id, order_status, created_at, customer_name, folio,
          tables!inner(table_number, restaurant_id),
          dish_order(id, item, quantity, status, images)`,
       )
@@ -71,6 +71,7 @@ class KitchenService {
         identifier: `Mesa ${o.tables.table_number}`,
         customerName: o.customer_name || null,
         createdAt: o.created_at,
+        folio: o.folio ?? null,
         dishes: this._mapDishes(o.dish_order),
       }))
       .filter((o) => o.dishes.some((d) => d.status !== "delivered"));
@@ -81,7 +82,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("pick_and_go_orders")
       .select(
-        `id, order_status, created_at, customer_name,
+        `id, order_status, created_at, customer_name, folio,
          dish_order(id, item, quantity, status, images)`,
       )
       .eq("restaurant_id", restaurantId);
@@ -97,6 +98,7 @@ class KitchenService {
         orderType: "pick_and_go",
         identifier: `Pick & Go${o.customer_name ? ` - ${o.customer_name}` : ""}`,
         createdAt: o.created_at,
+        folio: o.folio ?? null,
         dishes: this._mapDishes(o.dish_order),
       }))
       .filter((o) => o.dishes.some((d) => d.status !== "delivered"));
@@ -107,7 +109,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("room_orders")
       .select(
-        `id, order_status, created_at,
+        `id, order_status, created_at, folio,
          rooms!inner(room_number, restaurant_id),
          dish_order(id, item, quantity, status, images)`,
       )
@@ -124,6 +126,7 @@ class KitchenService {
         orderType: "room",
         identifier: `Cuarto ${o.rooms.room_number}`,
         createdAt: o.created_at,
+        folio: o.folio ?? null,
         dishes: this._mapDishes(o.dish_order),
       }))
       .filter((o) => o.dishes.some((d) => d.status !== "delivered"));
@@ -134,7 +137,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("tap_pay_orders")
       .select(
-        `id, order_status, created_at,
+        `id, order_status, created_at, folio,
          tables(table_number),
          dish_order(id, item, quantity, status, images)`,
       )
@@ -151,6 +154,7 @@ class KitchenService {
         orderType: "tap_pay",
         identifier: o.tables ? `Mesa ${o.tables.table_number}` : "Tap & Pay",
         createdAt: o.created_at,
+        folio: o.folio ?? null,
         dishes: this._mapDishes(o.dish_order),
       }))
       .filter((o) => o.dishes.some((d) => d.status !== "delivered"));
@@ -161,7 +165,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("table_order")
       .select(
-        `id, status, created_at,
+        `id, status, created_at, folio,
          tables(table_number),
          user_order(
            id, guest_name,
@@ -189,6 +193,7 @@ class KitchenService {
           orderType: "flex_bill",
           identifier: o.tables ? `Mesa ${o.tables.table_number}` : "FlexBill",
           createdAt: o.created_at,
+          folio: o.folio ?? null,
           dishes: this._mapDishes(allDishes),
         };
       })
