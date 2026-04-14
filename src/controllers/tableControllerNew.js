@@ -1,5 +1,6 @@
 const tableService = require("../services/tableServiceNew");
 const socketEmitter = require("../services/socketEmitter");
+const { emitPrintJob } = require("../services/printJobService");
 
 class TableController {
   // Obtener resumen de cuenta de mesa
@@ -119,6 +120,15 @@ class TableController {
         item,
         quantity,
         orderedBy: guestName || null,
+      });
+
+      // Imprimir en xquisito-crew (fire-and-forget)
+      emitPrintJob({
+        restaurantId: parseInt(restaurantId),
+        branchNumber: parseInt(branchNumber),
+        items: [{ name: item, quantity, menu_item_id: menuItemId }],
+        identifier: `Mesa ${tableNumber}`,
+        dishOrderId: result.dish_order_id ?? null,
       });
 
       // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente

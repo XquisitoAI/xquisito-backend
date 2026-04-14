@@ -28,6 +28,12 @@ class SocketEmitter {
     });
   }
 
+  // Emite un trabajo de impresión a dispositivos xquisito-crew del restaurante
+  // printData: { branchId, items: [{name, quantity, clasificacion}], orderInfo: {identifier} }
+  emitPrintJob(restaurantId, printData) {
+    return this.emitToRestaurant(restaurantId, "kitchen:print_job", printData);
+  }
+
   // Emite nueva transacción
   emitNewTransaction(restaurantId, transaction) {
     // Push FCM a dispositivos de cocina

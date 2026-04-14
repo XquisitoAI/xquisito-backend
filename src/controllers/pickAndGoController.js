@@ -1,4 +1,7 @@
 const pickAndGoService = require("../services/pickAndGoService");
+const {
+  emitPrintJobForPickAndGoOrder,
+} = require("../services/printJobService");
 
 /**
  * Controlador para gestionar endpoints de Pick & Go
@@ -560,6 +563,11 @@ class PickAndGoController {
       if (!result.success) {
         return res.status(500).json(result);
       }
+
+      // Imprimir en xquisito-crew (fire-and-forget)
+      emitPrintJobForPickAndGoOrder(orderId, [
+        { name: item, quantity, menu_item_id: menuItemId },
+      ]);
 
       res.status(201).json(result);
     } catch (error) {
