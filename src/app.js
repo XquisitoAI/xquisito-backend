@@ -32,6 +32,7 @@ const campaignsRoutes = require("./routes/campaignsRoutes");
 const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const posRoutes = require("./routes/posRoutes");
+const printerRoutes = require("./routes/printerRoutes");
 const supabase = require("./config/supabase");
 const { supabaseAdmin } = require("./config/supabaseAuth");
 
@@ -50,9 +51,9 @@ const allowedOrigins = [
   "https://xquisito-pick-and-go-git-adrian-pick-and-go-xquisito.vercel.app",
   "https://xquisito-flexbill-git-diego-branch-xquisito.vercel.app",
 
-  "http://tauri.localhost",   // Xquisito Crew (Windows .exe)
-  "https://tauri.localhost",  // Xquisito Crew (Android APK)
-  "http://localhost:5173",   // Xquisito Crew (tauri:dev)
+  "http://tauri.localhost", // Xquisito Crew (Windows .exe)
+  "https://tauri.localhost", // Xquisito Crew (Android APK)
+  "http://localhost:5173", // Xquisito Crew (tauri:dev)
 
   // Solo desarrollo local
   ...(process.env.NODE_ENV === "development"
@@ -69,7 +70,7 @@ app.disable("x-powered-by");
 app.use(
   cors({
     origin: (origin, callback) => {
-if (!origin) {
+      if (!origin) {
         return callback(null, true);
       }
       if (allowedOrigins.includes(origin)) {
@@ -219,6 +220,9 @@ app.use("/api/subscriptions", subscriptionRoutes);
 
 // POS Integration
 app.use("/api/pos", posRoutes);
+
+// Printers
+app.use("/api/pos", printerRoutes);
 
 // Kitchen (Xquisito Crew)
 const kitchenRoutes = require("./routes/kitchenRoutes");
