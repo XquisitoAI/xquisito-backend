@@ -1,4 +1,8 @@
 const tapDishOrderService = require("../services/tapDishOrderService");
+const {
+  emitPrintJob,
+  emitPrintJobForTapOrder,
+} = require("../services/printJobService");
 
 // Helper function para calcular extra_price desde custom_fields
 // customFields estructura: Array<{ fieldId: string, fieldName: string, selectedOptions: Array<{ optionId: string, optionName: string, price: number }> }>
@@ -29,7 +33,8 @@ class TapDishOrderController {
       if (!restaurantId || !branchNumber || !tableNumber) {
         return res.status(400).json({
           success: false,
-          message: "Restaurant ID, branch number, and table number are required",
+          message:
+            "Restaurant ID, branch number, and table number are required",
         });
       }
 
@@ -61,7 +66,7 @@ class TapDishOrderController {
       let extraPrice = 0;
       if (dishData.custom_fields) {
         extraPrice = calculateExtraPriceFromCustomFields(
-          dishData.custom_fields
+          dishData.custom_fields,
         );
       }
 
@@ -92,7 +97,7 @@ class TapDishOrderController {
         parseInt(branchNumber),
         parseInt(tableNumber),
         dishData,
-        customerData
+        customerData,
       );
 
       if (!result.success) {
@@ -101,6 +106,20 @@ class TapDishOrderController {
           message: result.error,
         });
       }
+
+      // Imprimir en xquisito-crew (fire-and-forget)
+      emitPrintJob({
+        restaurantId: parseInt(restaurantId),
+        branchNumber: parseInt(branchNumber),
+        items: [
+          {
+            name: dishData.item,
+            quantity: dishData.quantity ?? 1,
+            menu_item_id: dishData.menu_item_id ?? null,
+          },
+        ],
+        identifier: `Mesa ${tableNumber}`,
+      });
 
       res.status(201).json({
         success: true,
@@ -151,7 +170,7 @@ class TapDishOrderController {
       let extraPrice = 0;
       if (dishData.custom_fields) {
         extraPrice = calculateExtraPriceFromCustomFields(
-          dishData.custom_fields
+          dishData.custom_fields,
         );
       }
 
@@ -171,7 +190,7 @@ class TapDishOrderController {
 
       const result = await tapDishOrderService.createDishOrder(
         tapOrderId,
-        dishData
+        dishData,
       );
 
       if (!result.success) {
@@ -180,6 +199,15 @@ class TapDishOrderController {
           message: result.error,
         });
       }
+
+      // Imprimir en xquisito-crew (fire-and-forget)
+      emitPrintJobForTapOrder(tapOrderId, [
+        {
+          name: dishData.item,
+          quantity: dishData.quantity ?? 1,
+          menu_item_id: dishData.menu_item_id ?? null,
+        },
+      ]);
 
       res.status(201).json({
         success: true,
@@ -220,7 +248,7 @@ class TapDishOrderController {
 
       const result = await tapDishOrderService.addMultipleDishOrders(
         tapOrderId,
-        dishes
+        dishes,
       );
 
       if (!result.success) {
@@ -280,7 +308,7 @@ class TapDishOrderController {
 
       const result = await tapDishOrderService.updateDishOrder(
         dishOrderId,
-        updateData
+        updateData,
       );
 
       if (!result.success) {
@@ -319,7 +347,7 @@ class TapDishOrderController {
 
       const result = await tapDishOrderService.updateQuantity(
         dishOrderId,
-        quantity
+        quantity,
       );
 
       if (!result.success) {
@@ -358,7 +386,7 @@ class TapDishOrderController {
 
       const result = await tapDishOrderService.updateStatus(
         dishOrderId,
-        status
+        status,
       );
 
       if (!result.success) {

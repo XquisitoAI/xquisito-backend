@@ -1,4 +1,8 @@
 const roomOrderService = require("../services/roomOrderService");
+const {
+  emitPrintJob,
+  emitPrintJobForRoomOrder,
+} = require("../services/printJobService");
 
 // Crear orden con primer platillo
 exports.createOrderWithFirstDish = async (req, res) => {
@@ -59,10 +63,18 @@ exports.createOrderWithFirstDish = async (req, res) => {
     // Obtener la orden completa usando room_order_id
     const order = await roomOrderService.getRoomOrderById(result.room_order_id);
 
+    // Imprimir en xquisito-crew (fire-and-forget)
+    emitPrintJob({
+      restaurantId: parseInt(restaurantId),
+      branchNumber: parseInt(branchNumber),
+      items: [{ name: item_name, quantity, menu_item_id: menu_item_id }],
+      identifier: `Habitación ${roomNumber}`,
+    });
+
     res.status(201).json({
       success: true,
       data: order,
-      result: result, // Incluir también el resultado del stored procedure
+      result: result,
       message: "Dish order created successfully",
     });
   } catch (error) {
@@ -105,6 +117,11 @@ exports.addDishToOrder = async (req, res) => {
       customFields: custom_fields,
       menuItemId: menu_item_id,
     });
+
+    // Imprimir en xquisito-crew (fire-and-forget)
+    emitPrintJobForRoomOrder(roomOrderId, [
+      { name: item_name, quantity, menu_item_id: menu_item_id },
+    ]);
 
     res.status(201).json({
       success: true,
@@ -161,7 +178,7 @@ exports.updateDishStatus = async (req, res) => {
     const { createClient } = require("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
+      process.env.SUPABASE_SERVICE_KEY,
     );
 
     const { data, error } = await supabase
