@@ -63,6 +63,9 @@ function setupAgentNamespace(io) {
             .eq("branch_id", branchId)
             .eq("is_active", true);
 
+          console.log("PRINTERS EN DB:", printers);
+          console.log("EMITIENDO printers_config...");
+
           if (printers && printers.length > 0) {
             socket.emit("printers_config", { printers });
             console.log(
@@ -280,12 +283,10 @@ function setupAgentNamespace(io) {
           last_seen_at: new Date().toISOString(),
         }));
 
-        await supabaseAdmin
-          .from("branch_printers")
-          .upsert(rows, {
-            onConflict: "branch_id,ip",
-            ignoreDuplicates: false,
-          });
+        await supabaseAdmin.from("branch_printers").upsert(rows, {
+          onConflict: "branch_id,ip",
+          ignoreDuplicates: false,
+        });
 
         console.log(
           `✅ [/sync] ${printers.length} impresora(s) guardada(s) para branch ${branchId}`,
