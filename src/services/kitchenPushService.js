@@ -5,9 +5,15 @@ function getAdmin() {
     const firebaseAdmin = require("firebase-admin");
 
     if (!firebaseAdmin.apps.length) {
-      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-        ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-        : null;
+      let serviceAccount = null;
+      try {
+        serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+          ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+          : null;
+      } catch (e) {
+        console.warn("[KITCHEN PUSH] FIREBASE_SERVICE_ACCOUNT JSON inválido:", e.message);
+        return null;
+      }
 
       if (!serviceAccount) {
         console.warn("[KITCHEN PUSH] FIREBASE_SERVICE_ACCOUNT no configurado — push FCM deshabilitado");
