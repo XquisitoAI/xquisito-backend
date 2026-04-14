@@ -11,6 +11,23 @@ class KitchenService {
     return data.restaurant.id;
   }
 
+  // Obtiene el branchId (UUID) de la primera sucursal activa del usuario
+  async getBranchIdForUser(clerkUserId) {
+    const restaurantId = await this.getRestaurantIdForUser(clerkUserId);
+    const { data, error } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("restaurant_id", restaurantId)
+      .eq("active", true)
+      .eq("deleted", false)
+      .order("branch_number", { ascending: true })
+      .limit(1)
+      .single();
+    if (error) throw new Error(`Error getting branch: ${error.message}`);
+    if (!data) throw new Error("No se encontró una sucursal activa");
+    return data.id;
+  }
+
   // Órdenes activas de todos los tipos donde al menos 1 dish no está entregado
   async getActiveOrders(restaurantId) {
     const [tapOrders, pickOrders, roomOrders, tapPayOrders, flexBillOrders] =
