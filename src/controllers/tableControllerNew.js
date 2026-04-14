@@ -128,7 +128,7 @@ class TableController {
         branchNumber: parseInt(branchNumber),
         items: [{ name: item, quantity, menu_item_id: menuItemId }],
         identifier: `Mesa ${tableNumber}`,
-        dishOrderId: result.dish_order_id ?? null,
+        tableOrderId: result.table_order_id ?? null,
       });
 
       // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente

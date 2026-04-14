@@ -10,18 +10,18 @@ function emitPrintJob({
   items,
   identifier,
   folio = null,
-  dishOrderId = null,
+  tableOrderId = null,
 }) {
   (async () => {
     try {
-      // Resolver folio desde table_order via dish_order si no viene explícito
-      if (folio === null && dishOrderId) {
-        const { data: dod } = await supabase
-          .from("dish_order")
-          .select("user_order!inner(table_order!inner(folio))")
-          .eq("id", dishOrderId)
+      // Resolver folio desde table_order si no viene explícito (FlexBill)
+      if (folio === null && tableOrderId) {
+        const { data: to } = await supabase
+          .from("table_order")
+          .select("folio")
+          .eq("id", tableOrderId)
           .single();
-        folio = dod?.user_order?.table_order?.folio ?? null;
+        folio = to?.folio ?? null;
       }
 
       const { data: branch } = await supabase

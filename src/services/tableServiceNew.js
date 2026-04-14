@@ -161,6 +161,7 @@ class TableService {
         .single();
 
       if (userOrderData?.user_order?.table_order_id) {
+        result.table_order_id = userOrderData.user_order.table_order_id;
         POSSyncService.syncFlexBillDish(
           data,
           userOrderData.user_order.table_order_id,
