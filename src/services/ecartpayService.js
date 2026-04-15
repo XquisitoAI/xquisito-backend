@@ -173,6 +173,7 @@ class EcartPayService {
       );
       return {
         success: false,
+        statusCode: error.response?.status,
         error:
           error.response?.data?.message ||
           error.message ||

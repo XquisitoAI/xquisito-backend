@@ -6,6 +6,36 @@ const paymentTransactionService = require("../services/paymentTransactionService
 const socketEmitter = require("../services/socketEmitter");
 const { pciLog, PCI_ACTIONS } = require("../utils/pciLog");
 const POSSyncService = require("../services/pos/POSSyncService");
+const supabase = require("../config/supabase");
+
+/**
+ * Resuelve el proveedor de pago activo para un restaurante.
+ * Retorna 'ecartpay' como fallback si no hay integración configurada.
+ */
+async function resolvePaymentProvider(restaurantId) {
+  if (!restaurantId) return "ecartpay";
+
+  const restaurantIdInt = parseInt(restaurantId, 10);
+  if (isNaN(restaurantIdInt)) return "ecartpay";
+
+  const { data: branch } = await supabase
+    .from("branches")
+    .select("client_id")
+    .eq("restaurant_id", restaurantIdInt)
+    .limit(1)
+    .single();
+
+  if (!branch?.client_id) return "ecartpay";
+
+  const { data: integration } = await supabase
+    .from("payment_integrations")
+    .select("payment_providers(code)")
+    .eq("client_id", branch.client_id)
+    .eq("is_active", true)
+    .single();
+
+  return integration?.payment_providers?.code || "ecartpay";
+}
 
 class PaymentController {
   async addPaymentMethod(req, res) {
@@ -165,7 +195,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
           userId: "unauthenticated",
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "User not authenticated",
         });
@@ -186,7 +216,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: result.error?.message || result.error?.type,
         });
@@ -261,7 +291,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_DELETE_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Payment method ID is required",
         });
@@ -274,16 +304,18 @@ class PaymentController {
         });
       }
 
+      const isGuest = req.isGuest || req.user?.isGuest;
       const result = await paymentService.deletePaymentMethod(
         userId,
         paymentMethodId,
+        { isGuest },
       );
 
       if (!result.success) {
         pciLog({
           action: PCI_ACTIONS.TOKEN_DELETE_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: result.error?.message || result.error?.type,
           metadata: { paymentMethodId },
@@ -348,7 +380,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
           userId: "unauthenticated",
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "User not authenticated",
         });
@@ -365,7 +397,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Payment method ID is required",
         });
@@ -387,7 +419,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_UPDATE_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: result.error?.message || result.error?.type,
           metadata: { paymentMethodId },
@@ -442,20 +474,32 @@ class PaymentController {
       const isGuest = req.isGuest || req.user?.isGuest;
       const { paymentMethodId, amount, tableNumber, restaurantId } = req.body;
 
+      // Resolver proveedor de pago activo para este restaurante
+      const provider = await resolvePaymentProvider(restaurantId);
+      console.log(
+        `[PaymentProvider] Procesando pago con proveedor: ${provider} (restaurantId: ${restaurantId})`,
+      );
+
       // PCI Log: Attempt to process payment
       pciLog({
         action: PCI_ACTIONS.PAYMENT_PROCESS_ATTEMPT,
         userId: userId || "unauthenticated",
-        processor: "ecartpay",
+        processor: provider,
         req,
-        metadata: { paymentMethodId, amount, tableNumber, restaurantId },
+        metadata: {
+          paymentMethodId,
+          amount,
+          tableNumber,
+          restaurantId,
+          provider,
+        },
       });
 
       if (!userId) {
         pciLog({
           action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
           userId: "unauthenticated",
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "User not authenticated",
         });
@@ -475,7 +519,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Payment method ID and amount are required",
         });
@@ -493,7 +537,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Invalid amount",
         });
@@ -517,6 +561,20 @@ class PaymentController {
         tableNumber,
       });
 
+      // Despachar a proveedor no implementado antes de tocar la DB
+      if (provider !== "ecartpay") {
+        console.warn(
+          `[PaymentProvider] Proveedor '${provider}' no implementado aún`,
+        );
+        return res.status(501).json({
+          success: false,
+          error: {
+            type: "not_implemented",
+            message: `El proveedor de pago '${provider}' no está disponible todavía`,
+          },
+        });
+      }
+
       // Get the payment method from database
       const tableName = isGuest
         ? "guest_payment_methods"
@@ -531,16 +589,34 @@ class PaymentController {
         isGuest,
       });
 
-      const { data: paymentMethod, error: fetchError } =
-        await require("../config/supabase")
-          .from(tableName)
-          .select(
-            "ecartpay_token, ecartpay_customer_id, last_four_digits, card_type, cardholder_name",
-          )
-          .eq(userFieldName, userId)
-          .eq("id", paymentMethodId)
+      // Obtener metadatos de la tarjeta
+      const { data: paymentMethod, error: fetchError } = await supabase
+        .from(tableName)
+        .select("id, last_four_digits, card_type, cardholder_name")
+        .eq(userFieldName, userId)
+        .eq("id", paymentMethodId)
+        .eq("is_active", true)
+        .single();
+
+      if (!fetchError && paymentMethod) {
+        // Buscar token del proveedor activo en payment_method_tokens (tabla unificada guest+user)
+        const { data: tokenRow } = await supabase
+          .from("payment_method_tokens")
+          .select("provider_token, provider_customer_id")
+          .eq("payment_method_id", paymentMethod.id)
+          .eq("provider", provider)
           .eq("is_active", true)
           .single();
+
+        if (tokenRow) {
+          paymentMethod.provider_token = tokenRow.provider_token;
+          paymentMethod.provider_customer_id = tokenRow.provider_customer_id;
+        } else {
+          // No hay token para este proveedor — tarjeta no tokenizada con él aún
+          paymentMethod.provider_token = null;
+          paymentMethod.provider_customer_id = null;
+        }
+      }
 
       savePaymentMethodToUserOrder(userId, paymentMethodId);
 
@@ -549,8 +625,8 @@ class PaymentController {
         fetchError: fetchError?.message,
         paymentMethodDetails: paymentMethod
           ? {
-              hasToken: !!paymentMethod.ecartpay_token,
-              hasCustomerId: !!paymentMethod.ecartpay_customer_id,
+              hasToken: !!paymentMethod.provider_token,
+              hasCustomerId: !!paymentMethod.provider_customer_id,
               cardType: paymentMethod.card_type,
               lastFour: paymentMethod.last_four_digits,
             }
@@ -568,7 +644,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Payment method not found",
           metadata: { paymentMethodId },
@@ -583,11 +659,34 @@ class PaymentController {
         });
       }
 
+      // Verificar que existe token para el proveedor activo
+      if (!paymentMethod.provider_token) {
+        console.warn(
+          `[PaymentProvider] Tarjeta ${paymentMethodId} no tiene token para '${provider}'`,
+        );
+        pciLog({
+          action: PCI_ACTIONS.TOKEN_ACCESS_ERROR,
+          userId,
+          processor: provider,
+          req,
+          error: "Token missing for provider",
+          metadata: { paymentMethodId, provider },
+        });
+        return res.status(422).json({
+          success: false,
+          error: {
+            type: "token_missing",
+            provider,
+            message: `Esta tarjeta no está tokenizada con el proveedor actual (${provider}). Por favor agrega la tarjeta de nuevo.`,
+          },
+        });
+      }
+
       // PCI Log: Token accessed for payment
       pciLog({
         action: PCI_ACTIONS.TOKEN_ACCESS_SUCCESS,
         userId,
-        processor: "ecartpay",
+        processor: provider,
         req,
         metadata: { paymentMethodId, purpose: "payment_processing" },
       });
@@ -598,7 +697,7 @@ class PaymentController {
       const itemName = `${orderDescription}${req.body.selectedUsers ? " - " + req.body.selectedUsers : ""}`;
 
       console.log("💰 Processing eCartPay order:", {
-        customerId: paymentMethod.ecartpay_customer_id,
+        customerId: paymentMethod.provider_customer_id,
         amount: amount,
         currency: currency,
         tableNumber: tableNumber,
@@ -609,8 +708,8 @@ class PaymentController {
       try {
         const directPaymentResult =
           await ecartPayService.processCheckoutWithPaymentMethod(
-            paymentMethod.ecartpay_customer_id,
-            paymentMethod.ecartpay_token, // This is the card ID
+            paymentMethod.provider_customer_id,
+            paymentMethod.provider_token, // This is the card ID
             {
               amount: amount,
               currency: currency,
@@ -643,7 +742,7 @@ class PaymentController {
           pciLog({
             action: PCI_ACTIONS.PAYMENT_PROCESS_SUCCESS,
             userId,
-            processor: "ecartpay",
+            processor: provider,
             req,
             metadata: {
               paymentMethodId,
@@ -690,7 +789,7 @@ class PaymentController {
 
       // Fallback to order creation if direct charge fails
       const orderResult = await ecartPayService.createOrder({
-        customerId: paymentMethod.ecartpay_customer_id,
+        customerId: paymentMethod.provider_customer_id,
         currency: currency,
         tableNumber: tableNumber,
         items: [
@@ -709,7 +808,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: orderResult.error?.message || "Order creation failed",
           metadata: { paymentMethodId, amount },
@@ -973,7 +1072,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_CLEANUP_ERROR,
           userId: guestId || "unknown",
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Operation only allowed for guest users",
         });
@@ -990,7 +1089,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_CLEANUP_ERROR,
           userId: "unknown",
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Guest ID is required",
         });
@@ -1043,7 +1142,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_CLEANUP_SUCCESS,
           userId: guestId,
-          processor: "ecartpay",
+          processor: provider,
           req,
         });
 
@@ -1060,7 +1159,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_CLEANUP_SUCCESS,
           userId: guestId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           metadata: { noDataFound: true },
         });
@@ -1471,7 +1570,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
           userId: userId || "unauthenticated",
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "User must be authenticated to migrate payment methods",
         });
@@ -1489,7 +1588,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: "Guest ID is required",
         });
@@ -1513,7 +1612,7 @@ class PaymentController {
         pciLog({
           action: PCI_ACTIONS.TOKEN_MIGRATE_ERROR,
           userId,
-          processor: "ecartpay",
+          processor: provider,
           req,
           error: result.error?.message || result.error?.type,
           metadata: { guestId },
@@ -1554,6 +1653,135 @@ class PaymentController {
         error: {
           type: "internal_error",
           message: "Failed to migrate payment methods",
+        },
+      });
+    }
+  }
+
+  /**
+   * Crea una orden en Ecart Pay para Apple Pay y devuelve el orderId.
+   * El SDK de Apple Pay de Ecart Pay necesita este ID antes de renderizar el botón.
+   */
+  async createApplePayOrder(req, res) {
+    try {
+      const userId = req.user?.id;
+      const isGuest = req.isGuest || req.user?.isGuest;
+      const { amount, currency = "MXN", tableNumber, restaurantId } = req.body;
+
+      if (!amount || typeof amount !== "number" || amount <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: "amount es requerido y debe ser mayor a 0",
+          },
+        });
+      }
+
+      console.log(
+        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}`,
+      );
+
+      // Buscar o crear un customer en Ecart Pay
+      let customerId;
+
+      if (!isGuest && userId) {
+        // Usuario autenticado: buscar customer existente por userId
+        const existingCustomer =
+          await ecartPayService.findCustomerByUserId(userId);
+
+        if (existingCustomer.success && existingCustomer.customer?.id) {
+          customerId = existingCustomer.customer.id;
+          console.log("✅ Customer existente encontrado:", customerId);
+        }
+      }
+
+      // Si no hay customer (guest o usuario nuevo), crear uno temporal
+      if (!customerId) {
+        const guestIdentifier = userId || `apple-pay-guest-${Date.now()}`;
+        // Use a unique phone per call to avoid 409 conflicts on the static fallback
+        const guestPhone = `55${Date.now().toString().slice(-8)}`;
+        const newCustomer = await ecartPayService.createCustomer({
+          name: "Apple Pay Guest",
+          phone: guestPhone,
+          userId: guestIdentifier,
+        });
+
+        if (!newCustomer.success) {
+          // 409 = customer with this userId already exists — look it up
+          if (newCustomer.statusCode === 409) {
+            console.log(
+              "ℹ️ Customer ya existe en EcartPay, buscando por userId...",
+            );
+            const found =
+              await ecartPayService.findCustomerByUserId(guestIdentifier);
+            if (found.success && found.customer?.id) {
+              customerId = found.customer.id;
+              console.log("✅ Customer existente recuperado:", customerId);
+            }
+          }
+
+          if (!customerId) {
+            console.error(
+              "❌ No se pudo crear customer para Apple Pay:",
+              newCustomer.error,
+            );
+            return res.status(500).json({
+              success: false,
+              error: {
+                type: "api_error",
+                message: "No se pudo inicializar la sesión de pago",
+              },
+            });
+          }
+        } else {
+          customerId = newCustomer.customer.id;
+          console.log(
+            "✅ Customer temporal creado para Apple Pay:",
+            customerId,
+          );
+        }
+      }
+
+      // Crear la orden en Ecart Pay
+      const orderResult = await ecartPayService.createOrder({
+        customerId,
+        amount,
+        currency,
+        quantity: 1,
+        description: `Xquisito Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
+        tableNumber: tableNumber || null,
+        referenceId: `xq_applepay_${Date.now()}`,
+        redirectUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success`,
+      });
+
+      if (!orderResult.success || !orderResult.order?.id) {
+        console.error(
+          "❌ No se pudo crear orden para Apple Pay:",
+          orderResult.error,
+        );
+        return res.status(500).json({
+          success: false,
+          error: {
+            type: "api_error",
+            message: "No se pudo crear la orden de pago",
+          },
+        });
+      }
+
+      console.log("✅ Orden Apple Pay creada:", orderResult.order.id);
+
+      return res.json({
+        success: true,
+        orderId: orderResult.order.id,
+      });
+    } catch (error) {
+      console.error("❌ Error en createApplePayOrder:", error);
+      return res.status(500).json({
+        success: false,
+        error: {
+          type: "internal_error",
+          message: "Internal server error",
         },
       });
     }

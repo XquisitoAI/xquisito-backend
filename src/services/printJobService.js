@@ -49,6 +49,13 @@ function emitPrintJob({
       };
 
       if (agentConnectionManager.isConnected(branch.id)) {
+        if (skipAgent) {
+          // El agente imprimirá via new_order (con folio real de SR) — omitir print_job
+          console.log(
+            `[PRINT_JOB] agente conectado + skipAgent — omitido (branch ${branch.id})`,
+          );
+          return;
+        }
         // Agente conectado → él imprime (tiene acceso directo a las impresoras)
         agentConnectionManager.send(branch.id, "print_job", printData);
         console.log(`[PRINT_JOB] → agente (branch ${branch.id})`);
