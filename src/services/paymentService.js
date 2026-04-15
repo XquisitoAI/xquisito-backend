@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const { supabaseAdmin } = require("../config/supabaseAuth");
 const ecartPayService = require("./ecartpayService");
 
 class PaymentService {
@@ -71,6 +72,23 @@ class PaymentService {
         console.log(`Processing authenticated user (Supabase Auth): ${userId}`);
       }
 
+      // Resolver proveedor activo para este restaurante
+      const provider = context.provider || "ecartpay";
+      console.log(
+        `[PaymentProvider] Tokenizando tarjeta con proveedor: ${provider}`,
+      );
+
+      // Solo eCartPay implementado por ahora
+      if (provider !== "ecartpay") {
+        return {
+          success: false,
+          error: {
+            type: "not_implemented",
+            message: `El proveedor '${provider}' no está disponible todavía`,
+          },
+        };
+      }
+
       // Check if user already has an EcartPay customer
       let ecartPayCustomerId;
       const tableName = isGuest
@@ -78,20 +96,33 @@ class PaymentService {
         : "user_payment_methods";
       const userFieldName = isGuest ? "guest_id" : "user_id";
 
+      // Buscar customer_id existente en payment_method_tokens
       const { data: existingMethods } = await supabase
         .from(tableName)
-        .select("ecartpay_customer_id")
+        .select("id")
         .eq(userFieldName, userId)
         .limit(1);
 
-      if (
-        existingMethods &&
-        existingMethods.length > 0 &&
-        existingMethods[0].ecartpay_customer_id
-      ) {
-        ecartPayCustomerId = existingMethods[0].ecartpay_customer_id;
-        console.log("🔄 Using existing eCartpay customer:", ecartPayCustomerId);
-      } else {
+      if (existingMethods && existingMethods.length > 0) {
+        const { data: existingToken } = await supabase
+          .from("payment_method_tokens")
+          .select("provider_customer_id")
+          .eq("payment_method_id", existingMethods[0].id)
+          .eq("provider", "ecartpay")
+          .eq("is_active", true)
+          .limit(1)
+          .single();
+
+        if (existingToken?.provider_customer_id) {
+          ecartPayCustomerId = existingToken.provider_customer_id;
+          console.log(
+            "🔄 Using existing eCartpay customer:",
+            ecartPayCustomerId,
+          );
+        }
+      }
+
+      if (!ecartPayCustomerId) {
         // First, try to find if customer already exists in eCartpay by user_id
         console.log("🔍 Checking if customer already exists in eCartpay...");
         const existingCustomer =
@@ -144,7 +175,7 @@ class PaymentService {
         }
       }
 
-      // Create payment method in EcartPay
+      // ── Tokenizar con eCartPay (requerido — si falla, abortamos) ──────────
       const paymentMethodResult = await ecartPayService.createPaymentMethod({
         cardNumber: paymentData.cardNumber,
         expMonth: paymentData.expMonth,
@@ -155,15 +186,10 @@ class PaymentService {
       });
 
       if (!paymentMethodResult.success) {
-        return {
-          success: false,
-          error: paymentMethodResult.error,
-        };
+        return { success: false, error: paymentMethodResult.error };
       }
 
       const ecartPayPaymentMethod = paymentMethodResult.paymentMethod;
-
-      // PCI DSS: Only log non-sensitive fields from eCartpay response
       console.log("📋 eCartpay payment method created:", {
         id: ecartPayPaymentMethod.id,
         type: ecartPayPaymentMethod.type,
@@ -171,7 +197,7 @@ class PaymentService {
         last4: ecartPayPaymentMethod.last || ecartPayPaymentMethod.last4,
       });
 
-      // Determine if this should be the default payment method
+      // ── Guardar fila principal (metadatos de la tarjeta) ──────────────────
       const { data: existingDefault } = await supabase
         .from(tableName)
         .select("id")
@@ -181,11 +207,7 @@ class PaymentService {
 
       const isDefault = !existingDefault || existingDefault.length === 0;
 
-      // Prepare the data object for insertion with proper structure mapping
       const insertData = {
-        ecartpay_token: ecartPayPaymentMethod.id,
-        ecartpay_customer_id: ecartPayCustomerId,
-        // Map fields based on actual eCartpay response structure
         last_four_digits: (
           ecartPayPaymentMethod.last ||
           ecartPayPaymentMethod.last4 ||
@@ -201,28 +223,21 @@ class PaymentService {
             "unknown",
           paymentData.cardNumber,
         ),
-        expiry_month: paymentData.expMonth, // Use original data as eCartpay may not return it
-        expiry_year: paymentData.expYear, // Use original data as eCartpay may not return it
-        cardholder_name: (paymentData.cardholderName || "").substring(0, 50), // Limit length to avoid database error
+        expiry_month: paymentData.expMonth,
+        expiry_year: paymentData.expYear,
+        cardholder_name: (paymentData.cardholderName || "").substring(0, 50),
         is_default: isDefault,
         is_active: true,
       };
 
-      // Add user/guest specific fields
       if (isGuest) {
         insertData.guest_id = userId;
-        // Add guest-specific data
-        if (context.tableNumber) {
-          insertData.table_number = context.tableNumber;
-        }
-        if (context.sessionData) {
-          insertData.session_data = context.sessionData;
-        }
+        if (context.tableNumber) insertData.table_number = context.tableNumber;
+        if (context.sessionData) insertData.session_data = context.sessionData;
       } else {
         insertData.user_id = userId;
       }
 
-      // Store payment method metadata in our database
       const { data: savedMethod, error: saveError } = await supabase
         .from(tableName)
         .insert(insertData)
@@ -231,12 +246,6 @@ class PaymentService {
 
       if (saveError) {
         console.error("Database save error:", saveError);
-
-        // Note: We don't detach from eCartpay here because:
-        // 1. The payment method was successfully created in eCartpay
-        // 2. The user might retry and we can reuse it
-        // 3. Detach endpoint seems to have different URL structure
-
         return {
           success: false,
           error: {
@@ -245,6 +254,71 @@ class PaymentService {
             details: saveError.message || saveError,
           },
         };
+      }
+
+      // ── Guardar token de eCartPay en payment_method_tokens ───────────────
+      console.log(
+        `[Tokens] Guardando en payment_method_tokens: payment_method_id=${savedMethod.id}, user_type=${isGuest ? "guest" : "user"}, provider=ecartpay`,
+      );
+
+      const dbClient = supabaseAdmin || supabase;
+      if (!supabaseAdmin) {
+        console.warn(
+          "[Tokens] supabaseAdmin no disponible — usando cliente anon (puede fallar por RLS)",
+        );
+      }
+
+      const { error: tokenSaveError } = await dbClient
+        .from("payment_method_tokens")
+        .upsert(
+          {
+            payment_method_id: savedMethod.id,
+            user_type: isGuest ? "guest" : "user",
+            provider: "ecartpay",
+            provider_token: ecartPayPaymentMethod.id,
+            provider_customer_id: ecartPayCustomerId,
+            is_active: true,
+          },
+          { onConflict: "payment_method_id,provider" },
+        );
+
+      if (tokenSaveError) {
+        console.error(
+          "❌ Error guardando token en payment_method_tokens:",
+          tokenSaveError.message,
+          tokenSaveError.details,
+          tokenSaveError.hint,
+        );
+      } else {
+        console.log("✅ Token guardado en payment_method_tokens para ecartpay");
+      }
+
+      // ── Tokenizar con otros proveedores activos (best-effort) ────────────
+      // Cuando se implemente Clip u otros, agregar aquí su lógica de tokenización.
+      // Si uno falla no cancela la operación — el token de eCartPay ya está guardado.
+      const { data: otherProviders } = await supabase
+        .from("payment_providers")
+        .select("code")
+        .eq("is_active", true)
+        .neq("code", "ecartpay");
+
+      if (otherProviders && otherProviders.length > 0) {
+        await Promise.allSettled(
+          otherProviders.map(async ({ code }) => {
+            try {
+              // TODO: cuando se implemente un proveedor, agregar su case aquí:
+              // if (code === "clip") { ... }
+              console.log(
+                `[PaymentProvider] Proveedor '${code}' pendiente de implementación — token omitido`,
+              );
+            } catch (err) {
+              console.error(
+                `[PaymentProvider] Error tokenizando con '${code}':`,
+                err.message,
+              );
+            }
+          }),
+        );
       }
 
       return {
@@ -351,13 +425,19 @@ class PaymentService {
     }
   }
 
-  async deletePaymentMethod(userId, paymentMethodId) {
+  async deletePaymentMethod(userId, paymentMethodId, context = {}) {
     try {
+      const { isGuest } = context;
+      const tableName = isGuest
+        ? "guest_payment_methods"
+        : "user_payment_methods";
+      const userFieldName = isGuest ? "guest_id" : "user_id";
+
       // Get the payment method to delete
       const { data: method, error: fetchError } = await supabase
-        .from("user_payment_methods")
-        .select("ecartpay_token, is_default")
-        .eq("user_id", userId)
+        .from(tableName)
+        .select("id, is_default")
+        .eq(userFieldName, userId)
         .eq("id", paymentMethodId)
         .single();
 
@@ -371,14 +451,23 @@ class PaymentService {
         };
       }
 
+      // Obtener token de eCartPay desde payment_method_tokens
+      const { data: tokenRow } = await supabase
+        .from("payment_method_tokens")
+        .select("provider_token")
+        .eq("payment_method_id", paymentMethodId)
+        .eq("provider", "ecartpay")
+        .eq("is_active", true)
+        .single();
+
       // Attempt to detach from EcartPay (continue even if it fails)
-      if (method.ecartpay_token) {
+      if (tokenRow?.provider_token) {
         console.log(
-          `🗑️ Attempting to delete from EcartPay: ${method.ecartpay_token}`,
+          `🗑️ Attempting to delete from EcartPay: ${tokenRow.provider_token}`,
         );
         try {
           const detachResult = await ecartPayService.detachPaymentMethod(
-            method.ecartpay_token,
+            tokenRow.provider_token,
           );
 
           if (!detachResult.success) {
@@ -401,11 +490,18 @@ class PaymentService {
 
       console.log("🗑️ Proceeding with database deletion");
 
+      // Eliminar tokens asociados en payment_method_tokens
+      const dbClient = supabaseAdmin || supabase;
+      await dbClient
+        .from("payment_method_tokens")
+        .delete()
+        .eq("payment_method_id", paymentMethodId);
+
       // Delete completely from our database after successful EcartPay deletion
       const { error: deleteError } = await supabase
-        .from("user_payment_methods")
+        .from(tableName)
         .delete()
-        .eq("user_id", userId)
+        .eq(userFieldName, userId)
         .eq("id", paymentMethodId);
 
       if (deleteError) {
@@ -527,7 +623,7 @@ class PaymentService {
       // Get all payment methods for this user/guest
       const { data: methods, error } = await supabase
         .from(tableName)
-        .select("ecartpay_token, id")
+        .select("id")
         .eq(userFieldName, userId);
 
       if (error) {
@@ -539,13 +635,25 @@ class PaymentService {
         `🧹 Cleaning up ${methods?.length || 0} payment methods for ${isGuest ? "guest" : "user"}: ${userId}`,
       );
 
-      // Detach each from eCartPay
+      // Detach each from eCartPay via payment_method_tokens
       for (const method of methods || []) {
         try {
-          await ecartPayService.detachPaymentMethod(method.ecartpay_token);
-          console.log(`✅ Detached ${method.ecartpay_token} from eCartPay`);
+          const { data: tokenRow } = await supabase
+            .from("payment_method_tokens")
+            .select("provider_token")
+            .eq("payment_method_id", method.id)
+            .eq("provider", "ecartpay")
+            .single();
+
+          if (tokenRow?.provider_token) {
+            await ecartPayService.detachPaymentMethod(tokenRow.provider_token);
+            console.log(`✅ Detached ${tokenRow.provider_token} from eCartPay`);
+          }
         } catch (error) {
-          console.warn(`⚠️ Failed to detach ${method.ecartpay_token}:`, error);
+          console.warn(
+            `⚠️ Failed to detach payment method ${method.id}:`,
+            error,
+          );
         }
       }
 
@@ -694,58 +802,73 @@ class PaymentService {
         `📋 Found ${guestPaymentMethods.length} payment methods to migrate`,
       );
 
-      // 2. Verificar cuáles ya existen para evitar duplicados
-      const { data: existingMethods } = await supabase
+      // 2. Obtener tokens del guest desde payment_method_tokens
+      const guestMethodIds = guestPaymentMethods.map((gpm) => gpm.id);
+      const { data: guestTokens } = await supabase
+        .from("payment_method_tokens")
+        .select("payment_method_id, provider, provider_token")
+        .in("payment_method_id", guestMethodIds)
+        .eq("user_type", "guest");
+
+      const guestTokenSet = new Set(
+        (guestTokens || []).map((t) => t.provider_token),
+      );
+
+      // Verificar cuáles ya existen en usuario para evitar duplicados
+      const { data: existingUserMethods } = await supabase
         .from("user_payment_methods")
-        .select("ecartpay_token")
+        .select("id")
         .eq("user_id", userId);
 
-      const existingTokens = new Set(
-        (existingMethods || []).map((m) => m.ecartpay_token),
+      const existingUserIds = new Set(
+        (existingUserMethods || []).map((m) => m.id),
       );
 
-      // Filtrar solo los que no existen
-      const methodsToMigrate = guestPaymentMethods.filter(
-        (gpm) => !existingTokens.has(gpm.ecartpay_token),
+      // Verificar tokens de usuario existentes
+      const { data: existingUserTokens } = await supabase
+        .from("payment_method_tokens")
+        .select("provider_token")
+        .in("payment_method_id", [...existingUserIds])
+        .eq("user_type", "user");
+
+      const existingTokenSet = new Set(
+        (existingUserTokens || []).map((t) => t.provider_token),
       );
+
+      // Solo migrar los que no están ya en usuario
+      const methodsToMigrate = guestPaymentMethods.filter((gpm) => {
+        const token = (guestTokens || []).find(
+          (t) => t.payment_method_id === gpm.id,
+        );
+        return token && !existingTokenSet.has(token.provider_token);
+      });
 
       if (methodsToMigrate.length === 0) {
         console.log("ℹ️ All payment methods already migrated");
-        return {
-          success: true,
-          migratedCount: 0,
-        };
+        return { success: true, migratedCount: 0 };
       }
 
       console.log(
-        `💳 ${methodsToMigrate.length} new payment methods to migrate (${guestPaymentMethods.length - methodsToMigrate.length} already exist)`,
+        `💳 ${methodsToMigrate.length} new payment methods to migrate`,
       );
 
-      // 3. Convertir cada payment method de guest a user
+      // 3. Insertar en user_payment_methods
       const userPaymentMethods = methodsToMigrate.map((gpm) => ({
-        user_id: userId, // UUID del usuario autenticado
-        ecartpay_token: gpm.ecartpay_token,
-        ecartpay_customer_id: gpm.ecartpay_customer_id,
+        user_id: userId,
         last_four_digits: gpm.last_four_digits,
         card_type: gpm.card_type,
         card_brand: gpm.card_brand,
-        expiry_month: parseInt(gpm.expiry_month), // Asegurar que sea número
-        expiry_year: parseInt(gpm.expiry_year), // Asegurar que sea número
+        expiry_month: parseInt(gpm.expiry_month),
+        expiry_year: parseInt(gpm.expiry_year),
         cardholder_name: gpm.cardholder_name,
         billing_country: gpm.billing_country,
         billing_postal_code: gpm.billing_postal_code,
         is_active: true,
-        is_default: gpm.is_default, // Preservar el estado de default
+        is_default: gpm.is_default,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }));
 
-      console.log(
-        "📝 Payment methods to insert:",
-        JSON.stringify(userPaymentMethods, null, 2),
-      );
-
-      // 4. Insertar los payment methods en la tabla de usuario
       const { data: insertedMethods, error: insertError } = await supabase
         .from("user_payment_methods")
         .insert(userPaymentMethods)
@@ -762,28 +885,40 @@ class PaymentService {
         };
       }
 
+      // 4. Migrar tokens — actualizar user_type a 'user' y reasignar payment_method_id
+      const dbClient = supabaseAdmin || supabase;
+      for (let i = 0; i < methodsToMigrate.length; i++) {
+        const guestMethod = methodsToMigrate[i];
+        const newUserMethod = insertedMethods[i];
+        const guestMethodTokens = (guestTokens || []).filter(
+          (t) => t.payment_method_id === guestMethod.id,
+        );
+
+        for (const token of guestMethodTokens) {
+          await dbClient.from("payment_method_tokens").upsert(
+            {
+              payment_method_id: newUserMethod.id,
+              user_type: "user",
+              provider: token.provider,
+              provider_token: token.provider_token,
+              is_active: true,
+            },
+            { onConflict: "payment_method_id,provider" },
+          );
+        }
+      }
+
       console.log(
-        `✅ Successfully inserted ${insertedMethods.length} payment methods`,
+        `✅ Successfully migrated ${insertedMethods.length} payment methods`,
       );
 
-      // 5. Marcar los payment methods del guest como inactivos (NO eliminar)
-      const { error: deactivateError } = await supabase
+      // 5. Marcar guest methods como inactivos
+      await supabase
         .from("guest_payment_methods")
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("guest_id", guestId);
 
-      if (deactivateError) {
-        console.warn(
-          "⚠️ Warning: Could not deactivate guest payment methods:",
-          deactivateError,
-        );
-        // No es crítico, continuar
-      }
-
-      return {
-        success: true,
-        migratedCount: insertedMethods.length,
-      };
+      return { success: true, migratedCount: insertedMethods.length };
     } catch (error) {
       console.error("❌ Error in migrateGuestPaymentMethods:", error);
       return {

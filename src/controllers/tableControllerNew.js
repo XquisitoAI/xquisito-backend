@@ -129,6 +129,7 @@ class TableController {
         items: [{ name: item, quantity, menu_item_id: menuItemId }],
         identifier: `Mesa ${tableNumber}`,
         tableOrderId: result.table_order_id ?? null,
+        skipAgent: true,
       });
 
       // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente

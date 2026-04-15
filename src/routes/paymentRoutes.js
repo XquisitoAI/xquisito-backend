@@ -12,27 +12,28 @@ router.post("/payment-methods", paymentController.addPaymentMethod);
 router.get("/payment-methods", paymentController.getUserPaymentMethods);
 router.delete(
   "/payment-methods/:paymentMethodId",
-  paymentController.deletePaymentMethod
+  paymentController.deletePaymentMethod,
 );
 router.put(
   "/payment-methods/:paymentMethodId/default",
-  paymentController.setDefaultPaymentMethod
+  paymentController.setDefaultPaymentMethod,
 );
 
 // Payment Processing
 router.post("/payments", paymentController.processPayment);
 router.get("/payments/history", paymentController.getPaymentHistory);
+router.post("/payments/apple-pay/order", paymentController.createApplePayOrder);
 
 // Payment Transactions (maximum traceability system)
 router.post(
   "/payment-transactions",
-  paymentController.createPaymentTransaction
+  paymentController.createPaymentTransaction,
 );
 
 // Guest Payment Methods Migration
 router.post(
   "/payment-methods/migrate-from-guest",
-  paymentController.migrateGuestPaymentMethods
+  paymentController.migrateGuestPaymentMethods,
 );
 
 // Guest Data Cleanup
@@ -46,27 +47,27 @@ router.post(
     req.skipAuth = true;
     next();
   },
-  paymentController.handleWebhook
+  paymentController.handleWebhook,
 );
 
 // Admin endpoints for managing eCartPay data (development only)
 router.get(
   "/admin/ecartpay/customers",
-  paymentController.listEcartPayCustomers
+  paymentController.listEcartPayCustomers,
 );
 router.delete(
   "/admin/ecartpay/customers/cleanup",
-  paymentController.cleanupTestCustomers
+  paymentController.cleanupTestCustomers,
 );
 router.delete(
   "/admin/ecartpay/customers/:customerId",
-  paymentController.deleteEcartPayCustomer
+  paymentController.deleteEcartPayCustomer,
 );
 
 // Legacy debug endpoints (keep for compatibility)
 router.get(
   "/debug/ecartpay/customers",
-  paymentController.listEcartPayCustomers
+  paymentController.listEcartPayCustomers,
 );
 
 router.get("/debug/ecartpay/customers/:userId", async (req, res) => {

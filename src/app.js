@@ -221,6 +221,10 @@ app.use("/api/subscriptions", subscriptionRoutes);
 // POS Integration
 app.use("/api/pos", posRoutes);
 
+// Payment Providers
+const paymentProviderRoutes = require("./routes/paymentProviderRoutes");
+app.use("/api/payment-providers", paymentProviderRoutes);
+
 // Printers
 app.use("/api/pos", printerRoutes);
 

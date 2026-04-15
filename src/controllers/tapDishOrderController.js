@@ -108,6 +108,7 @@ class TapDishOrderController {
       }
 
       // Imprimir en xquisito-crew (fire-and-forget)
+      // skipAgent: true → el agente imprime via new_order (con folio real de SR)
       emitPrintJob({
         restaurantId: parseInt(restaurantId),
         branchNumber: parseInt(branchNumber),
@@ -119,6 +120,7 @@ class TapDishOrderController {
           },
         ],
         identifier: `Mesa ${tableNumber}`,
+        skipAgent: true,
       });
 
       res.status(201).json({
