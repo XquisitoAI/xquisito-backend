@@ -1,6 +1,9 @@
 const express = require("express");
 const roomOrderController = require("../controllers/roomOrderController");
 const roomDishOrderController = require("../controllers/roomDishOrderController");
+const {
+  optionalAdminPortalAuth,
+} = require("../middleware/clerkAdminPortalAuth");
 
 const router = express.Router();
 
@@ -53,6 +56,7 @@ router.post(
 // Actualizar estado de preparación (para cocina)
 router.patch(
   "/dish-orders/:dishOrderId/status",
+  optionalAdminPortalAuth,
   roomDishOrderController.updateDishStatus,
 );
 
