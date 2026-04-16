@@ -13,6 +13,11 @@ router.post("/fcm-token", adminPortalAuth, (req, res) =>
   kitchenController.saveFcmToken(req, res),
 );
 
+// Eliminar token FCM al cerrar sesión
+router.delete("/fcm-token", adminPortalAuth, (req, res) =>
+  kitchenController.deleteFcmToken(req, res),
+);
+
 // Sucursales del restaurante
 router.get("/branches", adminPortalAuth, (req, res) =>
   kitchenController.getBranches(req, res),

@@ -606,6 +606,7 @@ class POSSyncService {
             local_order_id: tableOrderId,
             local_order_type: "table_order",
             pos_order_id: posResponse.posOrderId,
+            pos_check_number: posResponse.posCheckNumber || null,
             pos_table_id: posResponse.posTableId,
             sync_status: "synced",
             sync_direction: "push",
