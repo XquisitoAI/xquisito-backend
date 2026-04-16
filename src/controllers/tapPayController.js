@@ -142,6 +142,13 @@ class TapPayController {
         order,
       );
 
+      // Notificar a cocina sobre nueva orden Tap & Pay
+      socketEmitter.emitNewTransaction(parseInt(restaurantId), {
+        orderType: "tap_pay",
+        identifier: `Mesa ${tableNumber}`,
+        items,
+      });
+
       res.status(201).json({
         success: true,
         data: order,
@@ -565,6 +572,11 @@ class TapPayController {
             order.restaurant_id,
             order.branch_number,
             order.table_number,
+            dishId,
+            status,
+          );
+          socketEmitter.emitKitchenDishStatusChanged(
+            order.restaurant_id,
             dishId,
             status,
           );

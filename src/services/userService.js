@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const { supabaseAdmin } = require("../config/supabaseAuth");
 
 class UserService {
   // Obtener información de múltiples usuarios desde Supabase
@@ -14,15 +15,16 @@ class UserService {
           id &&
           typeof id === "string" &&
           id.trim() !== "" &&
-          !id.startsWith("guest-")
+          !id.startsWith("guest-"),
       );
 
       if (validUserIds.length === 0) {
         return {};
       }
 
-      // Obtener información de usuarios desde la tabla profiles
-      const { data: profiles, error } = await supabase
+      // Usar supabaseAdmin para bypass RLS — esta es una consulta interna del servidor
+      const dbClient = supabaseAdmin || supabase;
+      const { data: profiles, error } = await dbClient
         .from("profiles")
         .select("id, photo_url, first_name, last_name")
         .in("id", validUserIds);

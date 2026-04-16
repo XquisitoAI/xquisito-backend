@@ -42,7 +42,7 @@ class SocketEmitter {
       kitchenController.sendPushToRestaurant(
         restaurantId,
         "Nueva orden",
-        transaction?.identifier || "Ha llegado una nueva orden"
+        transaction?.identifier || "Ha llegado una nueva orden",
       );
     } catch (e) {
       // No crítico
@@ -348,6 +348,15 @@ class SocketEmitter {
         timestamp: new Date().toISOString(),
       },
     );
+  }
+
+  // Emite cambio de status de platillo a todos los Crew del restaurante
+  emitKitchenDishStatusChanged(restaurantId, dishId, status) {
+    return this.emitToRestaurant(restaurantId, "kitchen:dish-status-changed", {
+      dishId,
+      status,
+      timestamp: new Date().toISOString(),
+    });
   }
 }
 

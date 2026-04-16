@@ -344,6 +344,13 @@ class TableController {
             status,
           );
         }
+        if (restaurantId) {
+          socketEmitter.emitKitchenDishStatusChanged(
+            parseInt(restaurantId),
+            dishId,
+            status,
+          );
+        }
 
         res.json({
           success: true,
