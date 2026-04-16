@@ -78,7 +78,7 @@ class SoftRestaurantPOSService extends BasePOSService {
         throw new Error("El agente no retornó un folio válido");
       }
 
-      console.log(`✅ Orden creada en SR: folio=${response.folio}`);
+      console.log(`✅ Orden creada en SR: folio=${response.folio}, numcheque=${response.numcheque}`);
       if (response.totals?.descuento > 0) {
         console.log(`🏷️ Descuento aplicado: $${response.totals.descuento}`);
       }
@@ -88,7 +88,7 @@ class SoftRestaurantPOSService extends BasePOSService {
       return {
         success: true,
         posOrderId: String(response.folio),
-        posCheckNumber: response.folio,
+        posCheckNumber: response.numcheque || response.folio,
         posTableId: orderData.table_number,
         status: isPrepaid ? "closed" : "open",
         isClosed: isPrepaid,
