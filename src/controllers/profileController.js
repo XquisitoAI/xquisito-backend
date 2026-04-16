@@ -1,4 +1,4 @@
-const supabase = require("../config/supabase");
+const { supabaseAdminAdmin } = require("../config/supabaseAdminAuth");
 
 class ProfileController {
   // Crear o actualizar perfil del usuario autenticado
@@ -23,7 +23,7 @@ class ProfileController {
         });
       }
 
-      const { data: existingProfile, error: findError } = await supabase
+      const { data: existingProfile, error: findError } = await supabaseAdmin
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
@@ -55,7 +55,7 @@ class ProfileController {
         if (gender !== undefined) updateData.gender = gender;
         if (photoUrl !== undefined) updateData.photo_url = photoUrl;
 
-        const { data: updatedProfile, error: updateError } = await supabase
+        const { data: updatedProfile, error: updateError } = await supabaseAdmin
           .from("profiles")
           .update(updateData)
           .eq("id", authUser.id)
@@ -87,7 +87,7 @@ class ProfileController {
         if (gender) insertData.gender = gender;
         if (photoUrl) insertData.photo_url = photoUrl;
 
-        const { data: newProfile, error: createError } = await supabase
+        const { data: newProfile, error: createError } = await supabaseAdmin
           .from("profiles")
           .insert(insertData)
           .select()
@@ -140,7 +140,7 @@ class ProfileController {
     try {
       const authUser = req.user;
 
-      const { data: profile, error } = await supabase
+      const { data: profile, error } = await supabaseAdmin
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
@@ -223,7 +223,7 @@ class ProfileController {
 
       updateData.updated_at = new Date().toISOString();
 
-      const { data: profile, error } = await supabase
+      const { data: profile, error } = await supabaseAdmin
         .from("profiles")
         .update(updateData)
         .eq("id", authUser.id)
@@ -293,7 +293,7 @@ class ProfileController {
       );
 
       // Obtener foto anterior para eliminarla
-      const { data: profile } = await supabase
+      const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("photo_url")
         .eq("id", authUser.id)
@@ -313,7 +313,7 @@ class ProfileController {
       );
 
       // Actualizar el perfil con la nueva URL
-      const { data: updatedProfile, error: updateError } = await supabase
+      const { data: updatedProfile, error: updateError } = await supabaseAdmin
         .from("profiles")
         .update({
           photo_url: photoUrl,
