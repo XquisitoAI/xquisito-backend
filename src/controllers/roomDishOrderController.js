@@ -1,4 +1,6 @@
 const roomOrderService = require("../services/roomOrderService");
+const kitchenService = require("../services/kitchenService");
+const socketEmitter = require("../services/socketEmitter");
 const {
   emitPrintJob,
   emitPrintJobForRoomOrder,
@@ -189,6 +191,18 @@ exports.updateDishStatus = async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // Notificar a todos los Crew del restaurante
+    try {
+      const restaurantId = await kitchenService.getRestaurantIdForUser(
+        req.auth.userId,
+      );
+      socketEmitter.emitKitchenDishStatusChanged(
+        restaurantId,
+        dishOrderId,
+        status,
+      );
+    } catch (_) {}
 
     res.json({
       success: true,

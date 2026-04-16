@@ -1,4 +1,6 @@
 const tapDishOrderService = require("../services/tapDishOrderService");
+const kitchenService = require("../services/kitchenService");
+const socketEmitter = require("../services/socketEmitter");
 const {
   emitPrintJob,
   emitPrintJobForTapOrder,
@@ -397,6 +399,18 @@ class TapDishOrderController {
           message: result.error,
         });
       }
+
+      // Notificar a todos los Crew del restaurante
+      try {
+        const restaurantId = await kitchenService.getRestaurantIdForUser(
+          req.auth.userId,
+        );
+        socketEmitter.emitKitchenDishStatusChanged(
+          restaurantId,
+          dishOrderId,
+          status,
+        );
+      } catch (_) {}
 
       res.status(200).json({
         success: true,

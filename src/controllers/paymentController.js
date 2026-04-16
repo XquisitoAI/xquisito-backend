@@ -1369,6 +1369,13 @@ class PaymentController {
         transactionData.total_amount_charged ||
         0;
 
+      // Estos servicios confirman la orden al pagar — la cocina se entera aquí
+      const notifyKitchenOnPayment = [
+        "tap-order-pay",
+        "pick-n-go",
+        "room-service",
+      ].includes(serviceType);
+
       socketEmitter.emitNewTransaction(transactionData.restaurant_id, {
         id: transaction.id,
         baseAmount: baseAmount,
@@ -1379,6 +1386,7 @@ class PaymentController {
         orderIdentifier:
           orderIdentifier || `Orden #${transaction.id.slice(0, 8)}`,
         orderStatus: "paid",
+        notifyKitchen: notifyKitchenOnPayment,
       });
 
       // También emitir actualización de métricas

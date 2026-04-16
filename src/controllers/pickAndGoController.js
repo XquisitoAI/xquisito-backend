@@ -1,5 +1,6 @@
 const pickAndGoService = require("../services/pickAndGoService");
 const socketEmitter = require("../services/socketEmitter");
+const kitchenService = require("../services/kitchenService");
 const {
   emitPrintJobForPickAndGoOrder,
 } = require("../services/printJobService");
@@ -565,15 +566,6 @@ class PickAndGoController {
         return res.status(500).json(result);
       }
 
-      // Notificar al crew y emitir print job (fire-and-forget)
-      if (result.restaurant_id) {
-        socketEmitter.emitNewTransaction(result.restaurant_id, {
-          orderType: "pick_and_go",
-          identifier: `Pick & Go`,
-          item,
-          quantity,
-        });
-      }
       emitPrintJobForPickAndGoOrder(orderId, [
         { name: item, quantity, menu_item_id: menuItemId },
       ]);
@@ -664,6 +656,18 @@ class PickAndGoController {
       if (!result.success) {
         return res.status(404).json(result);
       }
+
+      // Notificar a todos los Crew del restaurante
+      try {
+        const restaurantId = await kitchenService.getRestaurantIdForUser(
+          req.auth.userId,
+        );
+        socketEmitter.emitKitchenDishStatusChanged(
+          restaurantId,
+          dishId,
+          status,
+        );
+      } catch (_) {}
 
       res.json(result);
     } catch (error) {
