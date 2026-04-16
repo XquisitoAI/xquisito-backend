@@ -338,16 +338,18 @@ class POSSyncService {
 
         let menuItemId = dishOrder.menu_item_id;
 
-        // Si no tiene menu_item_id, intentar buscar por nombre
+        // Si no tiene menu_item_id, buscar por nombre filtrando por integración
+        // para evitar falsos matches de items con el mismo nombre en otro restaurante
         if (!menuItemId) {
-          console.log(`      Buscando menu_item por nombre...`);
-          const { data: menuItem } = await supabaseAdmin
-            .from("menu_items")
-            .select("id")
-            .eq("name", dishOrder.item)
-            .single();
+          console.log(`      Buscando menu_item por nombre en integración...`);
+          const { data: mappingByName } = await supabaseAdmin
+            .from("pos_menu_mapping")
+            .select("menu_item_id, menu_items!inner(name)")
+            .eq("integration_id", integrationId)
+            .eq("menu_items.name", dishOrder.item)
+            .maybeSingle();
 
-          menuItemId = menuItem?.id;
+          menuItemId = mappingByName?.menu_item_id;
           if (menuItemId) {
             console.log(`      ✅ Encontrado: ${menuItemId}`);
           }
@@ -361,7 +363,7 @@ class POSSyncService {
         // Buscar mapeo POS para este item
         const { data: mapping } = await supabaseAdmin
           .from("pos_menu_mapping")
-          .select("pos_item_id, pos_item_code")
+          .select("pos_item_id")
           .eq("integration_id", integrationId)
           .eq("menu_item_id", menuItemId)
           .single();
@@ -383,7 +385,6 @@ class POSSyncService {
 
         return {
           pos_item_id: mapping.pos_item_id,
-          pos_item_code: mapping.pos_item_code,
           quantity: dishOrder.quantity,
           price: dishOrder.price,
           extraPrice: dishOrder.extra_price || 0,
@@ -661,23 +662,19 @@ class POSSyncService {
 
   // Obtener mapeo POS para un dish_order individual
   static async getDishItemMapping(dishOrder, integrationId) {
-    // Buscar el menu_item_id basado en el nombre del item
-    const { data: menuItem } = await supabaseAdmin
-      .from("menu_items")
-      .select("id, name, price")
-      .eq("name", dishOrder.item)
-      .single();
-
-    if (!menuItem) {
+    if (!dishOrder.menu_item_id) {
+      console.warn(
+        `      ❌ dish_order sin menu_item_id para "${dishOrder.item}"`,
+      );
       return null;
     }
 
-    // Buscar mapeo POS
+    // Buscar mapeo POS directamente por menu_item_id
     const { data: mapping } = await supabaseAdmin
       .from("pos_menu_mapping")
-      .select("pos_item_id, pos_item_code")
+      .select("pos_item_id")
       .eq("integration_id", integrationId)
-      .eq("menu_item_id", menuItem.id)
+      .eq("menu_item_id", dishOrder.menu_item_id)
       .single();
 
     if (!mapping) {
@@ -689,7 +686,6 @@ class POSSyncService {
 
     return {
       pos_item_id: mapping.pos_item_id,
-      pos_item_code: mapping.pos_item_code,
       quantity: dishOrder.quantity,
       price: dishOrder.price,
       extraPrice: dishOrder.extra_price || 0,
@@ -926,7 +922,6 @@ class POSSyncService {
             `
             menu_item_id,
             pos_item_id,
-            pos_item_code,
             menu_items!inner(id, name, description, price, image_url)
           `,
           )
@@ -944,7 +939,6 @@ class POSSyncService {
               `
               menu_item_id,
               pos_item_id,
-              pos_item_code,
               menu_items!inner(id, name, description, price, image_url)
             `,
             )

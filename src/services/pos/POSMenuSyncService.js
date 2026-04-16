@@ -277,10 +277,13 @@ class POSMenuSyncService {
         }
         result.sections.created = newSections.length;
 
-        // Batch INSERT mapeos de secciones
+        // Batch INSERT mapeos de secciones con upsert para tolerar race conditions
         await supabaseAdmin
           .from("pos_section_mapping")
-          .insert(newSectionMappings);
+          .upsert(newSectionMappings, {
+            onConflict: "integration_id,pos_group_id",
+            ignoreDuplicates: true,
+          });
       }
     }
 
@@ -359,38 +362,69 @@ class POSMenuSyncService {
 
     // Batch INSERT nuevos items
     if (itemsToCreate.length > 0) {
-      const insertData = itemsToCreate.map(({ _pos_item_id, ...rest }) => rest);
-      const { data: newItems, error } = await supabaseAdmin
-        .from("menu_items")
-        .insert(insertData)
-        .select("id, name");
+      // Re-verificar contra DB para evitar race conditions (dos syncs simultáneos)
+      const { data: freshMappings } = await supabaseAdmin
+        .from("pos_menu_mapping")
+        .select("pos_item_id")
+        .eq("integration_id", integration.id)
+        .in(
+          "pos_item_id",
+          itemsToCreate.map((i) => String(i._pos_item_id)),
+        );
 
-      if (!error && newItems) {
-        // Crear mapeos y disponibilidad para los nuevos items
-        const availabilityData = [];
-        for (let i = 0; i < newItems.length; i++) {
-          newItemMappings.push({
-            integration_id: integration.id,
-            menu_item_id: newItems[i].id,
-            pos_item_id: itemsToCreate[i]._pos_item_id,
-            pos_item_name: itemsToCreate[i].name,
-            sync_direction: "both",
-            is_synced: true,
-            last_synced_at: new Date().toISOString(),
+      const alreadyMapped = new Set(
+        (freshMappings || []).map((m) => String(m.pos_item_id)),
+      );
+
+      const trulyNew = itemsToCreate.filter(
+        (i) => !alreadyMapped.has(String(i._pos_item_id)),
+      );
+
+      if (trulyNew.length > 0) {
+        const insertData = trulyNew.map(({ _pos_item_id, ...rest }) => rest);
+        const { data: newItems, error } = await supabaseAdmin
+          .from("menu_items")
+          .insert(insertData)
+          .select("id, name");
+
+        if (!error && newItems) {
+          // Crear mapeos y disponibilidad para los nuevos items
+          const availabilityData = [];
+          for (let i = 0; i < newItems.length; i++) {
+            newItemMappings.push({
+              integration_id: integration.id,
+              menu_item_id: newItems[i].id,
+              pos_item_id: trulyNew[i]._pos_item_id,
+              pos_item_name: trulyNew[i].name,
+              sync_direction: "both",
+              is_synced: true,
+              last_synced_at: new Date().toISOString(),
+            });
+            availabilityData.push({
+              item_id: newItems[i].id,
+              branch_id: branchId,
+              is_available: true,
+            });
+          }
+          result.items.created = newItems.length;
+
+          // Batch INSERT mapeos con upsert para tolerar race conditions
+          await supabaseAdmin.from("pos_menu_mapping").upsert(newItemMappings, {
+            onConflict: "integration_id,pos_item_id",
+            ignoreDuplicates: true,
           });
-          availabilityData.push({
-            item_id: newItems[i].id,
-            branch_id: branchId,
-            is_available: true,
-          });
+          // Batch INSERT disponibilidad con upsert
+          await supabaseAdmin
+            .from("item_branch_availability")
+            .upsert(availabilityData, {
+              onConflict: "item_id,branch_id",
+              ignoreDuplicates: true,
+            });
         }
-        result.items.created = newItems.length;
-
-        // Batch INSERT mapeos y disponibilidad
-        await supabaseAdmin.from("pos_menu_mapping").insert(newItemMappings);
-        await supabaseAdmin
-          .from("item_branch_availability")
-          .insert(availabilityData);
+      } else {
+        console.log(
+          `   ℹ️ Todos los items nuevos ya fueron insertados por sync concurrente, saltando`,
+        );
       }
     }
 
