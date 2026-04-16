@@ -46,6 +46,24 @@ class KitchenController {
   }
 
   /**
+   * DELETE /api/kitchen/fcm-token
+   * Elimina el token FCM del dispositivo al cerrar sesión
+   */
+  async deleteFcmToken(req, res) {
+    try {
+      const { token } = req.body;
+      if (!token) {
+        return res.status(400).json({ success: false, error: "token requerido" });
+      }
+      await kitchenService.deleteFcmToken(token);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[KITCHEN] deleteFcmToken error:", error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
    * GET /api/kitchen/branches
    * Retorna las sucursales activas del restaurante del usuario
    */

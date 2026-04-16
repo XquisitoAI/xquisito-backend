@@ -224,6 +224,17 @@ class KitchenService {
     return { success: true };
   }
 
+  // Elimina un token FCM (logout)
+  async deleteFcmToken(token) {
+    const { error } = await supabase
+      .from("kitchen_push_subscriptions")
+      .delete()
+      .eq("token", token);
+
+    if (error) throw new Error(`Error deleting FCM token: ${error.message}`);
+    return { success: true };
+  }
+
   // Obtiene todos los tokens FCM de un restaurante
   async getFcmTokens(restaurantId) {
     const { data, error } = await supabase
