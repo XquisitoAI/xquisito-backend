@@ -328,17 +328,13 @@ class POSMenuSyncService {
       const priceWithoutTax = product.preciosinimpuestos || priceWithTax / 1.16;
 
       if (existing) {
-        // Verificar si cambió nombre o descripción (NO el precio - Xquisito mantiene su propio precio)
+        // Solo verificar si cambió el nombre (POS gana en nombre)
+        // NO se actualiza description ni price - Xquisito mantiene los suyos
         const current = existing.menu_items;
-        if (
-          current?.name !== product.descripcion ||
-          current?.description !== (product.descripcionmenuelectronico || null)
-        ) {
+        if (current?.name !== product.descripcion) {
           itemsToUpdate.push({
             id: existing.menu_item_id,
             name: product.descripcion,
-            description: product.descripcionmenuelectronico || null,
-            // NO actualizamos price/base_price - Xquisito mantiene su propio precio
             updated_at: new Date().toISOString(),
           });
           result.items.updated++;
@@ -429,7 +425,7 @@ class POSMenuSyncService {
     }
 
     // Batch UPDATE items existentes (en lotes de 50 para no sobrecargar)
-    // Solo actualiza name y description, NO price (Xquisito mantiene su propio precio)
+    // Solo actualiza name — description y price los mantiene Xquisito
     const BATCH_SIZE = 50;
     for (let i = 0; i < itemsToUpdate.length; i += BATCH_SIZE) {
       const batch = itemsToUpdate.slice(i, i + BATCH_SIZE);
@@ -439,7 +435,6 @@ class POSMenuSyncService {
             .from("menu_items")
             .update({
               name: item.name,
-              description: item.description,
               updated_at: item.updated_at,
             })
             .eq("id", item.id),
