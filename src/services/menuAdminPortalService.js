@@ -113,19 +113,7 @@ class MenuAdminPortalService {
         throw new Error("Section not found or access denied");
       }
 
-      // Verificar si la sección tiene platillos
-      const { data: items, error: itemsError } = await supabase
-        .from("menu_items")
-        .select("id")
-        .eq("section_id", sectionId)
-        .limit(1);
-
-      if (itemsError) throw itemsError;
-
-      if (items && items.length > 0) {
-        throw new Error("Cannot delete section with existing menu items");
-      }
-
+      // FK con CASCADE elimina automáticamente items, mapeos y disponibilidad
       const { error } = await supabase
         .from("menu_sections")
         .delete()

@@ -148,9 +148,10 @@ class ProfileController {
 
       if (error) {
         if (error.code === "PGRST116") {
-          return res.status(404).json({
-            success: false,
-            error: "Profile not found",
+          // Usuario autenticado pero sin perfil aún (usuario nuevo)
+          return res.status(200).json({
+            success: true,
+            data: { profile: null },
           });
         }
 
