@@ -127,6 +127,7 @@ class POSSyncService {
           local_order_id: orderId,
           local_order_type: orderType,
           pos_order_id: posResponse.posOrderId,
+          pos_check_number: posResponse.posCheckNumber || null,
           pos_table_id: posResponse.posTableId,
           sync_status: "synced",
           sync_direction: "push",
@@ -140,7 +141,7 @@ class POSSyncService {
           console.log(`\n📝 [syncOrder] Guardando folio en ${orderType}...`);
           const { error: folioError } = await supabaseAdmin
             .from(orderType)
-            .update({ folio: posResponse.posOrderId })
+            .update({ folio: posResponse.posCheckNumber || posResponse.posOrderId })
             .eq("id", orderId);
 
           if (folioError) {
@@ -616,7 +617,7 @@ class POSSyncService {
           if (posResponse.posOrderId) {
             const { error: folioError } = await supabaseAdmin
               .from("table_order")
-              .update({ folio: posResponse.posOrderId })
+              .update({ folio: posResponse.posCheckNumber || posResponse.posOrderId })
               .eq("id", tableOrderId);
 
             if (folioError) {
