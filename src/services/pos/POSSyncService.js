@@ -230,8 +230,15 @@ class POSSyncService {
 
       branchId = room?.branch_id;
     } else {
-      // Para pick-and-go, usar branch_id directo
-      branchId = order.branch_id;
+      // Para pick-and-go, resolver branch_id desde branches
+      const { data: branch } = await supabaseAdmin
+        .from("branches")
+        .select("id")
+        .eq("restaurant_id", order.restaurant_id)
+        .eq("branch_number", order.branch_number)
+        .single();
+
+      branchId = branch?.id;
     }
 
     if (!branchId) {
