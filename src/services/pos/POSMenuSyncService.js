@@ -215,19 +215,16 @@ class POSMenuSyncService {
       const existing = sectionMapByPosId.get(group.idgrupo);
 
       if (existing) {
-        // Verificar si cambió algo
+        // Solo verificar si cambió nombre o clasificacion — display_order lo mantiene Xquisito
         const currentName = existing.menu_sections?.name;
-        const currentOrder = existing.menu_sections?.display_order;
         const currentClasificacion = existing.menu_sections?.clasificacion;
         if (
           currentName !== group.descripcion ||
-          currentOrder !== (group.prioridad || 0) ||
           currentClasificacion !== group.clasificacion
         ) {
           sectionsToUpdate.push({
             id: existing.menu_section_id,
             name: group.descripcion,
-            display_order: group.prioridad || 0,
             clasificacion: group.clasificacion || null,
             updated_at: new Date().toISOString(),
           });
@@ -293,7 +290,6 @@ class POSMenuSyncService {
         .from("menu_sections")
         .update({
           name: section.name,
-          display_order: section.display_order,
           clasificacion: section.clasificacion,
           updated_at: section.updated_at,
         })
