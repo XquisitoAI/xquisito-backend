@@ -1,6 +1,9 @@
 const express = require("express");
 const tapOrderController = require("../controllers/tapOrderController");
 const tapDishOrderController = require("../controllers/tapDishOrderController");
+const {
+  optionalAdminPortalAuth,
+} = require("../middleware/clerkAdminPortalAuth");
 
 const router = express.Router();
 
@@ -101,6 +104,7 @@ router.patch(
 // Actualizar estado de preparación
 router.patch(
   "/dish-orders/:dishOrderId/status",
+  optionalAdminPortalAuth,
   tapDishOrderController.updateStatus,
 );
 
