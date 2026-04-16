@@ -98,7 +98,9 @@ function setupAgentNamespace(io) {
         requestId: data.requestId,
         success: true,
         folio: data.folio,
+        numcheque: data.numcheque,
         orderId: data.orderId,
+        totals: data.totals,
       });
 
       // TODO: Actualizar pos_order_sync con el folio
