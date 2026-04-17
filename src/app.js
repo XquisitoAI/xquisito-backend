@@ -232,6 +232,10 @@ app.use("/api/pos", printerRoutes);
 const kitchenRoutes = require("./routes/kitchenRoutes");
 app.use("/api/kitchen", kitchenRoutes);
 
+// WhatsApp Notifications
+const whatsappRoutes = require("./routes/whatsappRoutes");
+app.use("/api/whatsapp", whatsappRoutes);
+
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });
 });
