@@ -559,7 +559,11 @@ class PickAndGoService {
         .eq("id", pickAndGoOrderId)
         .single();
 
-      return { success: true, data, restaurant_id: parentOrder?.restaurant_id ?? null };
+      return {
+        success: true,
+        data,
+        restaurant_id: parentOrder?.restaurant_id ?? null,
+      };
     } catch (error) {
       console.error("💥 Error in createDishOrder:", error);
       return { success: false, error: error.message };
@@ -599,38 +603,44 @@ class PickAndGoService {
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        return { success: true, hasActiveOrder: false, data: null };
+        return { success: true, hasActiveOrder: false, data: null, orders: [] };
       }
 
+      const activeOrders = [];
       for (const order of data) {
         const pendingDishes =
           order.dish_order?.filter((dish) => dish.status !== "delivered") || [];
 
         if (pendingDishes.length > 0) {
-          return {
-            success: true,
-            hasActiveOrder: true,
-            data: {
-              pick_and_go_order: {
-                id: order.id,
-                folio: order.folio,
-                clerk_user_id: order.clerk_user_id,
-                customer_name: order.customer_name,
-                total_amount: order.total_amount,
-                payment_status: order.payment_status,
-                order_status: order.order_status,
-                restaurant_id: order.restaurant_id,
-                branch_number: order.branch_number,
-                created_at: order.created_at,
-              },
-              dishes: order.dish_order,
-              pending_dishes_count: pendingDishes.length,
+          activeOrders.push({
+            pick_and_go_order: {
+              id: order.id,
+              folio: order.folio,
+              clerk_user_id: order.clerk_user_id,
+              customer_name: order.customer_name,
+              total_amount: order.total_amount,
+              payment_status: order.payment_status,
+              order_status: order.order_status,
+              restaurant_id: order.restaurant_id,
+              branch_number: order.branch_number,
+              created_at: order.created_at,
             },
-          };
+            dishes: order.dish_order,
+            pending_dishes_count: pendingDishes.length,
+          });
         }
       }
 
-      return { success: true, hasActiveOrder: false, data: null };
+      if (activeOrders.length === 0) {
+        return { success: true, hasActiveOrder: false, data: null, orders: [] };
+      }
+
+      return {
+        success: true,
+        hasActiveOrder: true,
+        data: activeOrders[0],
+        orders: activeOrders,
+      };
     } catch (error) {
       return { success: false, error: error.message };
     }
