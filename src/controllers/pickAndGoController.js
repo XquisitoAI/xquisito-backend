@@ -4,6 +4,7 @@ const kitchenService = require("../services/kitchenService");
 const {
   emitPrintJobForPickAndGoOrder,
 } = require("../services/printJobService");
+const whatsappService = require("../services/whatsappService");
 
 /**
  * Controlador para gestionar endpoints de Pick & Go
@@ -668,6 +669,13 @@ class PickAndGoController {
           status,
         );
       } catch (_) {}
+
+      // Notificación WhatsApp al cliente cuando el platillo está listo
+      if (status === "ready" && result.data?.pick_and_go_order_id) {
+        whatsappService
+          .notifyDishReady(result.data.pick_and_go_order_id, result.data.item)
+          .catch(() => {});
+      }
 
       res.json(result);
     } catch (error) {

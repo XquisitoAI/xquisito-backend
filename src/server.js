@@ -4,6 +4,7 @@ const { validateClerkConfigs } = require("./config/clerkConfig");
 const { validateSupabaseAuthConfig } = require("./config/supabaseAuth");
 const { initializeSocket } = require("./socket/socketServer");
 const renewalJob = require("./jobs/renewalJob");
+const whatsappService = require("./services/whatsappService");
 
 const PORT = process.env.PORT || 5000;
 
@@ -42,4 +43,10 @@ httpServer.listen(PORT, () => {
     renewalJob.start();
     console.log("📅 Cron job de renovacion de suscripciones iniciado");
   }
+
+  // Iniciar conexión de WhatsApp
+  whatsappService
+    .connect()
+    .then(() => console.log("📱 WhatsApp service iniciado"))
+    .catch((err) => console.error("❌ Error iniciando WhatsApp:", err.message));
 });
