@@ -18,18 +18,33 @@ router.get("/qr", async (req, res) => {
   const qr = whatsappService.getQrCode();
 
   if (!qr) {
-    return res.json({
-      success: false,
-      message: "No hay QR disponible. El bot puede ya estar conectado.",
-      status: whatsappService.getConnectionState(),
-    });
+    const status = whatsappService.getConnectionState();
+    return res.send(`
+      <html>
+        <body style="font-family:sans-serif;text-align:center;padding:40px;background:#0a8b9b;color:white">
+          <h2>${status === "open" ? "✅ WhatsApp ya está conectado" : "⏳ Generando QR... espera"}</h2>
+          <p>Estado: <strong>${status}</strong></p>
+          <script>setTimeout(() => location.reload(), 3000)</script>
+        </body>
+      </html>
+    `);
   }
 
   try {
     const qrImage = await QRCode.toDataURL(qr);
-    res.json({ success: true, qr: qrImage });
+    res.send(`
+      <html>
+        <body style="font-family:sans-serif;text-align:center;padding:40px;background:#0a8b9b;color:white">
+          <h2>Escanea con WhatsApp</h2>
+          <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+          <img src="${qrImage}" style="border-radius:12px;background:white;padding:16px" />
+          <p style="opacity:0.7;font-size:14px">Se actualiza automáticamente cada 45 segundos</p>
+          <script>setTimeout(() => location.reload(), 5000)</script>
+        </body>
+      </html>
+    `);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).send("Error generando QR: " + err.message);
   }
 });
 
