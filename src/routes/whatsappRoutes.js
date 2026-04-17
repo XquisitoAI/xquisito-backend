@@ -38,7 +38,6 @@ router.get("/qr", async (req, res) => {
           <h2>Escanea con WhatsApp</h2>
           <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
           <img src="${qrImage}" style="border-radius:12px;background:white;padding:16px" />
-          <p style="opacity:0.7;font-size:14px">Se actualiza automáticamente cada 45 segundos</p>
           <script>setTimeout(() => location.reload(), 5000)</script>
         </body>
       </html>

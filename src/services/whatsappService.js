@@ -41,7 +41,7 @@ async function useDatabaseAuthState() {
   };
 
   const writeData = async (key, value) => {
-    await supabase.from(TABLE).upsert(
+    await supabase.from("whatsapp_auth_state").upsert(
       {
         key,
         value: JSON.stringify(value, BufferJSON.replacer),
@@ -52,7 +52,7 @@ async function useDatabaseAuthState() {
   };
 
   const removeData = async (key) => {
-    await supabase.from(TABLE).delete().eq("key", key);
+    await supabase.from("whatsapp_auth_state").delete().eq("key", key);
   };
 
   const creds = (await readData("creds")) || initAuthCreds();
