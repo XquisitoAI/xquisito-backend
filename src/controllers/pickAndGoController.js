@@ -611,6 +611,7 @@ class PickAndGoController {
         success: true,
         hasActiveOrder: result.hasActiveOrder,
         data: result.data,
+        orders: result.orders,
       });
     } catch (error) {
       console.error("Error getting active order by user:", error);
