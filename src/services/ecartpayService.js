@@ -11,7 +11,7 @@ class EcartPayService {
     // Set base URL based on environment (from official docs)
     this.baseURL =
       this.environment === "production"
-        ? "https://ecartpay.com/api" // Assuming production follows similar pattern
+        ? "https://pay.ecart.com/api"
         : "https://sandbox.ecartpay.com/api";
 
     console.log(`🔧 EcartPay Environment: ${this.environment}`);
