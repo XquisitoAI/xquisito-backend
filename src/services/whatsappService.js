@@ -165,7 +165,7 @@ async function sendMessage(phone, text) {
   }
 }
 
-// Notificación de platillo listo
+// Notificación de platillo listo via Twilio SMS
 async function notifyDishReady(orderId, dishName) {
   try {
     const { data: order } = await supabase
@@ -180,11 +180,26 @@ async function notifyDishReady(orderId, dishName) {
       ? `¡Hola ${order.customer_name}! `
       : "¡Hola! ";
     const folioText = order.folio ? ` (Pedido #${order.folio})` : "";
-    const message = `${greeting}Tu platillo *${dishName}* está listo para recoger${folioText}.`;
+    const message = `${greeting}Tu platillo ${dishName} esta listo para recoger${folioText}.`;
 
-    await sendMessage(order.customer_phone, message);
+    const twilio = require("twilio");
+    const client = twilio(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN,
+    );
+
+    const digits = order.customer_phone.replace(/\D/g, "");
+    const phone = digits.length > 10 ? `+${digits}` : `+52${digits}`;
+
+    await client.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phone,
+    });
+
+    console.log(`[SMS] Notificación enviada a ${phone}`);
   } catch (err) {
-    console.error("[WhatsApp] Error en notifyDishReady:", err.message);
+    console.error("[SMS] Error en notifyDishReady:", err.message);
   }
 }
 
