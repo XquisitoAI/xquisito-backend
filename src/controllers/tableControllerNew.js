@@ -126,10 +126,11 @@ class TableController {
       emitPrintJob({
         restaurantId: parseInt(restaurantId),
         branchNumber: parseInt(branchNumber),
-        items: [{ name: item, quantity, menu_item_id: menuItemId }],
+        items: [{ name: item, quantity, menu_item_id: menuItemId, custom_fields: customFields ?? null }],
         identifier: `Mesa ${tableNumber}`,
         tableOrderId: result.table_order_id ?? null,
         skipAgent: true,
+        orderedBy: guestName || null,
       });
 
       // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
