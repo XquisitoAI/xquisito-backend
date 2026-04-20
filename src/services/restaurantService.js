@@ -158,7 +158,7 @@ class RestaurantService {
       const { data, error } = await supabase
         .from("branches")
         .select(
-          "id, client_id, branch_number, name, address, tables, active, created_at, updated_at",
+          "id, client_id, branch_number, name, address, tables, active, opening_hours, created_at, updated_at",
         )
         .eq("client_id", restaurant.client_id)
         .eq("active", true)
@@ -300,8 +300,21 @@ class RestaurantService {
   // Obtener restaurante con su menú filtrado por sucursal
   async getRestaurantWithMenuByBranch(restaurantId, branchId) {
     try {
-      const restaurant = await this.getRestaurantById(restaurantId);
-      const menu = await this.getRestaurantMenuByBranch(restaurantId, branchId);
+      const [restaurant, menu, branchData] = await Promise.all([
+        this.getRestaurantById(restaurantId),
+        this.getRestaurantMenuByBranch(restaurantId, branchId),
+        supabase
+          .from("branches")
+          .select("opening_hours")
+          .eq("id", branchId)
+          .single()
+          .then(({ data }) => data),
+      ]);
+
+      // Usar opening_hours de la sucursal si está definido
+      if (branchData?.opening_hours) {
+        restaurant.opening_hours = branchData.opening_hours;
+      }
 
       return {
         restaurant,
