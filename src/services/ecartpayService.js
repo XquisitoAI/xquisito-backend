@@ -513,7 +513,12 @@ class EcartPayService {
     }
   }
 
-  async generateCardToken(customerId, cardId, cardholderName) {
+  async generateCardToken(
+    customerId,
+    cardId,
+    cardholderName,
+    installments = null,
+  ) {
     try {
       console.log(
         "🔑 Generating card token for customer:",
@@ -533,6 +538,12 @@ class EcartPayService {
       // Add name if provided (seems to be required by current API version)
       if (cardholderName) {
         payload.name = cardholderName;
+      }
+
+      // Add MSI (meses sin intereses) configuration if requested
+      if (installments && installments > 1) {
+        payload.fixed_installments = true;
+        payload.installments = installments;
       }
 
       // Note: CVC is required according to docs but we don't store it for security reasons
@@ -637,11 +648,12 @@ class EcartPayService {
         cardId,
       });
 
-      // Step 1: Generate token for the stored card
+      // Step 1: Generate token for the stored card (with optional MSI config)
       const tokenResult = await this.generateCardToken(
         customerId,
         cardId,
         orderData.cardholderName,
+        orderData.installments || null,
       );
       if (!tokenResult.success) {
         return tokenResult;

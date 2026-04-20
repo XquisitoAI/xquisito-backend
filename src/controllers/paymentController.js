@@ -512,7 +512,7 @@ class PaymentController {
         });
       }
 
-      const { currency = "MXN", description, orderId } = req.body;
+      const { currency = "MXN", description, orderId, installments } = req.body;
 
       // Validate required fields
       if (!paymentMethodId || !amount) {
@@ -716,6 +716,7 @@ class PaymentController {
               description: orderDescription,
               quantity: 1,
               cardholderName: paymentMethod.cardholder_name, // Pass the cardholder name
+              installments: installments || null,
               items: [
                 {
                   name: itemName.substring(0, 100),
