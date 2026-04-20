@@ -123,36 +123,49 @@ class KitchenController {
       }
 
       if (printers.length > 0) {
+        const now = new Date().toISOString();
         const wifiPrinters = printers.filter((p) => p.connection_type !== "usb");
         const usbPrinters = printers.filter((p) => p.connection_type === "usb");
 
-        if (wifiPrinters.length > 0) {
-          const rows = wifiPrinters.map(({ ip, port }) => ({
-            branch_id: branchId,
-            ip,
-            port,
-            connection_type: "wifi",
-            last_seen_at: new Date().toISOString(),
-          }));
-          const { error: upsertError } = await supabase
-            .from("branch_printers")
-            .upsert(rows, { onConflict: "branch_id,ip", ignoreDuplicates: false });
-          if (upsertError) throw upsertError;
+        // Obtener impresoras existentes para esta sucursal
+        const { data: existing = [] } = await supabase
+          .from("branch_printers")
+          .select("id, ip, usb_device_name, connection_type")
+          .eq("branch_id", branchId);
+
+        const existingByIp = new Map(
+          existing.filter((p) => p.ip).map((p) => [p.ip, p.id])
+        );
+        const existingByUsb = new Map(
+          existing.filter((p) => p.usb_device_name).map((p) => [p.usb_device_name, p.id])
+        );
+
+        for (const { ip, port } of wifiPrinters) {
+          const existingId = existingByIp.get(ip);
+          if (existingId) {
+            await supabase
+              .from("branch_printers")
+              .update({ last_seen_at: now })
+              .eq("id", existingId);
+          } else {
+            await supabase
+              .from("branch_printers")
+              .insert({ branch_id: branchId, ip, port, connection_type: "wifi", last_seen_at: now });
+          }
         }
 
-        if (usbPrinters.length > 0) {
-          const rows = usbPrinters.map(({ usb_device_name, vendor_id, product_id }) => ({
-            branch_id: branchId,
-            ip: null,
-            port: null,
-            connection_type: "usb",
-            usb_device_name,
-            last_seen_at: new Date().toISOString(),
-          }));
-          const { error: upsertError } = await supabase
-            .from("branch_printers")
-            .upsert(rows, { onConflict: "branch_id,usb_device_name", ignoreDuplicates: false });
-          if (upsertError) throw upsertError;
+        for (const { usb_device_name } of usbPrinters) {
+          const existingId = existingByUsb.get(usb_device_name);
+          if (existingId) {
+            await supabase
+              .from("branch_printers")
+              .update({ last_seen_at: now })
+              .eq("id", existingId);
+          } else {
+            await supabase
+              .from("branch_printers")
+              .insert({ branch_id: branchId, ip: null, port: null, connection_type: "usb", usb_device_name, last_seen_at: now });
+          }
         }
       }
 

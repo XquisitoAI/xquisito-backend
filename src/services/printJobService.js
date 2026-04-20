@@ -11,6 +11,7 @@ function emitPrintJob({
   identifier,
   folio = null,
   tableOrderId = null,
+  orderedBy = null,
 }) {
   (async () => {
     try {
@@ -44,8 +45,9 @@ function emitPrintJob({
           name: i.name ?? i.item ?? i.item_name,
           quantity: i.quantity,
           clasificacion: i.clasificacion ?? null,
+          custom_fields: i.custom_fields ?? null,
         })),
-        orderInfo: { identifier, folio },
+        orderInfo: { identifier, folio, orderedBy: orderedBy || null },
       };
 
       if (agentConnectionManager.isConnected(branch.id)) {
@@ -136,8 +138,9 @@ async function emitPrintJobForPickAndGoOrder(orderId, items) {
         restaurantId: order.restaurant_id,
         branchNumber: order.branch_number,
         items,
-        identifier: `Pick & Go${order.customer_name ? ` — ${order.customer_name}` : ""}`,
+        identifier: "Pick & Go",
         folio: order.folio ?? null,
+        orderedBy: order.customer_name || null,
       });
     } catch (e) {
       console.error(

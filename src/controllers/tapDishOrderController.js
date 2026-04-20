@@ -119,10 +119,12 @@ class TapDishOrderController {
             name: dishData.item,
             quantity: dishData.quantity ?? 1,
             menu_item_id: dishData.menu_item_id ?? null,
+            custom_fields: dishData.custom_fields ?? null,
           },
         ],
         identifier: `Mesa ${tableNumber}`,
         skipAgent: true,
+        orderedBy: dishData.customer_name || null,
       });
 
       res.status(201).json({

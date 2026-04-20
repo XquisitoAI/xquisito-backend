@@ -69,8 +69,9 @@ exports.createOrderWithFirstDish = async (req, res) => {
     emitPrintJob({
       restaurantId: parseInt(restaurantId),
       branchNumber: parseInt(branchNumber),
-      items: [{ name: item_name, quantity, menu_item_id: menu_item_id }],
+      items: [{ name: item_name, quantity, menu_item_id: menu_item_id, custom_fields: custom_fields ?? null }],
       identifier: `Habitación ${roomNumber}`,
+      orderedBy: customer_name || null,
     });
 
     res.status(201).json({
