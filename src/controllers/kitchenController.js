@@ -93,7 +93,7 @@ class KitchenController {
   /**
    * POST /api/kitchen/printers/sync
    * Upsert de impresoras encontradas en un scan local (desde xquisito-crew)
-   * Body: { branchId, printers: [{ip, port}] }
+   * Body: { branchId, printers: [{ip, port}] | [{usb_device_name, connection_type: 'usb'}] }
    */
   async syncPrinters(req, res) {
     try {
@@ -123,28 +123,44 @@ class KitchenController {
       }
 
       if (printers.length > 0) {
-        const rows = printers.map(({ ip, port }) => ({
-          branch_id: branchId,
-          ip,
-          port,
-          last_seen_at: new Date().toISOString(),
-        }));
+        const wifiPrinters = printers.filter((p) => p.connection_type !== "usb");
+        const usbPrinters = printers.filter((p) => p.connection_type === "usb");
 
-        const { error: upsertError } = await supabase
-          .from("branch_printers")
-          .upsert(rows, {
-            onConflict: "branch_id,ip",
-            ignoreDuplicates: false,
-          });
+        if (wifiPrinters.length > 0) {
+          const rows = wifiPrinters.map(({ ip, port }) => ({
+            branch_id: branchId,
+            ip,
+            port,
+            connection_type: "wifi",
+            last_seen_at: new Date().toISOString(),
+          }));
+          const { error: upsertError } = await supabase
+            .from("branch_printers")
+            .upsert(rows, { onConflict: "branch_id,ip", ignoreDuplicates: false });
+          if (upsertError) throw upsertError;
+        }
 
-        if (upsertError) throw upsertError;
+        if (usbPrinters.length > 0) {
+          const rows = usbPrinters.map(({ usb_device_name, vendor_id, product_id }) => ({
+            branch_id: branchId,
+            ip: null,
+            port: null,
+            connection_type: "usb",
+            usb_device_name,
+            last_seen_at: new Date().toISOString(),
+          }));
+          const { error: upsertError } = await supabase
+            .from("branch_printers")
+            .upsert(rows, { onConflict: "branch_id,usb_device_name", ignoreDuplicates: false });
+          if (upsertError) throw upsertError;
+        }
       }
 
       const { data, error } = await supabase
         .from("branch_printers")
         .select("*")
         .eq("branch_id", branchId)
-        .order("ip");
+        .order("created_at");
 
       if (error) throw error;
 
