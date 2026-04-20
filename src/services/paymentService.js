@@ -216,7 +216,7 @@ class PaymentService {
         )
           .slice(-4)
           .substring(0, 3),
-        card_type: ecartPayPaymentMethod.type || "unknown",
+        card_type: this.normalizeCreditType(ecartPayPaymentMethod.type),
         card_brand: this.normalizeCardType(
           ecartPayPaymentMethod.brand ||
             ecartPayPaymentMethod.type ||
@@ -706,6 +706,15 @@ class PaymentService {
       isValid: errors.length === 0,
       errors,
     };
+  }
+
+  // Normaliza el tipo de crédito/débito: devuelve "credit" o "debit"
+  // Si EcartPay no devuelve un tipo reconocible, asume "credit"
+  normalizeCreditType(rawType) {
+    if (!rawType) return "credit";
+    const lower = rawType.toLowerCase();
+    if (lower === "debit") return "debit";
+    return "credit";
   }
 
   // Normalize card type from EcartPay to standard values
