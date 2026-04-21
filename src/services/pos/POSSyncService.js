@@ -3,6 +3,36 @@ const { supabaseAdmin } = require("../../config/supabaseAuth");
 const agentConnectionManager = require("../../socket/agentConnectionManager");
 const { enrichItemsWithClasificacion } = require("../printerEnrichService");
 
+// Helper: log de simulación de ticket para depuración
+function logTicketSimulation({ identifier, folio, orderedBy, items }) {
+  const SEP = "─".repeat(44);
+  const itemLines = items
+    .map((i) => {
+      let line = `  ${String(i.quantity).padStart(2)}x  ${i.name}`;
+      if (i.clasificacion) line += `  [${i.clasificacion}]`;
+      if (Array.isArray(i.custom_fields) && i.custom_fields.length > 0) {
+        const opts = i.custom_fields.flatMap(
+          (f) =>
+            f.selectedOptions?.map((o) => o.optionName).filter(Boolean) ?? [],
+        );
+        if (opts.length) line += `\n        ↳ ${opts.join(", ")}`;
+      }
+      return line;
+    })
+    .join("\n");
+  console.log(
+    `\n[TICKET] ${SEP}\n` +
+      `  ${identifier}` +
+      (folio ? `  |  Folio: ${folio}` : "") +
+      (orderedBy ? `\n  Cliente: ${orderedBy}` : "") +
+      `\n  ${SEP}\n` +
+      `${itemLines}\n` +
+      `  ${SEP}\n` +
+      `  → AGENTE (con folio SR real)\n` +
+      `[/TICKET]\n`,
+  );
+}
+
 // Helper: envía print_job al agente para órdenes FlexBill después del sync con SR
 async function sendFlexBillPrintToAgent(
   branchId,
@@ -22,14 +52,23 @@ async function sendFlexBillPrintToAgent(
       ? await enrichItemsWithClasificacion(branchId, items)
       : [{ ...items[0], clasificacion: null }];
 
+    const printItems = enriched.map((i) => ({
+      name: i.name,
+      quantity: i.quantity,
+      clasificacion: i.clasificacion ?? null,
+      custom_fields: dishOrder.custom_fields ?? null,
+    }));
+
+    logTicketSimulation({
+      identifier: `Mesa ${tableNumber}`,
+      folio: srFolio ?? null,
+      orderedBy: null,
+      items: printItems,
+    });
+
     agentConnectionManager.send(branchId, "print_job", {
       branchId,
-      items: enriched.map((i) => ({
-        name: i.name,
-        quantity: i.quantity,
-        clasificacion: i.clasificacion ?? null,
-        custom_fields: dishOrder.custom_fields ?? null,
-      })),
+      items: printItems,
       orderInfo: {
         identifier: `Mesa ${tableNumber}`,
         folio: srFolio ?? null,
@@ -233,17 +272,26 @@ class POSSyncService {
                       clasificacion: null,
                     }));
 
+                const printItems = enriched.map((i, idx) => ({
+                  name: i.name,
+                  quantity: i.quantity,
+                  clasificacion: i.clasificacion ?? null,
+                  custom_fields: dishItems[idx]?.custom_fields ?? null,
+                }));
+
+                logTicketSimulation({
+                  identifier,
+                  folio: srFolio,
+                  orderedBy: order.customer_name || null,
+                  items: printItems,
+                });
+
                 agentConnectionManager.send(
                   integration.branch_id,
                   "print_job",
                   {
                     branchId: integration.branch_id,
-                    items: enriched.map((i, idx) => ({
-                      name: i.name,
-                      quantity: i.quantity,
-                      clasificacion: i.clasificacion ?? null,
-                      custom_fields: dishItems[idx]?.custom_fields ?? null,
-                    })),
+                    items: printItems,
                     orderInfo: {
                       identifier,
                       folio: srFolio,
