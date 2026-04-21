@@ -183,6 +183,43 @@ async function authenticateSocket(socket, next) {
       return next();
     }
 
+    // Caso 5: Xquisito Crew (shared secret + branchId, sin Clerk)
+    if (clientType === "crew") {
+      const { branchId, secret } = socket.handshake.auth;
+      const CREW_SECRET =
+        process.env.CREW_SOCKET_SECRET || "xquisito-crew-secret";
+
+      if (secret !== CREW_SECRET || !branchId) {
+        console.log("⚠️ Socket connection rejected: Invalid crew credentials");
+        return next(new Error("Invalid crew credentials"));
+      }
+
+      // Buscar el restaurante al que pertenece esta sucursal
+      const { data: branch, error: branchError } = await supabase
+        .from("branches")
+        .select("id, restaurant_id")
+        .eq("id", branchId)
+        .single();
+
+      if (branchError || !branch) {
+        console.log("⚠️ Socket connection rejected: Branch not found");
+        return next(new Error("Branch not found"));
+      }
+
+      socket.user = {
+        id: `crew-${branchId}`,
+        branchId: branch.id,
+        restaurantId: branch.restaurant_id,
+        isGuest: false,
+        clientType: "crew",
+      };
+
+      console.log(
+        `✅ Socket authenticated (Crew): branch=${branchId} restaurant=${branch.restaurant_id}`,
+      );
+      return next();
+    }
+
     // Si no hay token ni guestId, rechazar
     console.log("⚠️ Socket connection rejected: No credentials provided");
     return next(new Error("Authentication required"));

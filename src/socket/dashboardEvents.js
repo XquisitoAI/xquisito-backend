@@ -107,6 +107,14 @@ function registerDashboardHandlers(io, socket) {
     socket.join(roomName);
     console.log(`🏠 Auto-joined user ${user.id} to room ${roomName}`);
   }
+
+  // Crew: confirmar conexión inmediatamente
+  if (user.clientType === "crew") {
+    socket.emit("room:joined", {
+      restaurantId: user.restaurantId,
+      branchId: user.branchId,
+    });
+  }
 }
 
 module.exports = { registerDashboardHandlers };
