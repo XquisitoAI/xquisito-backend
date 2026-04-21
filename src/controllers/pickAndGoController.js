@@ -568,7 +568,7 @@ class PickAndGoController {
       }
 
       emitPrintJobForPickAndGoOrder(orderId, [
-        { name: item, quantity, menu_item_id: menuItemId },
+        { name: item, quantity, menu_item_id: menuItemId, custom_fields: customFields ?? null },
       ]);
 
       res.status(201).json(result);
