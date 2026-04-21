@@ -50,6 +50,8 @@ function emitPrintJob({
         orderInfo: { identifier, folio, orderedBy: orderedBy || null },
       };
 
+      console.log("[PRINT_JOB] printData:", JSON.stringify(printData, null, 2));
+
       if (agentConnectionManager.isConnected(branch.id)) {
         if (skipAgent) {
           // El agente imprimirá via new_order (con folio real de SR) — omitir print_job
