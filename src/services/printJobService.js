@@ -12,6 +12,7 @@ function emitPrintJob({
   folio = null,
   tableOrderId = null,
   orderedBy = null,
+  skipAgent = false,
 }) {
   (async () => {
     try {
@@ -50,21 +51,55 @@ function emitPrintJob({
         orderInfo: { identifier, folio, orderedBy: orderedBy || null },
       };
 
-      if (agentConnectionManager.isConnected(branch.id)) {
+      // ── Simulación de ticket ──────────────────────────────────────
+      const agentConnected = agentConnectionManager.isConnected(branch.id);
+      const dest = agentConnected
+        ? skipAgent
+          ? "OMITIDO (syncPOS imprimirá con folio SR)"
+          : `→ AGENTE  branch=${branch.id}`
+        : `→ CREW   restaurant=${restaurantId}`;
+      const SEP = "─".repeat(44);
+      const itemLines = printData.items
+        .map((i) => {
+          let line = `  ${String(i.quantity).padStart(2)}x  ${i.name}`;
+          if (i.clasificacion) line += `  [${i.clasificacion}]`;
+          if (Array.isArray(i.custom_fields) && i.custom_fields.length > 0) {
+            const opts = i.custom_fields.flatMap(
+              (f) =>
+                f.selectedOptions?.map((o) => o.optionName).filter(Boolean) ??
+                [],
+            );
+            if (opts.length) line += `\n        ↳ ${opts.join(", ")}`;
+          }
+          return line;
+        })
+        .join("\n");
+      console.log(
+        `\n[TICKET] ${SEP}\n` +
+          `  ${printData.orderInfo.identifier}` +
+          (printData.orderInfo.folio
+            ? `  |  Folio: ${printData.orderInfo.folio}`
+            : "") +
+          (printData.orderInfo.orderedBy
+            ? `\n  Cliente: ${printData.orderInfo.orderedBy}`
+            : "") +
+          `\n  ${SEP}\n` +
+          `${itemLines}\n` +
+          `  ${SEP}\n` +
+          `  ${dest}\n` +
+          `[/TICKET]\n`,
+      );
+      // ─────────────────────────────────────────────────────────────
+
+      if (agentConnected) {
         if (skipAgent) {
-          // El agente imprimirá via new_order (con folio real de SR) — omitir print_job
-          console.log(
-            `[PRINT_JOB] agente conectado + skipAgent — omitido (branch ${branch.id})`,
-          );
           return;
         }
         // Agente conectado → él imprime (tiene acceso directo a las impresoras)
         agentConnectionManager.send(branch.id, "print_job", printData);
-        console.log(`[PRINT_JOB] → agente (branch ${branch.id})`);
       } else {
         // Sin agente → crew imprime via WebSocket
         socketEmitter.emitPrintJob(restaurantId, printData);
-        console.log(`[PRINT_JOB] → crew (restaurant ${restaurantId})`);
       }
     } catch (e) {
       console.error("[PRINT_JOB] Error:", e.message);
@@ -77,8 +112,10 @@ async function emitPrintJobForTapOrder(tapOrderId, items) {
   (async () => {
     try {
       const { data: order } = await supabase
-        .from("tap_orders")
-        .select("restaurant_id, branch_number, table_number, folio")
+        .from("tap_orders_and_pay")
+        .select(
+          "restaurant_id, branch_number, table_number, customer_name, folio",
+        )
         .eq("id", tapOrderId)
         .single();
 
@@ -90,6 +127,8 @@ async function emitPrintJobForTapOrder(tapOrderId, items) {
         items,
         identifier: `Mesa ${order.table_number}`,
         folio: order.folio ?? null,
+        orderedBy: order.customer_name,
+        skipAgent: true, // syncOrder dispara el print al agente con folio SR al momento del pago
       });
     } catch (e) {
       console.error("[PRINT_JOB] emitPrintJobForTapOrder error:", e.message);
@@ -103,7 +142,9 @@ async function emitPrintJobForRoomOrder(roomOrderId, items) {
     try {
       const { data: order } = await supabase
         .from("room_orders")
-        .select("restaurant_id, branch_number, room_number, folio")
+        .select(
+          "restaurant_id, branch_number, room_number, customer_name folio",
+        )
         .eq("id", roomOrderId)
         .single();
 
@@ -115,9 +156,43 @@ async function emitPrintJobForRoomOrder(roomOrderId, items) {
         items,
         identifier: `Habitación ${order.room_number}`,
         folio: order.folio ?? null,
+        orderedBy: order.customer_name,
+        skipAgent: true, // syncOrder dispara el print al agente con folio SR al momento del pago
       });
     } catch (e) {
       console.error("[PRINT_JOB] emitPrintJobForRoomOrder error:", e.message);
+    }
+  })();
+}
+
+// Versión para órdenes FlexBill (mesa) — busca folio y sucursal desde table_order.
+async function emitPrintJobForFlexBill(tableOrderId, items, orderedBy = null) {
+  (async () => {
+    try {
+      const { data: order } = await supabase
+        .from("table_order")
+        .select(
+          "folio, tables!inner(table_number, branches!inner(restaurant_id, branch_number))",
+        )
+        .eq("id", tableOrderId)
+        .single();
+
+      if (!order) return;
+
+      const { table_number } = order.tables;
+      const { restaurant_id, branch_number } = order.tables.branches;
+
+      emitPrintJob({
+        restaurantId: restaurant_id,
+        branchNumber: branch_number,
+        items,
+        identifier: `Mesa ${table_number}`,
+        folio: order.folio ?? null,
+        orderedBy: orderedBy || null,
+        skipAgent: true, // syncFlexBillDish maneja el print al agente con folio SR real
+      });
+    } catch (e) {
+      console.error("[PRINT_JOB] emitPrintJobForFlexBill error:", e.message);
     }
   })();
 }
@@ -134,8 +209,6 @@ async function emitPrintJobForPickAndGoOrder(orderId, items) {
 
       if (!order) return;
 
-      console.log(`[PRINT_JOB] Pick&Go orderId=${orderId} customer_name="${order.customer_name}" folio=${order.folio}`);
-
       emitPrintJob({
         restaurantId: order.restaurant_id,
         branchNumber: order.branch_number,
@@ -143,6 +216,7 @@ async function emitPrintJobForPickAndGoOrder(orderId, items) {
         identifier: "Pick & Go",
         folio: order.folio ?? null,
         orderedBy: order.customer_name || null,
+        skipAgent: true, // syncOrder dispara el print al agente con folio SR al momento del pago
       });
     } catch (e) {
       console.error(
@@ -155,6 +229,7 @@ async function emitPrintJobForPickAndGoOrder(orderId, items) {
 
 module.exports = {
   emitPrintJob,
+  emitPrintJobForFlexBill,
   emitPrintJobForTapOrder,
   emitPrintJobForRoomOrder,
   emitPrintJobForPickAndGoOrder,

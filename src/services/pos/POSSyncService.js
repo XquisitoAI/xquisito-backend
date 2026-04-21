@@ -1,5 +1,48 @@
 const POSFactory = require("./POSFactory");
 const { supabaseAdmin } = require("../../config/supabaseAuth");
+const agentConnectionManager = require("../../socket/agentConnectionManager");
+const { enrichItemsWithClasificacion } = require("../printerEnrichService");
+
+// Helper: envía print_job al agente para órdenes FlexBill después del sync con SR
+async function sendFlexBillPrintToAgent(
+  branchId,
+  tableNumber,
+  dishOrder,
+  srFolio,
+) {
+  try {
+    const items = [
+      {
+        menu_item_id: dishOrder.menu_item_id,
+        name: dishOrder.item,
+        quantity: dishOrder.quantity,
+      },
+    ];
+    const enriched = dishOrder.menu_item_id
+      ? await enrichItemsWithClasificacion(branchId, items)
+      : [{ ...items[0], clasificacion: null }];
+
+    agentConnectionManager.send(branchId, "print_job", {
+      branchId,
+      items: enriched.map((i) => ({
+        name: i.name,
+        quantity: i.quantity,
+        clasificacion: i.clasificacion ?? null,
+        custom_fields: dishOrder.custom_fields ?? null,
+      })),
+      orderInfo: {
+        identifier: `Mesa ${tableNumber}`,
+        folio: srFolio ?? null,
+        orderedBy: null,
+      },
+    });
+    console.log(
+      `[PRINT_JOB] → agente FlexBill folio=${srFolio} (branch ${branchId})`,
+    );
+  } catch (e) {
+    console.error("[PRINT_JOB] sendFlexBillPrintToAgent error:", e.message);
+  }
+}
 
 class POSSyncService {
   /**
@@ -141,13 +184,83 @@ class POSSyncService {
           console.log(`\n📝 [syncOrder] Guardando folio en ${orderType}...`);
           const { error: folioError } = await supabaseAdmin
             .from(orderType)
-            .update({ folio: posResponse.posCheckNumber || posResponse.posOrderId })
+            .update({
+              folio: posResponse.posCheckNumber || posResponse.posOrderId,
+            })
             .eq("id", orderId);
 
           if (folioError) {
             console.warn(`   ⚠️ Error: ${folioError.message}`);
           } else {
             console.log(`   ✅ Folio ${posResponse.posOrderId} guardado`);
+          }
+
+          // Disparar print_job al agente con folio SR real
+          if (agentConnectionManager.isConnected(integration.branch_id)) {
+            try {
+              const { data: dishItems } = await supabaseAdmin
+                .from("dish_order")
+                .select("item, quantity, menu_item_id, custom_fields")
+                .or(
+                  `tap_order_id.eq.${orderId},room_order_id.eq.${orderId},pick_and_go_order_id.eq.${orderId},tap_pay_order_id.eq.${orderId}`,
+                );
+
+              if (dishItems && dishItems.length > 0) {
+                const srFolio =
+                  posResponse.posCheckNumber || posResponse.posOrderId;
+
+                let identifier = "Orden";
+                if (orderType === "tap_orders_and_pay")
+                  identifier = `Mesa ${order.table_number || ""}`.trim();
+                else if (orderType === "room_orders")
+                  identifier = `Habitación ${order.room_number || ""}`.trim();
+                else if (orderType === "pick_and_go_orders")
+                  identifier = "Pick & Go";
+
+                const hasMenuIds = dishItems.some((i) => i.menu_item_id);
+                const enriched = hasMenuIds
+                  ? await enrichItemsWithClasificacion(
+                      integration.branch_id,
+                      dishItems.map((i) => ({
+                        menu_item_id: i.menu_item_id,
+                        name: i.item,
+                        quantity: i.quantity,
+                      })),
+                    )
+                  : dishItems.map((i) => ({
+                      name: i.item,
+                      quantity: i.quantity,
+                      clasificacion: null,
+                    }));
+
+                agentConnectionManager.send(
+                  integration.branch_id,
+                  "print_job",
+                  {
+                    branchId: integration.branch_id,
+                    items: enriched.map((i, idx) => ({
+                      name: i.name,
+                      quantity: i.quantity,
+                      clasificacion: i.clasificacion ?? null,
+                      custom_fields: dishItems[idx]?.custom_fields ?? null,
+                    })),
+                    orderInfo: {
+                      identifier,
+                      folio: srFolio,
+                      orderedBy: order.customer_name || null,
+                    },
+                  },
+                );
+                console.log(
+                  `[PRINT_JOB] → agente ${orderType} folio=${srFolio} (branch ${integration.branch_id})`,
+                );
+              }
+            } catch (printErr) {
+              console.error(
+                "[PRINT_JOB] syncOrder print error:",
+                printErr.message,
+              );
+            }
           }
         }
 
@@ -534,6 +647,14 @@ class POSSyncService {
 
       if (intError || !integration) {
         console.log(`❌ Sucursal sin POS integrado, saltando sincronización`);
+        if (agentConnectionManager.isConnected(branchId)) {
+          sendFlexBillPrintToAgent(
+            branchId,
+            table.table_number,
+            dishOrder,
+            null,
+          );
+        }
         return null;
       }
 
@@ -554,6 +675,14 @@ class POSSyncService {
       );
       if (!itemMapping) {
         console.warn(`⚠️ Item ${dishOrder.item} no tiene mapeo POS`);
+        if (agentConnectionManager.isConnected(branchId)) {
+          sendFlexBillPrintToAgent(
+            branchId,
+            table.table_number,
+            dishOrder,
+            null,
+          );
+        }
         return null;
       }
 
@@ -585,6 +714,15 @@ class POSSyncService {
           console.log(
             `✅ Ronda agregada al check ${existingSync.pos_order_id}`,
           );
+
+          if (agentConnectionManager.isConnected(branchId)) {
+            sendFlexBillPrintToAgent(
+              branchId,
+              table.table_number,
+              dishOrder,
+              existingSync.pos_order_id,
+            );
+          }
         } else {
           // No existe check → crear nuevo
           console.log(
@@ -618,7 +756,9 @@ class POSSyncService {
           if (posResponse.posOrderId) {
             const { error: folioError } = await supabaseAdmin
               .from("table_order")
-              .update({ folio: posResponse.posCheckNumber || posResponse.posOrderId })
+              .update({
+                folio: posResponse.posCheckNumber || posResponse.posOrderId,
+              })
               .eq("id", tableOrderId);
 
             if (folioError) {
@@ -634,6 +774,15 @@ class POSSyncService {
           }
 
           console.log(`✅ Check creado en POS: ${posResponse.posOrderId}`);
+
+          if (agentConnectionManager.isConnected(branchId)) {
+            sendFlexBillPrintToAgent(
+              branchId,
+              table.table_number,
+              dishOrder,
+              posResponse.posCheckNumber || posResponse.posOrderId,
+            );
+          }
         }
 
         return {

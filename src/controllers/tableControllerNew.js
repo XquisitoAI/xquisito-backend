@@ -1,6 +1,6 @@
 const tableService = require("../services/tableServiceNew");
 const socketEmitter = require("../services/socketEmitter");
-const { emitPrintJob } = require("../services/printJobService");
+const { emitPrintJobForFlexBill } = require("../services/printJobService");
 
 class TableController {
   // Obtener resumen de cuenta de mesa
@@ -123,15 +123,22 @@ class TableController {
       });
 
       // Imprimir en xquisito-crew (fire-and-forget)
-      emitPrintJob({
-        restaurantId: parseInt(restaurantId),
-        branchNumber: parseInt(branchNumber),
-        items: [{ name: item, quantity, menu_item_id: menuItemId, custom_fields: customFields ?? null }],
-        identifier: `Mesa ${tableNumber}`,
-        tableOrderId: result.table_order_id ?? null,
-        skipAgent: true,
-        orderedBy: guestName || null,
-      });
+      if (result.table_order_id) {
+        const resolvedCustomFields =
+          customFields ?? req.body.custom_fields ?? null;
+        emitPrintJobForFlexBill(
+          result.table_order_id,
+          [
+            {
+              name: item,
+              quantity,
+              menu_item_id: menuItemId,
+              custom_fields: resolvedCustomFields,
+            },
+          ],
+          guestName || null,
+        );
+      }
 
       // Emitir evento al dashboard admin-portal para actualizar Actividad Reciente
       const summary = await tableService.getTableSummary(
