@@ -51,54 +51,46 @@ function emitPrintJob({
         orderInfo: { identifier, folio, orderedBy: orderedBy || null },
       };
 
-      // ── Simulación de ticket ──────────────────────────────────────
       const agentConnected = agentConnectionManager.isConnected(branch.id);
-      const dest = agentConnected
-        ? skipAgent
-          ? "OMITIDO (syncPOS imprimirá con folio SR)"
-          : `→ AGENTE  branch=${branch.id}`
-        : `→ CREW   restaurant=${restaurantId}`;
-      const SEP = "─".repeat(44);
-      const itemLines = printData.items
-        .map((i) => {
-          let line = `  ${String(i.quantity).padStart(2)}x  ${i.name}`;
-          if (i.clasificacion) line += `  [${i.clasificacion}]`;
-          if (Array.isArray(i.custom_fields) && i.custom_fields.length > 0) {
-            const opts = i.custom_fields.flatMap(
-              (f) =>
-                f.selectedOptions?.map((o) => o.optionName).filter(Boolean) ??
-                [],
-            );
-            if (opts.length) line += `\n        ↳ ${opts.join(", ")}`;
-          }
-          return line;
-        })
-        .join("\n");
-      console.log(
-        `\n[TICKET] ${SEP}\n` +
-          `  ${printData.orderInfo.identifier}` +
-          (printData.orderInfo.folio
-            ? `  |  Folio: ${printData.orderInfo.folio}`
-            : "") +
-          (printData.orderInfo.orderedBy
-            ? `\n  Cliente: ${printData.orderInfo.orderedBy}`
-            : "") +
-          `\n  ${SEP}\n` +
-          `${itemLines}\n` +
-          `  ${SEP}\n` +
-          `  ${dest}\n` +
-          `[/TICKET]\n`,
-      );
-      // ─────────────────────────────────────────────────────────────
 
       if (agentConnected) {
         if (skipAgent) {
           return;
         }
-        // Agente conectado → él imprime (tiene acceso directo a las impresoras)
         agentConnectionManager.send(branch.id, "print_job", printData);
       } else {
         // Sin agente → crew imprime via WebSocket
+        const SEP = "─".repeat(44);
+        const itemLines = printData.items
+          .map((i) => {
+            let line = `  ${String(i.quantity).padStart(2)}x  ${i.name}`;
+            if (i.clasificacion) line += `  [${i.clasificacion}]`;
+            if (Array.isArray(i.custom_fields) && i.custom_fields.length > 0) {
+              const opts = i.custom_fields.flatMap(
+                (f) =>
+                  f.selectedOptions?.map((o) => o.optionName).filter(Boolean) ??
+                  [],
+              );
+              if (opts.length) line += `\n        ↳ ${opts.join(", ")}`;
+            }
+            return line;
+          })
+          .join("\n");
+        console.log(
+          `\n[TICKET] ${SEP}\n` +
+            `  ${printData.orderInfo.identifier}` +
+            (printData.orderInfo.folio
+              ? `  |  Folio: ${printData.orderInfo.folio}`
+              : "") +
+            (printData.orderInfo.orderedBy
+              ? `\n  Cliente: ${printData.orderInfo.orderedBy}`
+              : "") +
+            `\n  ${SEP}\n` +
+            `${itemLines}\n` +
+            `  ${SEP}\n` +
+            `  → CREW   restaurant=${restaurantId}\n` +
+            `[/TICKET]\n`,
+        );
         socketEmitter.emitPrintJob(restaurantId, printData);
       }
     } catch (e) {
