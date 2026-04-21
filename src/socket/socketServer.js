@@ -15,9 +15,9 @@ function initializeSocket(httpServer) {
         "http://localhost:3000", // FlexBill
         "http://localhost:3001", // Main Portal
         "http://localhost:3002", // Admin Portal
-        "http://tauri.localhost",   // Xquisito Crew (Windows .exe)
-        "https://tauri.localhost",  // Xquisito Crew (Android APK)
-        "http://localhost:5173",   // Xquisito Crew (tauri:dev)
+        "http://tauri.localhost", // Xquisito Crew (Windows .exe)
+        "https://tauri.localhost", // Xquisito Crew (Android APK)
+        "http://localhost:5173", // Xquisito Crew (tauri:dev)
         process.env.ADMIN_PORTAL_URL,
         process.env.MAIN_PORTAL_URL,
         process.env.FLEXBILL_URL,
@@ -37,8 +37,12 @@ function initializeSocket(httpServer) {
     // Registrar handlers según el tipo de cliente
     const clientType = socket.user?.clientType;
 
-    if (clientType === "admin-portal" || clientType === "main-portal") {
-      // Handlers para Admin Portal y Main Portal (dashboard)
+    if (
+      clientType === "admin-portal" ||
+      clientType === "main-portal" ||
+      clientType === "crew"
+    ) {
+      // Handlers para Admin Portal, Main Portal y Crew (dashboard + room join)
       registerDashboardHandlers(io, socket);
     }
 
