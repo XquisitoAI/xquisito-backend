@@ -617,6 +617,21 @@ class AnalyticsService {
         guestName: item.guest_name || null,
       }));
 
+      // Enriquecer con custom_fields desde dish_order
+      const ids = items.map((i) => i.id).filter(Boolean);
+      if (ids.length > 0) {
+        const { data: dishes } = await supabase
+          .from("dish_order")
+          .select("id, custom_fields")
+          .in("id", ids);
+        if (dishes) {
+          const cfMap = Object.fromEntries(dishes.map((d) => [d.id, d.custom_fields]));
+          items.forEach((item) => {
+            item.customFields = cfMap[item.id] || null;
+          });
+        }
+      }
+
       return { items, success: true };
     } catch (error) {
       console.error("Error en getOrderItems:", error);
