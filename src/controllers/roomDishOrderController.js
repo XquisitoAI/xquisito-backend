@@ -66,12 +66,21 @@ exports.createOrderWithFirstDish = async (req, res) => {
     const order = await roomOrderService.getRoomOrderById(result.room_order_id);
 
     // Imprimir en xquisito-crew (fire-and-forget)
+    // skipAgent: true → syncOrder dispara el print al agente con folio SR al momento del pago
     emitPrintJob({
       restaurantId: parseInt(restaurantId),
       branchNumber: parseInt(branchNumber),
-      items: [{ name: item_name, quantity, menu_item_id: menu_item_id, custom_fields: custom_fields ?? null }],
+      items: [
+        {
+          name: item_name,
+          quantity,
+          menu_item_id: menu_item_id,
+          custom_fields: custom_fields ?? null,
+        },
+      ],
       identifier: `Habitación ${roomNumber}`,
       orderedBy: customer_name || null,
+      skipAgent: true,
     });
 
     res.status(201).json({
