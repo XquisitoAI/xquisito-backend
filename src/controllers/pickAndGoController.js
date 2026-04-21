@@ -523,9 +523,11 @@ class PickAndGoController {
         guestName,
         images = [],
         customFields = null,
+        custom_fields = null,
         extraPrice = 0,
         menuItemId = null,
       } = req.body;
+      const resolvedCustomFields = customFields ?? custom_fields ?? null;
 
       // Validaciones básicas
       if (!orderId) {
@@ -568,7 +570,12 @@ class PickAndGoController {
       }
 
       emitPrintJobForPickAndGoOrder(orderId, [
-        { name: item, quantity, menu_item_id: menuItemId, custom_fields: customFields ?? null },
+        {
+          name: item,
+          quantity,
+          menu_item_id: menuItemId,
+          custom_fields: resolvedCustomFields,
+        },
       ]);
 
       res.status(201).json(result);
