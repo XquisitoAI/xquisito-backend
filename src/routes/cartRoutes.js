@@ -7,6 +7,7 @@ router.get("/", cartController.getCart);
 router.get("/totals", cartController.getCartTotals);
 router.post("/migrate", cartController.migrateGuestCart);
 router.patch("/update-branch", cartController.updateCartBranch);
+router.patch("/notes", cartController.updateOrderNotes);
 router.patch("/items/:cart_item_id", cartController.updateCartItemQuantity);
 router.delete("/items/:cart_item_id", cartController.removeFromCart);
 router.delete("/", cartController.clearCart);

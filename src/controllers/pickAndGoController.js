@@ -27,6 +27,7 @@ class PickAndGoController {
         branch_number,
         session_data,
         prep_metadata,
+        order_notes,
       } = req.body;
 
       // Usar clerk_user_id si está disponible, sino user_id por compatibilidad
@@ -74,6 +75,7 @@ class PickAndGoController {
         total_amount: totalAmount,
         session_data: session_data || {},
         prep_metadata: prep_metadata || {},
+        order_notes: order_notes || null,
       };
 
       const result = await pickAndGoService.createOrder(orderData);
@@ -526,6 +528,7 @@ class PickAndGoController {
         custom_fields = null,
         extraPrice = 0,
         menuItemId = null,
+        specialInstructions = null,
       } = req.body;
       const resolvedCustomFields = customFields ?? custom_fields ?? null;
 
@@ -563,6 +566,7 @@ class PickAndGoController {
         customFields,
         parseFloat(extraPrice),
         menuItemId,
+        specialInstructions,
       );
 
       if (!result.success) {
