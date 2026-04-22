@@ -82,7 +82,7 @@ class KitchenService {
     const { data, error } = await supabase
       .from("pick_and_go_orders")
       .select(
-        `id, order_status, created_at, customer_name, folio,
+        `id, order_status, created_at, customer_name, folio, order_notes,
          dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
       .eq("restaurant_id", restaurantId);
@@ -99,6 +99,7 @@ class KitchenService {
         identifier: `Pick & Go${o.customer_name ? ` - ${o.customer_name}` : ""}`,
         createdAt: o.created_at,
         folio: o.folio ?? null,
+        orderNotes: o.order_notes || null,
         dishes: this._mapDishes(o.dish_order),
       }))
       .filter((o) => o.dishes.some((d) => d.status !== "delivered"));
