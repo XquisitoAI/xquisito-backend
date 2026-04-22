@@ -11,6 +11,7 @@ class CartService {
     price = null,
     restaurantId = null,
     branchNumber = null,
+    specialInstructions = null,
   ) {
     try {
       const { user_id, guest_id } = userId;
@@ -25,6 +26,7 @@ class CartService {
         p_price: price,
         p_restaurant_id: restaurantId,
         p_branch_number: branchNumber,
+        p_special_instructions: specialInstructions,
       });
 
       if (error) throw error;
@@ -73,7 +75,9 @@ class CartService {
           discount: row.discount,
           extraPrice: parseFloat(row.extra_price || 0),
           customFields: this.parseCustomFields(row.custom_fields),
+          specialInstructions: row.special_instructions || null,
           subtotal: parseFloat(row.subtotal),
+          orderNotes: row.order_notes || null,
         }));
 
       return {
@@ -81,6 +85,7 @@ class CartService {
         items: items,
         total_items: data[0].total_items,
         total_amount: parseFloat(data[0].total_amount),
+        order_notes: data[0].order_notes || null,
       };
     } catch (error) {
       throw new Error(`Error getting cart: ${error.message}`);
@@ -220,6 +225,32 @@ class CartService {
     } catch (error) {
       console.warn("Error parsing custom_fields:", error);
       return [];
+    }
+  }
+
+  // Actualizar order_notes del carrito
+  async updateOrderNotes(userId, restaurantId, branchNumber, orderNotes) {
+    try {
+      const { user_id, guest_id } = userId;
+
+      let query = supabase
+        .from("carts")
+        .update({ order_notes: orderNotes || null })
+        .gt("expires_at", new Date().toISOString());
+
+      if (user_id) {
+        query = query.eq("user_id", user_id);
+      } else {
+        query = query.eq("guest_id", guest_id);
+      }
+
+      if (restaurantId) query = query.eq("restaurant_id", restaurantId);
+      if (branchNumber) query = query.eq("branch_number", branchNumber);
+
+      const { error } = await query;
+      if (error) throw error;
+    } catch (error) {
+      throw new Error(`Error updating order notes: ${error.message}`);
     }
   }
 

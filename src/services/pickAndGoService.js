@@ -25,6 +25,7 @@ class PickAndGoService {
             order_status: "active",
             session_data: orderData.session_data || {},
             prep_metadata: orderData.prep_metadata || {},
+            order_notes: orderData.order_notes || null,
           },
         ])
         .select()
@@ -511,6 +512,7 @@ class PickAndGoService {
     customFields,
     extraPrice,
     menuItemId = null,
+    specialInstructions = null,
   ) {
     try {
       console.log("🍽️ Creating Pick & Go dish order:", {
@@ -537,6 +539,7 @@ class PickAndGoService {
             images: images || [],
             custom_fields: customFields || {},
             extra_price: extraPrice || 0,
+            special_instructions: specialInstructions || null,
             // user_order_id es null porque Pick & Go no usa el sistema de mesas
             user_order_id: null,
             menu_item_id: menuItemId,

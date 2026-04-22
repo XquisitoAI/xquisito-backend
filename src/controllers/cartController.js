@@ -13,6 +13,7 @@ const addToCart = async (req, res) => {
       price,
       restaurant_id,
       branch_number,
+      special_instructions,
     } = req.body;
 
     /*console.log("🛒 Adding item to cart:", {
@@ -59,6 +60,7 @@ const addToCart = async (req, res) => {
       price || null,
       restaurant_id || null,
       branch_number || null,
+      special_instructions || null,
     );
 
     //console.log("✅ Item added to cart successfully:", cartItemId);
@@ -387,6 +389,34 @@ const updateCartBranch = async (req, res) => {
   }
 };
 
+// Actualizar notas de la orden
+const updateOrderNotes = async (req, res) => {
+  try {
+    const { user_id, guest_id, restaurant_id, branch_number, order_notes } = req.body;
+
+    if (!user_id && !guest_id) {
+      return res.status(400).json({
+        success: false,
+        error: "validation_error",
+        message: "Either user_id or guest_id is required",
+      });
+    }
+
+    const userId = { user_id, guest_id };
+    await cartService.updateOrderNotes(
+      userId,
+      restaurant_id || null,
+      branch_number || null,
+      order_notes || null,
+    );
+
+    res.json({ success: true, message: "Order notes updated" });
+  } catch (error) {
+    console.error("❌ Error updating order notes:", error.message);
+    res.status(500).json({ success: false, error: "server_error", message: error.message });
+  }
+};
+
 module.exports = {
   addToCart,
   getCart,
@@ -396,4 +426,5 @@ module.exports = {
   getCartTotals,
   migrateGuestCart,
   updateCartBranch,
+  updateOrderNotes,
 };
