@@ -74,13 +74,23 @@ class PaymentController {
 
       const { fullName, email, cardNumber, expDate, cvv } = req.body;
 
-      // Validate required fields
-      if (!fullName || !email || !cardNumber || !expDate || !cvv) {
+      // Validate required fields (email solo requerido para guests)
+      if (!fullName || !cardNumber || !expDate || !cvv) {
         return res.status(400).json({
           success: false,
           error: {
             type: "validation_error",
             message: "All fields are required",
+          },
+        });
+      }
+
+      if (isGuest && !email) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: "Email is required for guest users",
           },
         });
       }
