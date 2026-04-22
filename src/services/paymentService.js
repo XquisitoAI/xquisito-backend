@@ -57,7 +57,9 @@ class PaymentService {
             phone: userData?.phone || null,
           },
         };
-        console.log(`Processing authenticated user (Supabase Auth): ${userId}${!userData ? " (no profile yet)" : ""}`);
+        console.log(
+          `Processing authenticated user (Supabase Auth): ${userId}${!userData ? " (no profile yet)" : ""}`,
+        );
       }
 
       // Resolver proveedor activo para este restaurante
@@ -174,15 +176,25 @@ class PaymentService {
       });
 
       // Si el customer ya no existe en eCartPay, buscarlo o crear uno nuevo y reintentar
-      if (!paymentMethodResult.success && paymentMethodResult.error?.status === 404) {
-        console.warn(`⚠️ eCartPay customer ${ecartPayCustomerId} not found, looking up by user_id...`);
+      if (
+        !paymentMethodResult.success &&
+        paymentMethodResult.error?.status === 404
+      ) {
+        console.warn(
+          `⚠️ eCartPay customer ${ecartPayCustomerId} not found, looking up by user_id...`,
+        );
 
-        const existingCustomer = await ecartPayService.findCustomerByUserId(userId);
+        const existingCustomer =
+          await ecartPayService.findCustomerByUserId(userId);
         if (existingCustomer.success) {
           ecartPayCustomerId = existingCustomer.customer.id;
-          console.log("✅ Found eCartPay customer by user_id:", ecartPayCustomerId);
+          console.log(
+            "✅ Found eCartPay customer by user_id:",
+            ecartPayCustomerId,
+          );
         } else {
-          const phone = user.user.phone || `1${Date.now().toString().slice(-9)}`;
+          const phone =
+            user.user.phone || `1${Date.now().toString().slice(-9)}`;
           const customerResult = await ecartPayService.createCustomer({
             name: paymentData.cardholderName,
             userId,
@@ -235,9 +247,7 @@ class PaymentService {
           ecartPayPaymentMethod.last4 ||
           ecartPayPaymentMethod.last_four ||
           paymentData.cardNumber.slice(-4)
-        )
-          .slice(-4)
-          .substring(0, 3),
+        ).slice(-4),
         card_type: this.normalizeCreditType(ecartPayPaymentMethod.type),
         card_brand: this.normalizeCardType(
           ecartPayPaymentMethod.brand ||
