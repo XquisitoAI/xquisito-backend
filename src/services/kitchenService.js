@@ -55,7 +55,7 @@ class KitchenService {
       .select(
         `id, order_status, created_at, customer_name, folio,
          tables!inner(table_number, restaurant_id),
-         dish_order(id, item, quantity, status, images, custom_fields)`,
+         dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
       .eq("tables.restaurant_id", restaurantId);
 
@@ -83,7 +83,7 @@ class KitchenService {
       .from("pick_and_go_orders")
       .select(
         `id, order_status, created_at, customer_name, folio,
-         dish_order(id, item, quantity, status, images, custom_fields)`,
+         dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
       .eq("restaurant_id", restaurantId);
 
@@ -111,7 +111,7 @@ class KitchenService {
       .select(
         `id, order_status, created_at, folio,
          rooms!inner(room_number, restaurant_id),
-         dish_order(id, item, quantity, status, images, custom_fields)`,
+         dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
       .eq("rooms.restaurant_id", restaurantId);
 
@@ -139,7 +139,7 @@ class KitchenService {
       .select(
         `id, order_status, created_at, folio,
          tables(table_number),
-         dish_order(id, item, quantity, status, images, custom_fields)`,
+         dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
       .eq("restaurant_id", restaurantId);
 
@@ -209,6 +209,7 @@ class KitchenService {
       images: d.images || [],
       orderedBy: d.orderedBy || null,
       customFields: d.custom_fields || null,
+      specialInstructions: d.special_instructions || null,
     }));
   }
 

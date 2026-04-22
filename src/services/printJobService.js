@@ -47,6 +47,7 @@ function emitPrintJob({
           quantity: i.quantity,
           clasificacion: i.clasificacion ?? null,
           custom_fields: i.custom_fields ?? null,
+          special_instructions: i.special_instructions ?? null,
         })),
         orderInfo: { identifier, folio, orderedBy: orderedBy || null },
       };
@@ -73,6 +74,8 @@ function emitPrintJob({
               );
               if (opts.length) line += `\n        ↳ ${opts.join(", ")}`;
             }
+            if (i.special_instructions)
+              line += `\n        Nota: ${i.special_instructions}`;
             return line;
           })
           .join("\n");

@@ -579,6 +579,7 @@ class PickAndGoController {
           quantity,
           menu_item_id: menuItemId,
           custom_fields: resolvedCustomFields,
+          special_instructions: specialInstructions,
         },
       ]);
 
