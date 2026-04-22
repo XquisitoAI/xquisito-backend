@@ -43,33 +43,21 @@ class PaymentService {
           `Processing guest user: ${userId} with unique email: ${uniqueGuestEmail} (original: ${userEmail})`,
         );
       } else {
-        // For authenticated users (Supabase Auth), get from public.profiles table
-        const { data: userData, error: userError } = await supabase
+        // For authenticated users, try to get profile (may not exist for new users)
+        const { data: userData } = await supabase
           .from("profiles")
-          .select("*")
+          .select("email, phone")
           .eq("id", userId)
-          .single();
+          .maybeSingle();
 
-        if (userError || !userData) {
-          console.error("❌ Supabase profiles lookup failed:", userError);
-          return {
-            success: false,
-            error: {
-              type: "user_error",
-              message: "Registered user not found",
-            },
-          };
-        }
-
-        // Format userData to match expected structure
         user = {
           user: {
-            email: userData.email,
-            id: userData.id,
-            phone: userData.phone,
+            email: userData?.email || context.userEmail || null,
+            id: userId,
+            phone: userData?.phone || null,
           },
         };
-        console.log(`Processing authenticated user (Supabase Auth): ${userId}`);
+        console.log(`Processing authenticated user (Supabase Auth): ${userId}${!userData ? " (no profile yet)" : ""}`);
       }
 
       // Resolver proveedor activo para este restaurante
@@ -176,7 +164,7 @@ class PaymentService {
       }
 
       // ── Tokenizar con eCartPay (requerido — si falla, abortamos) ──────────
-      const paymentMethodResult = await ecartPayService.createPaymentMethod({
+      let paymentMethodResult = await ecartPayService.createPaymentMethod({
         cardNumber: paymentData.cardNumber,
         expMonth: paymentData.expMonth,
         expYear: paymentData.expYear,
@@ -184,6 +172,40 @@ class PaymentService {
         cardholderName: paymentData.cardholderName,
         customerId: ecartPayCustomerId,
       });
+
+      // Si el customer ya no existe en eCartPay, buscarlo o crear uno nuevo y reintentar
+      if (!paymentMethodResult.success && paymentMethodResult.error?.status === 404) {
+        console.warn(`⚠️ eCartPay customer ${ecartPayCustomerId} not found, looking up by user_id...`);
+
+        const existingCustomer = await ecartPayService.findCustomerByUserId(userId);
+        if (existingCustomer.success) {
+          ecartPayCustomerId = existingCustomer.customer.id;
+          console.log("✅ Found eCartPay customer by user_id:", ecartPayCustomerId);
+        } else {
+          const phone = user.user.phone || `1${Date.now().toString().slice(-9)}`;
+          const customerResult = await ecartPayService.createCustomer({
+            name: paymentData.cardholderName,
+            userId,
+            phone,
+          });
+
+          if (!customerResult.success) {
+            return { success: false, error: customerResult.error };
+          }
+
+          ecartPayCustomerId = customerResult.customer.id;
+          console.log("✅ New eCartPay customer created:", ecartPayCustomerId);
+        }
+
+        paymentMethodResult = await ecartPayService.createPaymentMethod({
+          cardNumber: paymentData.cardNumber,
+          expMonth: paymentData.expMonth,
+          expYear: paymentData.expYear,
+          cvv: paymentData.cvv,
+          cardholderName: paymentData.cardholderName,
+          customerId: ecartPayCustomerId,
+        });
+      }
 
       if (!paymentMethodResult.success) {
         return { success: false, error: paymentMethodResult.error };

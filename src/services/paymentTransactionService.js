@@ -2,7 +2,7 @@ const supabase = require("../config/supabase");
 const POSSyncService = require("./pos/POSSyncService");
 
 class PaymentTransactionService {
-  // Detecta el tipo de tarjeta (crédito o débito)
+  // Detecta el tipo y marca de tarjeta
   async detectCardType(paymentMethodId, isGuest) {
     try {
       const tableName = isGuest
@@ -17,42 +17,42 @@ class PaymentTransactionService {
 
       if (error || !paymentMethod) {
         console.warn(
-          "⚠️ No se pudo obtener tipo de tarjeta, asumiendo crédito"
+          "⚠️ No se pudo obtener tipo de tarjeta, asumiendo crédito",
         );
-        return "credit";
+        return { cardType: "credit", cardBrand: "unknown" };
       }
 
       const cardType = paymentMethod.card_type?.toLowerCase() || "";
       const cardBrand = paymentMethod.card_brand?.toLowerCase() || "";
 
-      // Intentar detectar si es débito basándose en el nombre
-      if (
+      // Determinar tipo (credit/debit)
+      const resolvedType =
         cardType.includes("debit") ||
         cardType.includes("débito") ||
         cardType.includes("debito") ||
         cardBrand.includes("debit")
-      ) {
-        return "debit";
-      }
+          ? "debit"
+          : "credit";
 
-      // Por defecto, asumir crédito (peor caso para comisiones)
-      return "credit";
+      return { cardType: resolvedType, cardBrand };
     } catch (error) {
       console.error("❌ Error detectando tipo de tarjeta:", error);
-      return "credit"; // Fallback a crédito
+      return { cardType: "credit", cardBrand: "unknown" };
     }
   }
 
-  // Calcula la comisión de E-cart según el tipo de tarjeta
-  calculateEcartCommission(totalAmountCharged, cardType) {
-    // Tasas según tipo de tarjeta
-    const ecartRate = cardType === "debit" ? 2.3 : 2.6;
+  // Calcula la comisión de E-cart según el tipo y marca de tarjeta
+  calculateEcartCommission(totalAmountCharged, cardType, cardBrand) {
+    const isAmex = cardBrand?.includes("amex");
+
+    // Tasas según tipo/marca de tarjeta
+    const ecartRate = isAmex ? 3.0 : cardType === "debit" ? 2.3 : 2.6;
 
     // Comisión porcentual
     const ecartCommissionAmount = totalAmountCharged * (ecartRate / 100);
 
-    // Cargo fijo
-    const ecartFixedFee = 1.5;
+    // Cargo fijo (Amex no tiene cargo fijo)
+    const ecartFixedFee = isAmex ? 0 : 0.5;
 
     // Base para IVA
     const ecartCommissionBase = ecartCommissionAmount + ecartFixedFee;
@@ -118,12 +118,26 @@ class PaymentTransactionService {
       }
 
       // Validar que exista al menos un tipo de orden
-      if (!id_table_order && !id_tap_orders_and_pay && !id_tap_pay_order && !pick_and_go_order_id && !id_room_order) {
-        throw new Error("Se requiere id_table_order, id_tap_orders_and_pay, id_tap_pay_order, pick_and_go_order_id o id_room_order");
+      if (
+        !id_table_order &&
+        !id_tap_orders_and_pay &&
+        !id_tap_pay_order &&
+        !pick_and_go_order_id &&
+        !id_room_order
+      ) {
+        throw new Error(
+          "Se requiere id_table_order, id_tap_orders_and_pay, id_tap_pay_order, pick_and_go_order_id o id_room_order",
+        );
       }
 
       // Validar que solo exista un tipo de orden
-      const orderTypes = [id_table_order, id_tap_orders_and_pay, id_tap_pay_order, pick_and_go_order_id, id_room_order].filter(Boolean);
+      const orderTypes = [
+        id_table_order,
+        id_tap_orders_and_pay,
+        id_tap_pay_order,
+        pick_and_go_order_id,
+        id_room_order,
+      ].filter(Boolean);
       if (orderTypes.length > 1) {
         throw new Error("Solo puede existir un tipo de orden");
       }
@@ -137,14 +151,18 @@ class PaymentTransactionService {
         throw new Error("total_amount_charged debe ser mayor a 0");
       }
 
-      // Detectar tipo de tarjeta
-      const cardType = await this.detectCardType(payment_method_id, isGuest);
-      console.log(`💳 Tipo de tarjeta detectado: ${cardType}`);
+      // Detectar tipo y marca de tarjeta
+      const { cardType, cardBrand } = await this.detectCardType(
+        payment_method_id,
+        isGuest,
+      );
+      console.log(`💳 Tarjeta detectada: tipo=${cardType}, marca=${cardBrand}`);
 
-      // Calcular comisión E-cart según tipo de tarjeta
+      // Calcular comisión E-cart según tipo y marca de tarjeta
       const ecartCommission = this.calculateEcartCommission(
         total_amount_charged,
-        cardType
+        cardType,
+        cardBrand,
       );
       console.log("💰 Comisión E-cart calculada:", ecartCommission);
 
@@ -154,10 +172,10 @@ class PaymentTransactionService {
       const ivaTipNum = parseFloat(iva_tip || 0);
       const xquisitoClientChargeNum = parseFloat(xquisito_client_charge || 0);
       const xquisitoRestaurantChargeNum = parseFloat(
-        xquisito_restaurant_charge || 0
+        xquisito_restaurant_charge || 0,
       );
       const ecartCommissionTotalNum = parseFloat(
-        ecartCommission.ecart_commission_total
+        ecartCommission.ecart_commission_total,
       );
 
       // Ingreso neto del restaurante = base + propina - comisión_restaurante
@@ -196,7 +214,7 @@ class PaymentTransactionService {
         xquisito_commission_total: parseFloat(xquisito_commission_total || 0),
         xquisito_commission_client: parseFloat(xquisito_commission_client || 0),
         xquisito_commission_restaurant: parseFloat(
-          xquisito_commission_restaurant || 0
+          xquisito_commission_restaurant || 0,
         ),
         iva_xquisito_client: parseFloat(iva_xquisito_client || 0),
         iva_xquisito_restaurant: parseFloat(iva_xquisito_restaurant || 0),
@@ -211,7 +229,7 @@ class PaymentTransactionService {
         // Totales
         total_amount_charged: parseFloat(total_amount_charged),
         subtotal_for_commission: parseFloat(
-          subtotal_for_commission || baseAmountNum + tipAmountNum
+          subtotal_for_commission || baseAmountNum + tipAmountNum,
         ),
 
         // Ingresos netos (calculados en backend)
@@ -272,15 +290,30 @@ class PaymentTransactionService {
         console.log(`   tip_amount: $${tipAmountNum}`);
 
         // Sincronizar en background (no bloquear respuesta al cliente)
-        POSSyncService.syncPaidOrder(orderId, orderType, baseAmountNum, tipAmountNum)
+        POSSyncService.syncPaidOrder(
+          orderId,
+          orderType,
+          baseAmountNum,
+          tipAmountNum,
+        )
           .then((result) => {
             if (result?.success) {
-              console.log(`✅ [PaymentTransaction] POS sync exitoso: folio ${result.posOrderId}`);
+              console.log(
+                `✅ [PaymentTransaction] POS sync exitoso: folio ${result.posOrderId}`,
+              );
             } else {
-              console.warn(`⚠️ [PaymentTransaction] POS sync falló:`, result?.error || "Sin integración");
+              console.warn(
+                `⚠️ [PaymentTransaction] POS sync falló:`,
+                result?.error || "Sin integración",
+              );
             }
           })
-          .catch((err) => console.error(`❌ [PaymentTransaction] Error en POS sync:`, err.message));
+          .catch((err) =>
+            console.error(
+              `❌ [PaymentTransaction] Error en POS sync:`,
+              err.message,
+            ),
+          );
       }
 
       return {
