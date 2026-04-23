@@ -1,10 +1,11 @@
 const axios = require("axios");
 
 class EcartPayService {
-  constructor() {
-    this.publicKey = process.env.ECARTPAY_PUBLIC_KEY;
-    this.secretKey = process.env.ECARTPAY_SECRET_KEY;
-    this.environment = process.env.ECARTPAY_ENVIRONMENT || "sandbox";
+  constructor({ publicKey, secretKey, environment } = {}) {
+    this.publicKey = publicKey || process.env.ECARTPAY_PUBLIC_KEY;
+    this.secretKey = secretKey || process.env.ECARTPAY_SECRET_KEY;
+    this.environment =
+      environment || process.env.ECARTPAY_ENVIRONMENT || "sandbox";
     this.authToken = null; // Will store the generated token
     this.tokenExpiry = null; // Track token expiration
 
@@ -1089,3 +1090,4 @@ class EcartPayService {
 }
 
 module.exports = new EcartPayService();
+module.exports.EcartPayService = EcartPayService;

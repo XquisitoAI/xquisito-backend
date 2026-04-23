@@ -28,7 +28,9 @@ class PaymentProviderController {
 
       const { data: integration, error } = await supabase
         .from("payment_integrations")
-        .select("id, client_id, is_active, settings, payment_providers(id, code, name, is_active)")
+        .select(
+          "id, client_id, is_active, settings, payment_providers(id, code, name, is_active)",
+        )
         .eq("client_id", clientId)
         .single();
 
@@ -96,18 +98,103 @@ class PaymentProviderController {
             settings,
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "client_id" }
+          { onConflict: "client_id" },
         )
         .select("*, payment_providers(id, code, name)")
         .single();
 
       if (upsertError) throw upsertError;
 
-      console.log(`✅ Proveedor de pago actualizado: cliente ${clientId} → ${providerCode}`);
+      console.log(
+        `✅ Proveedor de pago actualizado: cliente ${clientId} → ${providerCode}`,
+      );
 
       res.json({ success: true, integration, provider: providerCode });
     } catch (error) {
       console.error("Error guardando provider del cliente:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  // GET /api/payment-providers/client/:clientId/settings
+  // Devuelve las API keys del cliente (masked para secretKey)
+  async getClientSettings(req, res) {
+    try {
+      const { clientId } = req.params;
+
+      const { data: integration, error } = await supabaseAdmin
+        .from("payment_integrations")
+        .select("settings")
+        .eq("client_id", clientId)
+        .single();
+
+      if (error && error.code === "PGRST116") {
+        return res.json({ success: true, settings: null });
+      }
+
+      if (error) throw error;
+
+      const settings = integration?.settings || {};
+
+      // Mask secret key — solo mostrar últimos 4 chars
+      const result = {
+        public_key: settings.public_key || "",
+        secret_key: settings.secret_key || "",
+        environment: settings.environment || "sandbox",
+      };
+
+      res.json({ success: true, settings: result });
+    } catch (error) {
+      console.error("Error obteniendo settings del cliente:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  // PUT /api/payment-providers/client/:clientId/settings
+  // Guarda las API keys del cliente
+  async saveClientSettings(req, res) {
+    try {
+      const { clientId } = req.params;
+      const { settings } = req.body;
+
+      if (!settings?.public_key || !settings?.secret_key) {
+        return res.status(400).json({
+          success: false,
+          error: "public_key y secret_key son requeridos",
+        });
+      }
+
+      // Obtener la integración existente
+      const { data: existing, error: fetchError } = await supabaseAdmin
+        .from("payment_integrations")
+        .select("settings")
+        .eq("client_id", clientId)
+        .single();
+
+      if (fetchError && fetchError.code !== "PGRST116") throw fetchError;
+
+      const currentSettings = existing?.settings || {};
+
+      const newSettings = {
+        ...currentSettings,
+        public_key: settings.public_key,
+        secret_key: settings.secret_key,
+        environment:
+          settings.environment || currentSettings.environment || "sandbox",
+      };
+
+      const { error: updateError } = await supabaseAdmin
+        .from("payment_integrations")
+        .update({ settings: newSettings, updated_at: new Date().toISOString() })
+        .eq("client_id", clientId);
+
+      if (updateError) throw updateError;
+
+      console.log(`✅ API keys actualizadas para cliente ${clientId}`);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error guardando settings del cliente:", error);
       res.status(500).json({ success: false, error: error.message });
     }
   }
@@ -120,7 +207,9 @@ class PaymentProviderController {
       const restaurantIdInt = parseInt(restaurantId, 10);
 
       if (isNaN(restaurantIdInt)) {
-        return res.status(400).json({ success: false, error: "restaurantId inválido" });
+        return res
+          .status(400)
+          .json({ success: false, error: "restaurantId inválido" });
       }
 
       // Buscar el client_id a partir del restaurant_id vía branches

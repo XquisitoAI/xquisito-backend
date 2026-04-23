@@ -1,6 +1,38 @@
 const supabase = require("../config/supabase");
 const { supabaseAdmin } = require("../config/supabaseAuth");
 const ecartPayService = require("./ecartpayService");
+const { EcartPayService } = require("./ecartpayService");
+
+async function resolveEcartPayInstance(restaurantId) {
+  if (!restaurantId) return ecartPayService;
+
+  const restaurantIdInt = parseInt(restaurantId, 10);
+  if (isNaN(restaurantIdInt)) return ecartPayService;
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("client_id")
+    .eq("id", restaurantIdInt)
+    .single();
+
+  if (!restaurant?.client_id) return ecartPayService;
+
+  const { data: integration } = await supabase
+    .from("payment_integrations")
+    .select("settings")
+    .eq("client_id", restaurant.client_id)
+    .eq("is_active", true)
+    .single();
+
+  const settings = integration?.settings;
+  if (!settings?.public_key || !settings?.secret_key) return ecartPayService;
+
+  return new EcartPayService({
+    publicKey: settings.public_key,
+    secretKey: settings.secret_key,
+    environment: settings.environment,
+  });
+}
 
 class PaymentService {
   async addPaymentMethod(userId, paymentData, context = {}) {
@@ -79,6 +111,9 @@ class PaymentService {
         };
       }
 
+      // Resolver instancia de eCartPay con credenciales del cliente
+      const ecartPay = await resolveEcartPayInstance(context.restaurantId);
+
       // Check if user already has an EcartPay customer
       let ecartPayCustomerId;
       const tableName = isGuest
@@ -115,8 +150,7 @@ class PaymentService {
       if (!ecartPayCustomerId) {
         // First, try to find if customer already exists in eCartpay by user_id
         console.log("🔍 Checking if customer already exists in eCartpay...");
-        const existingCustomer =
-          await ecartPayService.findCustomerByUserId(userId);
+        const existingCustomer = await ecartPay.findCustomerByUserId(userId);
 
         if (existingCustomer.success) {
           // Customer exists, use it
@@ -132,14 +166,12 @@ class PaymentService {
             userId,
           });
 
-          // Generate a unique phone number for testing to avoid eCartPay conflicts
-          // Revisar
           const phone =
-            user.user.phone || `1${Date.now().toString().slice(-9)}`; // Unique 10-digit phone
+            user.user.phone || `1${Date.now().toString().slice(-9)}`;
 
-          const customerResult = await ecartPayService.createCustomer({
+          const customerResult = await ecartPay.createCustomer({
             name: paymentData.cardholderName,
-            userId: userId, // Use the original userId, not modified
+            userId: userId,
             phone: phone,
           });
 
@@ -166,7 +198,7 @@ class PaymentService {
       }
 
       // ── Tokenizar con eCartPay (requerido — si falla, abortamos) ──────────
-      let paymentMethodResult = await ecartPayService.createPaymentMethod({
+      let paymentMethodResult = await ecartPay.createPaymentMethod({
         cardNumber: paymentData.cardNumber,
         expMonth: paymentData.expMonth,
         expYear: paymentData.expYear,
@@ -184,8 +216,7 @@ class PaymentService {
           `⚠️ eCartPay customer ${ecartPayCustomerId} not found, looking up by user_id...`,
         );
 
-        const existingCustomer =
-          await ecartPayService.findCustomerByUserId(userId);
+        const existingCustomer = await ecartPay.findCustomerByUserId(userId);
         if (existingCustomer.success) {
           ecartPayCustomerId = existingCustomer.customer.id;
           console.log(
@@ -195,7 +226,7 @@ class PaymentService {
         } else {
           const phone =
             user.user.phone || `1${Date.now().toString().slice(-9)}`;
-          const customerResult = await ecartPayService.createCustomer({
+          const customerResult = await ecartPay.createCustomer({
             name: paymentData.cardholderName,
             userId,
             phone,
@@ -209,7 +240,7 @@ class PaymentService {
           console.log("✅ New eCartPay customer created:", ecartPayCustomerId);
         }
 
-        paymentMethodResult = await ecartPayService.createPaymentMethod({
+        paymentMethodResult = await ecartPay.createPaymentMethod({
           cardNumber: paymentData.cardNumber,
           expMonth: paymentData.expMonth,
           expYear: paymentData.expYear,
@@ -498,7 +529,10 @@ class PaymentService {
           `🗑️ Attempting to delete from EcartPay: ${tokenRow.provider_token}`,
         );
         try {
-          const detachResult = await ecartPayService.detachPaymentMethod(
+          const ecartPayForDelete = await resolveEcartPayInstance(
+            context.restaurantId,
+          );
+          const detachResult = await ecartPayForDelete.detachPaymentMethod(
             tokenRow.provider_token,
           );
 
