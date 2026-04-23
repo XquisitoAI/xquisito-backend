@@ -691,11 +691,6 @@ class EcartPayService {
     console.log("OrderData", orderData);
 
     try {
-      // Validate required parameters according to eCartPay docs
-      if (!orderData.customerId) {
-        throw new Error("customer_id is required");
-      }
-
       if (!orderData.items || orderData.items.length === 0) {
         // Create default item if not provided
         orderData.items = [
@@ -715,13 +710,16 @@ class EcartPayService {
       });
 
       const payload = {
-        customer_id: orderData.customerId,
         currency: orderData.currency || "MXN",
         items: orderData.items,
         notify_url:
           orderData.webhookUrl ||
           `${process.env.BASE_URL || "http://localhost:5000"}/api/payments/webhooks/ecartpay`,
       };
+
+      if (orderData.customerId) {
+        payload.customer_id = orderData.customerId;
+      }
 
       // Add reference_id with table information for webhook processing
       if (orderData.tableNumber) {
@@ -955,7 +953,8 @@ class EcartPayService {
           userId.includes("guest-") ||
           userId.includes("test-") ||
           name.includes("Test") ||
-          name.includes("User")
+          name.includes("User") ||
+          name === "Apple Pay Guest"
         );
       });
 

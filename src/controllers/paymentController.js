@@ -8,6 +8,7 @@ const socketEmitter = require("../services/socketEmitter");
 const { pciLog, PCI_ACTIONS } = require("../utils/pciLog");
 const POSSyncService = require("../services/pos/POSSyncService");
 const supabase = require("../config/supabase");
+const { supabaseAdmin } = require("../config/supabaseAuth");
 
 /**
  * Resuelve el proveedor de pago activo para un restaurante.
@@ -353,7 +354,7 @@ class PaymentController {
       }
 
       const isGuest = req.isGuest || req.user?.isGuest;
-      const restaurantId = req.query.restaurantId || req.body.restaurantId;
+      const restaurantId = req.query?.restaurantId || req.body?.restaurantId;
       const result = await paymentService.deletePaymentMethod(
         userId,
         paymentMethodId,
@@ -1767,64 +1768,47 @@ class PaymentController {
 
       const ecartPay = await resolveEcartPayInstance(restaurantId);
 
-      // Buscar o crear un customer en Ecart Pay
+      // Buscar o crear customer solo para usuarios autenticados
       let customerId;
 
       if (!isGuest && userId) {
-        // Usuario autenticado: buscar customer existente por userId
         const existingCustomer = await ecartPay.findCustomerByUserId(userId);
 
         if (existingCustomer.success && existingCustomer.customer?.id) {
           customerId = existingCustomer.customer.id;
           console.log("✅ Customer existente encontrado:", customerId);
-        }
-      }
-
-      // Si no hay customer (guest o usuario nuevo), crear uno temporal
-      if (!customerId) {
-        const guestIdentifier = userId || `apple-pay-guest-${Date.now()}`;
-        // Use a unique phone per call to avoid 409 conflicts on the static fallback
-        const guestPhone = `55${Date.now().toString().slice(-8)}`;
-        const newCustomer = await ecartPay.createCustomer({
-          name: "Apple Pay Guest",
-          phone: guestPhone,
-          userId: guestIdentifier,
-        });
-
-        if (!newCustomer.success) {
-          // 409 = customer with this userId already exists — look it up
-          if (newCustomer.statusCode === 409) {
-            console.log(
-              "ℹ️ Customer ya existe en EcartPay, buscando por userId...",
-            );
-            const found = await ecartPay.findCustomerByUserId(guestIdentifier);
-            if (found.success && found.customer?.id) {
-              customerId = found.customer.id;
-              console.log("✅ Customer existente recuperado:", customerId);
-            }
-          }
-
-          if (!customerId) {
-            console.error(
-              "❌ No se pudo crear customer para Apple Pay:",
-              newCustomer.error,
-            );
-            return res.status(500).json({
-              success: false,
-              error: {
-                type: "api_error",
-                message: "No se pudo inicializar la sesión de pago",
-              },
-            });
-          }
         } else {
-          customerId = newCustomer.customer.id;
-          console.log(
-            "✅ Customer temporal creado para Apple Pay:",
-            customerId,
-          );
+          // No existe — crear con nombre real del perfil
+          const { data: profileData } = await supabaseAdmin
+            .from("profiles")
+            .select("first_name, last_name, phone")
+            .eq("id", userId)
+            .maybeSingle();
+
+          const customerName = profileData?.first_name
+            ? [profileData.first_name, profileData.last_name]
+                .filter(Boolean)
+                .join(" ")
+            : "Guest";
+          const phone =
+            profileData?.phone || `55${Date.now().toString().slice(-8)}`;
+
+          const newCustomer = await ecartPay.createCustomer({
+            name: customerName,
+            phone,
+            userId,
+          });
+
+          if (newCustomer.success) {
+            customerId = newCustomer.customer.id;
+            console.log("✅ Customer creado para Apple Pay:", customerId, customerName);
+          } else {
+            // No bloquear Apple Pay si falla la creación del customer
+            console.warn("⚠️ No se pudo crear customer para Apple Pay, continuando sin customer:", newCustomer.error);
+          }
         }
       }
+      // guests → customerId queda undefined → orden anónima
 
       // Crear la orden en Ecart Pay
       const orderResult = await ecartPay.createOrder({
