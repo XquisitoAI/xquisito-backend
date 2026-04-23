@@ -20,23 +20,43 @@ async function resolvePaymentProvider(restaurantId) {
   const restaurantIdInt = parseInt(restaurantId, 10);
   if (isNaN(restaurantIdInt)) return "ecartpay";
 
-  const { data: branch } = await supabase
-    .from("branches")
-    .select("client_id")
-    .eq("restaurant_id", restaurantIdInt)
-    .limit(1)
-    .single();
+  try {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("resolvePaymentProvider timeout")),
+        5000,
+      ),
+    );
 
-  if (!branch?.client_id) return "ecartpay";
+    const { data: branch } = await Promise.race([
+      supabase
+        .from("branches")
+        .select("client_id")
+        .eq("restaurant_id", restaurantIdInt)
+        .limit(1)
+        .single(),
+      timeout,
+    ]);
 
-  const { data: integration } = await supabase
-    .from("payment_integrations")
-    .select("payment_providers(code)")
-    .eq("client_id", branch.client_id)
-    .eq("is_active", true)
-    .single();
+    if (!branch?.client_id) return "ecartpay";
 
-  return integration?.payment_providers?.code || "ecartpay";
+    const { data: integration } = await Promise.race([
+      supabase
+        .from("payment_integrations")
+        .select("payment_providers(code)")
+        .eq("client_id", branch.client_id)
+        .eq("is_active", true)
+        .single(),
+      timeout,
+    ]);
+
+    return integration?.payment_providers?.code || "ecartpay";
+  } catch (err) {
+    console.warn(
+      `[resolvePaymentProvider] fallback to ecartpay: ${err.message}`,
+    );
+    return "ecartpay";
+  }
 }
 
 /**
@@ -525,8 +545,13 @@ class PaymentController {
       const { paymentMethodId, amount, tableNumber, restaurantId } = req.body;
 
       // Resolver proveedor de pago activo para este restaurante
+      console.log(
+        `[processPayment] restaurantId=${restaurantId}, userId=${userId}, resolving provider...`,
+      );
       const provider = await resolvePaymentProvider(restaurantId);
+      console.log(`[processPayment] provider resolved: ${provider}`);
       const ecartPay = await resolveEcartPayInstance(restaurantId);
+      console.log(`[processPayment] ecartPay instance resolved`);
       console.log(
         `[PaymentProvider] Procesando pago con proveedor: ${provider} (restaurantId: ${restaurantId})`,
       );
@@ -1801,10 +1826,17 @@ class PaymentController {
 
           if (newCustomer.success) {
             customerId = newCustomer.customer.id;
-            console.log("✅ Customer creado para Apple Pay:", customerId, customerName);
+            console.log(
+              "✅ Customer creado para Apple Pay:",
+              customerId,
+              customerName,
+            );
           } else {
             // No bloquear Apple Pay si falla la creación del customer
-            console.warn("⚠️ No se pudo crear customer para Apple Pay, continuando sin customer:", newCustomer.error);
+            console.warn(
+              "⚠️ No se pudo crear customer para Apple Pay, continuando sin customer:",
+              newCustomer.error,
+            );
           }
         }
       }
