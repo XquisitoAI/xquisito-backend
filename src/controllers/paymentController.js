@@ -1,4 +1,5 @@
 const paymentService = require("../services/paymentService");
+const { EcartPayService } = require("../services/ecartpayService");
 const ecartPayService = require("../services/ecartpayService");
 const tableService = require("../services/tableService");
 const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
@@ -37,6 +38,41 @@ async function resolvePaymentProvider(restaurantId) {
   return integration?.payment_providers?.code || "ecartpay";
 }
 
+/**
+ * Retorna una instancia de EcartPayService con las credenciales del cliente.
+ * Si el restaurante no tiene credenciales configuradas, usa el singleton global (env vars).
+ */
+async function resolveEcartPayInstance(restaurantId) {
+  if (!restaurantId) return ecartPayService;
+
+  const restaurantIdInt = parseInt(restaurantId, 10);
+  if (isNaN(restaurantIdInt)) return ecartPayService;
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("client_id")
+    .eq("id", restaurantIdInt)
+    .single();
+
+  if (!restaurant?.client_id) return ecartPayService;
+
+  const { data: integration } = await supabase
+    .from("payment_integrations")
+    .select("settings")
+    .eq("client_id", restaurant.client_id)
+    .eq("is_active", true)
+    .single();
+
+  const settings = integration?.settings;
+  if (!settings?.public_key || !settings?.secret_key) return ecartPayService;
+
+  return new EcartPayService({
+    publicKey: settings.public_key,
+    secretKey: settings.secret_key,
+    environment: settings.environment,
+  });
+}
+
 class PaymentController {
   async addPaymentMethod(req, res) {
     try {
@@ -72,7 +108,8 @@ class PaymentController {
         `Processing payment method for ${isGuest ? "guest" : "authenticated"} user: ${userId}`,
       );
 
-      const { fullName, email, cardNumber, expDate, cvv } = req.body;
+      const { fullName, email, cardNumber, expDate, cvv, restaurantId } =
+        req.body;
 
       // Validate required fields (email solo requerido para guests)
       if (!fullName || !cardNumber || !expDate || !cvv) {
@@ -125,7 +162,8 @@ class PaymentController {
         paymentData,
         {
           isGuest,
-          userEmail: email, // Use the email from the form
+          userEmail: email,
+          restaurantId,
         },
       );
 
@@ -315,10 +353,11 @@ class PaymentController {
       }
 
       const isGuest = req.isGuest || req.user?.isGuest;
+      const restaurantId = req.query.restaurantId || req.body.restaurantId;
       const result = await paymentService.deletePaymentMethod(
         userId,
         paymentMethodId,
-        { isGuest },
+        { isGuest, restaurantId },
       );
 
       if (!result.success) {
@@ -486,6 +525,7 @@ class PaymentController {
 
       // Resolver proveedor de pago activo para este restaurante
       const provider = await resolvePaymentProvider(restaurantId);
+      const ecartPay = await resolveEcartPayInstance(restaurantId);
       console.log(
         `[PaymentProvider] Procesando pago con proveedor: ${provider} (restaurantId: ${restaurantId})`,
       );
@@ -717,7 +757,7 @@ class PaymentController {
       // Try direct payment processing with stored card token
       try {
         const directPaymentResult =
-          await ecartPayService.processCheckoutWithPaymentMethod(
+          await ecartPay.processCheckoutWithPaymentMethod(
             paymentMethod.provider_customer_id,
             paymentMethod.provider_token, // This is the card ID
             {
@@ -789,7 +829,9 @@ class PaymentController {
           );
 
           // Si eCartPay rechazó la transacción (4xx), no hacer fallback — el pago fue declinado
-          const rejectedStatus = directPaymentResult.error?.status || directPaymentResult.error?.statusCode;
+          const rejectedStatus =
+            directPaymentResult.error?.status ||
+            directPaymentResult.error?.statusCode;
           if (rejectedStatus && rejectedStatus >= 400 && rejectedStatus < 500) {
             pciLog({
               action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
@@ -803,7 +845,8 @@ class PaymentController {
               success: false,
               error: {
                 type: "payment_declined",
-                message: "El pago fue rechazado. Verifica los datos de tu tarjeta e intenta de nuevo.",
+                message:
+                  "El pago fue rechazado. Verifica los datos de tu tarjeta e intenta de nuevo.",
               },
             });
           }
@@ -820,7 +863,7 @@ class PaymentController {
       }
 
       // Fallback to order creation if direct charge fails
-      const orderResult = await ecartPayService.createOrder({
+      const orderResult = await ecartPay.createOrder({
         customerId: paymentMethod.provider_customer_id,
         currency: currency,
         tableNumber: tableNumber,
@@ -1722,13 +1765,14 @@ class PaymentController {
         `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}`,
       );
 
+      const ecartPay = await resolveEcartPayInstance(restaurantId);
+
       // Buscar o crear un customer en Ecart Pay
       let customerId;
 
       if (!isGuest && userId) {
         // Usuario autenticado: buscar customer existente por userId
-        const existingCustomer =
-          await ecartPayService.findCustomerByUserId(userId);
+        const existingCustomer = await ecartPay.findCustomerByUserId(userId);
 
         if (existingCustomer.success && existingCustomer.customer?.id) {
           customerId = existingCustomer.customer.id;
@@ -1741,7 +1785,7 @@ class PaymentController {
         const guestIdentifier = userId || `apple-pay-guest-${Date.now()}`;
         // Use a unique phone per call to avoid 409 conflicts on the static fallback
         const guestPhone = `55${Date.now().toString().slice(-8)}`;
-        const newCustomer = await ecartPayService.createCustomer({
+        const newCustomer = await ecartPay.createCustomer({
           name: "Apple Pay Guest",
           phone: guestPhone,
           userId: guestIdentifier,
@@ -1753,8 +1797,7 @@ class PaymentController {
             console.log(
               "ℹ️ Customer ya existe en EcartPay, buscando por userId...",
             );
-            const found =
-              await ecartPayService.findCustomerByUserId(guestIdentifier);
+            const found = await ecartPay.findCustomerByUserId(guestIdentifier);
             if (found.success && found.customer?.id) {
               customerId = found.customer.id;
               console.log("✅ Customer existente recuperado:", customerId);
@@ -1784,7 +1827,7 @@ class PaymentController {
       }
 
       // Crear la orden en Ecart Pay
-      const orderResult = await ecartPayService.createOrder({
+      const orderResult = await ecartPay.createOrder({
         customerId,
         amount,
         currency,
