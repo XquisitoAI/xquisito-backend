@@ -787,6 +787,27 @@ class PaymentController {
             "❌ Direct payment processing failed:",
             directPaymentResult.error,
           );
+
+          // Si eCartPay rechazó la transacción (4xx), no hacer fallback — el pago fue declinado
+          const rejectedStatus = directPaymentResult.error?.status || directPaymentResult.error?.statusCode;
+          if (rejectedStatus && rejectedStatus >= 400 && rejectedStatus < 500) {
+            pciLog({
+              action: PCI_ACTIONS.PAYMENT_PROCESS_ERROR,
+              userId,
+              processor: provider,
+              req,
+              error: directPaymentResult.error?.message,
+              metadata: { paymentMethodId, amount, statusCode: rejectedStatus },
+            });
+            return res.status(402).json({
+              success: false,
+              error: {
+                type: "payment_declined",
+                message: "El pago fue rechazado. Verifica los datos de tu tarjeta e intenta de nuevo.",
+              },
+            });
+          }
+
           console.log("🔄 Will fallback to payLink method");
           throw new Error("Failed to process direct payment with stored card");
         }
