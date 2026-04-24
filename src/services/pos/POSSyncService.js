@@ -613,11 +613,14 @@ class POSSyncService {
     return parts.join(", ");
   }
 
-  // Crear registro de sincronización
+  // Crear registro de sincronización (upsert para evitar duplicate key en race conditions)
   static async createOrderSync(syncData) {
     const { error } = await supabaseAdmin
       .from("pos_order_sync")
-      .insert(syncData);
+      .upsert(syncData, {
+        onConflict: "integration_id,local_order_id",
+        ignoreDuplicates: false,
+      });
 
     if (error) {
       console.error("Error creando registro de sincronización:", error);
