@@ -97,6 +97,8 @@ class TableService {
     customFields = null,
     extraPrice = 0,
     menuItemId = null,
+    orderNotes = null,
+    specialInstructions = null,
   ) {
     try {
       const { data, error } = await supabase.rpc("create_dish_order", {
@@ -113,6 +115,8 @@ class TableService {
         p_custom_fields: customFields,
         p_extra_price: extraPrice,
         p_menu_item_id: menuItemId,
+        p_order_notes: orderNotes || null,
+        p_special_instructions: specialInstructions || null,
       });
 
       if (error) throw error;

@@ -72,6 +72,8 @@ class TableController {
         customFields = null,
         extraPrice = 0,
         menuItemId = null,
+        orderNotes = null,
+        specialInstructions = null,
       } = req.body;
 
       // Validar campos requeridos
@@ -103,6 +105,8 @@ class TableController {
         customFields,
         parseFloat(extraPrice),
         menuItemId,
+        orderNotes,
+        specialInstructions,
       );
 
       // Emitir evento de socket para actualización en tiempo real
@@ -134,6 +138,7 @@ class TableController {
               quantity,
               menu_item_id: menuItemId,
               custom_fields: resolvedCustomFields,
+              special_instructions: specialInstructions || null,
             },
           ],
           guestName || null,
