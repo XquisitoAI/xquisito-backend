@@ -29,14 +29,25 @@ class KitchenService {
   }
 
   // Órdenes activas de todos los tipos donde al menos 1 dish no está entregado
-  async getActiveOrders(restaurantId) {
+  async getActiveOrders(restaurantId, branchId = null) {
+    // Si se pasa branchId (UUID), resolver el branch_number para tablas que lo usan
+    let branchNumber = null;
+    if (branchId) {
+      const { data: branch } = await supabase
+        .from("branches")
+        .select("branch_number")
+        .eq("id", branchId)
+        .single();
+      branchNumber = branch?.branch_number ?? null;
+    }
+
     const [tapOrders, pickOrders, roomOrders, tapPayOrders, flexBillOrders] =
       await Promise.all([
-        this._getTapOrders(restaurantId),
-        this._getPickAndGoOrders(restaurantId),
-        this._getRoomOrders(restaurantId),
-        this._getTapPayOrders(restaurantId),
-        this._getFlexBillOrders(restaurantId),
+        this._getTapOrders(restaurantId, branchId),
+        this._getPickAndGoOrders(restaurantId, branchNumber),
+        this._getRoomOrders(restaurantId, branchId),
+        this._getTapPayOrders(restaurantId, branchNumber),
+        this._getFlexBillOrders(restaurantId, branchNumber),
       ]);
 
     return [
@@ -49,7 +60,7 @@ class KitchenService {
   }
 
   // Tap Order & Pay
-  async _getTapOrders(restaurantId) {
+  async _getTapOrders(restaurantId, branchId) {
     const { data, error } = await supabase
       .from("tap_orders_and_pay")
       .select(
@@ -57,7 +68,8 @@ class KitchenService {
          tables!inner(table_number, restaurant_id),
          dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
-      .eq("tables.restaurant_id", restaurantId);
+      .eq("tables.restaurant_id", restaurantId)
+      .eq("tables.branch_id", branchId);
 
     if (error) {
       console.error("[KITCHEN] tap orders:", error.message);
@@ -78,14 +90,15 @@ class KitchenService {
   }
 
   // Pick & Go
-  async _getPickAndGoOrders(restaurantId) {
+  async _getPickAndGoOrders(restaurantId, branchNumber) {
     const { data, error } = await supabase
       .from("pick_and_go_orders")
       .select(
         `id, order_status, created_at, customer_name, folio, order_notes,
          dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
-      .eq("restaurant_id", restaurantId);
+      .eq("restaurant_id", restaurantId)
+      .eq("branch_number", branchNumber);
 
     if (error) {
       console.error("[KITCHEN] pick&go orders:", error.message);
@@ -106,7 +119,7 @@ class KitchenService {
   }
 
   // Room Service
-  async _getRoomOrders(restaurantId) {
+  async _getRoomOrders(restaurantId, branchId) {
     const { data, error } = await supabase
       .from("room_orders")
       .select(
@@ -114,7 +127,8 @@ class KitchenService {
          rooms!inner(room_number, restaurant_id),
          dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
-      .eq("rooms.restaurant_id", restaurantId);
+      .eq("rooms.restaurant_id", restaurantId)
+      .eq("rooms.branch_id", branchId);
 
     if (error) {
       console.error("[KITCHEN] room orders:", error.message);
@@ -134,7 +148,7 @@ class KitchenService {
   }
 
   // Tap & Pay
-  async _getTapPayOrders(restaurantId) {
+  async _getTapPayOrders(restaurantId, branchNumber) {
     const { data, error } = await supabase
       .from("tap_pay_orders")
       .select(
@@ -142,7 +156,8 @@ class KitchenService {
          tables(table_number),
          dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
-      .eq("restaurant_id", restaurantId);
+      .eq("restaurant_id", restaurantId)
+      .eq("branch_number", branchNumber);
 
     if (error) {
       console.error("[KITCHEN] tap pay orders:", error.message);
@@ -162,7 +177,7 @@ class KitchenService {
   }
 
   // FlexBill: table_order → user_order → dish_order (via user_order_id)
-  async _getFlexBillOrders(restaurantId) {
+  async _getFlexBillOrders(restaurantId, branchNumber) {
     const { data, error } = await supabase
       .from("table_order")
       .select(
@@ -175,7 +190,8 @@ class KitchenService {
            dish_order(id, item, quantity, status, images, custom_fields)
          )`,
       )
-      .eq("restaurant_id", restaurantId);
+      .eq("restaurant_id", restaurantId)
+      .eq("branch_number", branchNumber);
 
     if (error) {
       console.error("[KITCHEN] flexbill orders:", error.message);
@@ -191,17 +207,16 @@ class KitchenService {
             orderedBy: uo.guest_name || null,
           })),
         );
-        console.log(`[FlexBill] order ${o.id} user_orders:`, JSON.stringify(o.user_order?.map(uo => ({ id: uo.id, guest_id: uo.guest_id, guest_name: uo.guest_name })), null, 2));
-        console.log(`[FlexBill] order ${o.id} payment_transactions:`, JSON.stringify(o.payment_transactions?.map(p => ({ id: p.id, user_id: p.user_id })), null, 2));
         const guestNameByGuestId = Object.fromEntries(
           (o.user_order || []).flatMap((uo) => {
             const entries = [];
-            if (uo.guest_id && uo.guest_name) entries.push([uo.guest_id, uo.guest_name]);
-            if (uo.user_id && uo.guest_name) entries.push([uo.user_id, uo.guest_name]);
+            if (uo.guest_id && uo.guest_name)
+              entries.push([uo.guest_id, uo.guest_name]);
+            if (uo.user_id && uo.guest_name)
+              entries.push([uo.user_id, uo.guest_name]);
             return entries;
           }),
         );
-        console.log(`[FlexBill] order ${o.id} guestNameMap:`, guestNameByGuestId);
         return {
           id: o.id,
           orderType: "flex_bill",
