@@ -43,7 +43,9 @@ function initializeSocket(httpServer) {
       clientType === "crew"
     ) {
       // Handlers para Admin Portal, Main Portal y Crew (dashboard + room join)
-      registerDashboardHandlers(io, socket);
+      registerDashboardHandlers(io, socket).catch((e) =>
+        console.error("[SOCKET] registerDashboardHandlers error:", e),
+      );
     }
 
     // Handlers para FlexBill (mesas) - disponible para todos

@@ -185,7 +185,7 @@ async function authenticateSocket(socket, next) {
 
     // Caso 5: Xquisito Crew (shared secret + branchId, sin Clerk)
     if (clientType === "crew") {
-      const { branchId, secret } = socket.handshake.auth;
+      const { branchId, secret, deviceId } = socket.handshake.auth;
       const CREW_SECRET =
         process.env.CREW_SOCKET_SECRET || "xquisito-crew-secret";
 
@@ -207,7 +207,8 @@ async function authenticateSocket(socket, next) {
       }
 
       socket.user = {
-        id: `crew-${branchId}`,
+        id: `crew-${deviceId || branchId}`,
+        deviceId: deviceId || null,
         branchId: branch.id,
         restaurantId: branch.restaurant_id,
         isGuest: false,
@@ -215,7 +216,7 @@ async function authenticateSocket(socket, next) {
       };
 
       console.log(
-        `✅ Socket authenticated (Crew): branch=${branchId} restaurant=${branch.restaurant_id}`,
+        `✅ Socket authenticated (Crew): branch=${branchId} device=${deviceId || "unknown"} restaurant=${branch.restaurant_id}`,
       );
       return next();
     }
