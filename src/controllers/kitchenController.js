@@ -12,7 +12,11 @@ class KitchenController {
       const clerkUserId = req.auth.userId;
       const restaurantId =
         await kitchenService.getRestaurantIdForUser(clerkUserId);
-      const orders = await kitchenService.getActiveOrders(restaurantId);
+      const branchId = req.query.branchId || null;
+      const orders = await kitchenService.getActiveOrders(
+        restaurantId,
+        branchId,
+      );
       res.json({ success: true, orders, total: orders.length });
     } catch (error) {
       console.error("[KITCHEN] getActiveOrders error:", error.message);
@@ -53,7 +57,9 @@ class KitchenController {
     try {
       const { token } = req.body;
       if (!token) {
-        return res.status(400).json({ success: false, error: "token requerido" });
+        return res
+          .status(400)
+          .json({ success: false, error: "token requerido" });
       }
       await kitchenService.deleteFcmToken(token);
       res.json({ success: true });
@@ -124,7 +130,9 @@ class KitchenController {
 
       if (printers.length > 0) {
         const now = new Date().toISOString();
-        const wifiPrinters = printers.filter((p) => p.connection_type !== "usb");
+        const wifiPrinters = printers.filter(
+          (p) => p.connection_type !== "usb",
+        );
         const usbPrinters = printers.filter((p) => p.connection_type === "usb");
 
         // Obtener impresoras existentes para esta sucursal
@@ -134,10 +142,12 @@ class KitchenController {
           .eq("branch_id", branchId);
 
         const existingByIp = new Map(
-          existing.filter((p) => p.ip).map((p) => [p.ip, p.id])
+          existing.filter((p) => p.ip).map((p) => [p.ip, p.id]),
         );
         const existingByUsb = new Map(
-          existing.filter((p) => p.usb_device_name).map((p) => [p.usb_device_name, p.id])
+          existing
+            .filter((p) => p.usb_device_name)
+            .map((p) => [p.usb_device_name, p.id]),
         );
 
         for (const { ip, port } of wifiPrinters) {
@@ -150,7 +160,13 @@ class KitchenController {
           } else {
             await supabase
               .from("branch_printers")
-              .insert({ branch_id: branchId, ip, port, connection_type: "wifi", last_seen_at: now });
+              .insert({
+                branch_id: branchId,
+                ip,
+                port,
+                connection_type: "wifi",
+                last_seen_at: now,
+              });
           }
         }
 
@@ -164,7 +180,14 @@ class KitchenController {
           } else {
             await supabase
               .from("branch_printers")
-              .insert({ branch_id: branchId, ip: null, port: null, connection_type: "usb", usb_device_name, last_seen_at: now });
+              .insert({
+                branch_id: branchId,
+                ip: null,
+                port: null,
+                connection_type: "usb",
+                usb_device_name,
+                last_seen_at: now,
+              });
           }
         }
       }
