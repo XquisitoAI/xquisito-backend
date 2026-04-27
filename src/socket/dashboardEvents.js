@@ -133,6 +133,14 @@ async function registerDashboardHandlers(io, socket) {
     const branchId = user.branchId;
     const deviceId = user.deviceId || socket.id;
 
+    // Limpiar este deviceId de cualquier otra sucursal (por si quedó stale)
+    for (const [otherBranch, map] of branchDevices.entries()) {
+      if (otherBranch !== branchId && map.has(deviceId)) {
+        map.delete(deviceId);
+        console.log(`[CREW] Limpiando dispositivo stale: device=${deviceId} branch=${otherBranch}`);
+      }
+    }
+
     // Registrar dispositivo en memoria
     if (!branchDevices.has(branchId)) branchDevices.set(branchId, new Map());
     branchDevices.get(branchId).set(deviceId, {
