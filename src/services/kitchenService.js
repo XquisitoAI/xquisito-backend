@@ -192,9 +192,12 @@ class KitchenService {
           })),
         );
         const guestNameByGuestId = Object.fromEntries(
-          (o.user_order || [])
-            .filter((uo) => uo.guest_id && uo.guest_name)
-            .map((uo) => [uo.guest_id, uo.guest_name]),
+          (o.user_order || []).flatMap((uo) => {
+            const entries = [];
+            if (uo.guest_id && uo.guest_name) entries.push([uo.guest_id, uo.guest_name]);
+            if (uo.user_id && uo.guest_name) entries.push([uo.user_id, uo.guest_name]);
+            return entries;
+          }),
         );
         return {
           id: o.id,
