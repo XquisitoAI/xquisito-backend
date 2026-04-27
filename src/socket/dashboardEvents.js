@@ -1,7 +1,18 @@
 const superAdminService = require("../services/superAdminService");
+const supabase = require("../config/supabase");
+
+// Presencia de dispositivos crew por sucursal (en memoria)
+// branchId → Map<deviceId, { socketId, connectedAt }>
+const branchDevices = new Map();
+
+function getBranchDeviceList(branchId) {
+  const map = branchDevices.get(branchId);
+  if (!map) return [];
+  return [...map.entries()].map(([deviceId, info]) => ({ deviceId, ...info }));
+}
 
 // Registra los handlers de eventos del dashboard para un socket
-function registerDashboardHandlers(io, socket) {
+async function registerDashboardHandlers(io, socket) {
   const { user } = socket;
 
   // Emitir confirmación de conexión exitosa
@@ -108,11 +119,93 @@ function registerDashboardHandlers(io, socket) {
     console.log(`🏠 Auto-joined user ${user.id} to room ${roomName}`);
   }
 
-  // Crew: confirmar conexión inmediatamente
+  // Crew: presencia y master printer
   if (user.clientType === "crew") {
+    const branchId = user.branchId;
+    const deviceId = user.deviceId || socket.id;
+
+    // Registrar dispositivo en memoria
+    if (!branchDevices.has(branchId)) branchDevices.set(branchId, new Map());
+    branchDevices.get(branchId).set(deviceId, {
+      socketId: socket.id,
+      connectedAt: new Date().toISOString(),
+    });
+
+    // Unirse a room de sucursal para broadcasts dirigidos
+    socket.join(`crew:${branchId}`);
+
+    // Obtener master actual de Supabase
+    const { data: branchRow } = await supabase
+      .from("branches")
+      .select("master_crew_device_id")
+      .eq("id", branchId)
+      .single();
+    const masterDeviceId = branchRow?.master_crew_device_id || null;
+
+    // Emitir estado actual a todos en la sucursal (incluyendo el nuevo)
+    const devices = getBranchDeviceList(branchId);
+    io.to(`crew:${branchId}`).emit("crew:devices-updated", {
+      devices,
+      masterDeviceId,
+    });
+
+    // Confirmar conexión al dispositivo que acaba de unirse
     socket.emit("room:joined", {
       restaurantId: user.restaurantId,
-      branchId: user.branchId,
+      branchId,
+      masterDeviceId,
+      devices,
+    });
+
+    // Seleccionar Master (cualquier dispositivo de la sucursal puede llamar esto)
+    socket.on("crew:set-master", async ({ deviceId: targetDeviceId }) => {
+      await supabase
+        .from("branches")
+        .update({ master_crew_device_id: targetDeviceId })
+        .eq("id", branchId);
+      const updatedDevices = getBranchDeviceList(branchId);
+      io.to(`crew:${branchId}`).emit("crew:devices-updated", {
+        devices: updatedDevices,
+        masterDeviceId: targetDeviceId,
+      });
+      console.log(
+        `[CREW] Master set: device=${targetDeviceId} branch=${branchId}`,
+      );
+    });
+
+    // Limpiar al desconectarse
+    socket.on("disconnect", async () => {
+      branchDevices.get(branchId)?.delete(deviceId);
+      const remaining = getBranchDeviceList(branchId);
+
+      // Si el master se fue, limpiar en DB
+      const { data: b } = await supabase
+        .from("branches")
+        .select("master_crew_device_id")
+        .eq("id", branchId)
+        .single();
+
+      if (b?.master_crew_device_id === deviceId) {
+        await supabase
+          .from("branches")
+          .update({ master_crew_device_id: null })
+          .eq("id", branchId);
+        io.to(`crew:${branchId}`).emit("crew:devices-updated", {
+          devices: remaining,
+          masterDeviceId: null,
+        });
+        console.log(
+          `[CREW] Master desconectado, limpiando master para branch=${branchId}`,
+        );
+      } else {
+        io.to(`crew:${branchId}`).emit("crew:devices-updated", {
+          devices: remaining,
+          masterDeviceId: b?.master_crew_device_id || null,
+        });
+      }
+      console.log(
+        `[CREW] Dispositivo desconectado: device=${deviceId} branch=${branchId} restantes=${remaining.length}`,
+      );
     });
   }
 }
