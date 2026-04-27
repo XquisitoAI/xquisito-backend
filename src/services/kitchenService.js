@@ -191,6 +191,8 @@ class KitchenService {
             orderedBy: uo.guest_name || null,
           })),
         );
+        console.log(`[FlexBill] order ${o.id} user_orders:`, JSON.stringify(o.user_order?.map(uo => ({ id: uo.id, guest_id: uo.guest_id, guest_name: uo.guest_name })), null, 2));
+        console.log(`[FlexBill] order ${o.id} payment_transactions:`, JSON.stringify(o.payment_transactions?.map(p => ({ id: p.id, user_id: p.user_id })), null, 2));
         const guestNameByGuestId = Object.fromEntries(
           (o.user_order || []).flatMap((uo) => {
             const entries = [];
@@ -199,6 +201,7 @@ class KitchenService {
             return entries;
           }),
         );
+        console.log(`[FlexBill] order ${o.id} guestNameMap:`, guestNameByGuestId);
         return {
           id: o.id,
           orderType: "flex_bill",
