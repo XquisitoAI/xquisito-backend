@@ -8,7 +8,16 @@ const branchDevices = new Map();
 function getBranchDeviceList(branchId) {
   const map = branchDevices.get(branchId);
   if (!map) return [];
-  return [...map.entries()].map(([deviceId, info]) => ({ deviceId, ...info }));
+  return [...map.entries()].map(([deviceId, info]) => ({ deviceId, ...info, online: true }));
+}
+
+// Retorna lista de dispositivos conectados + master offline si aplica
+function getDevicesForEmit(branchId, masterDeviceId) {
+  const connected = getBranchDeviceList(branchId);
+  if (!masterDeviceId) return connected;
+  const isOnline = connected.some((d) => d.deviceId === masterDeviceId);
+  if (isOnline) return connected;
+  return [...connected, { deviceId: masterDeviceId, socketId: null, connectedAt: null, online: false }];
 }
 
 // Registra los handlers de eventos del dashboard para un socket
@@ -143,19 +152,11 @@ async function registerDashboardHandlers(io, socket) {
     const masterDeviceId = branchRow?.master_crew_device_id || null;
 
     // Emitir estado actual a todos en la sucursal (incluyendo el nuevo)
-    const devices = getBranchDeviceList(branchId);
-    io.to(`crew:${branchId}`).emit("crew:devices-updated", {
-      devices,
-      masterDeviceId,
-    });
+    const devices = getDevicesForEmit(branchId, masterDeviceId);
+    io.to(`crew:${branchId}`).emit("crew:devices-updated", { devices, masterDeviceId });
 
     // Confirmar conexión al dispositivo que acaba de unirse
-    socket.emit("room:joined", {
-      restaurantId: user.restaurantId,
-      branchId,
-      masterDeviceId,
-      devices,
-    });
+    socket.emit("room:joined", { restaurantId: user.restaurantId, branchId, masterDeviceId, devices });
 
     // Seleccionar Master (cualquier dispositivo de la sucursal puede llamar esto)
     socket.on("crew:set-master", async ({ deviceId: targetDeviceId }) => {
@@ -163,49 +164,33 @@ async function registerDashboardHandlers(io, socket) {
         .from("branches")
         .update({ master_crew_device_id: targetDeviceId })
         .eq("id", branchId);
-      const updatedDevices = getBranchDeviceList(branchId);
+      const updatedDevices = getDevicesForEmit(branchId, targetDeviceId);
       io.to(`crew:${branchId}`).emit("crew:devices-updated", {
         devices: updatedDevices,
         masterDeviceId: targetDeviceId,
       });
-      console.log(
-        `[CREW] Master set: device=${targetDeviceId} branch=${branchId}`,
-      );
+      console.log(`[CREW] Master set: device=${targetDeviceId} branch=${branchId}`);
     });
 
     // Limpiar al desconectarse
     socket.on("disconnect", async () => {
       branchDevices.get(branchId)?.delete(deviceId);
-      const remaining = getBranchDeviceList(branchId);
 
-      // Si el master se fue, limpiar en DB
+      // El master persiste en DB aunque se desconecte — se muestra como offline
       const { data: b } = await supabase
         .from("branches")
         .select("master_crew_device_id")
         .eq("id", branchId)
         .single();
 
-      if (b?.master_crew_device_id === deviceId) {
-        await supabase
-          .from("branches")
-          .update({ master_crew_device_id: null })
-          .eq("id", branchId);
-        io.to(`crew:${branchId}`).emit("crew:devices-updated", {
-          devices: remaining,
-          masterDeviceId: null,
-        });
-        console.log(
-          `[CREW] Master desconectado, limpiando master para branch=${branchId}`,
-        );
-      } else {
-        io.to(`crew:${branchId}`).emit("crew:devices-updated", {
-          devices: remaining,
-          masterDeviceId: b?.master_crew_device_id || null,
-        });
-      }
-      console.log(
-        `[CREW] Dispositivo desconectado: device=${deviceId} branch=${branchId} restantes=${remaining.length}`,
-      );
+      const currentMaster = b?.master_crew_device_id || null;
+      const remaining = getDevicesForEmit(branchId, currentMaster);
+      io.to(`crew:${branchId}`).emit("crew:devices-updated", {
+        devices: remaining,
+        masterDeviceId: currentMaster,
+      });
+
+      console.log(`[CREW] Dispositivo desconectado: device=${deviceId} branch=${branchId} restantes=${remaining.length}`);
     });
   }
 }
