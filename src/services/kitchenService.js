@@ -171,7 +171,7 @@ class KitchenService {
          tables(table_number),
          payment_transactions(id, base_amount, tip_amount, total_amount_charged, card_type, created_at),
          user_order(
-           id, guest_name,
+           id, guest_name, guest_id,
            dish_order(id, item, quantity, status, images, custom_fields)
          )`,
       )
@@ -191,6 +191,11 @@ class KitchenService {
             orderedBy: uo.guest_name || null,
           })),
         );
+        const guestNameByGuestId = Object.fromEntries(
+          (o.user_order || [])
+            .filter((uo) => uo.guest_id && uo.guest_name)
+            .map((uo) => [uo.guest_id, uo.guest_name]),
+        );
         return {
           id: o.id,
           orderType: "flex_bill",
@@ -209,6 +214,7 @@ class KitchenService {
               totalCharged: p.total_amount_charged,
               cardType: p.card_type,
               createdAt: p.created_at,
+              guestName: guestNameByGuestId[p.user_id] || null,
             })),
           dishes: this._mapDishes(allDishes),
         };
