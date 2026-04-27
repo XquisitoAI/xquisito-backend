@@ -169,6 +169,7 @@ class KitchenService {
         `id, status, created_at, folio,
          total_amount, paid_amount, remaining_amount,
          tables(table_number),
+         payment_transactions(id, base_amount, tip_amount, total_amount_charged, card_type, created_at),
          user_order(
            id, guest_name,
            dish_order(id, item, quantity, status, images, custom_fields)
@@ -199,6 +200,16 @@ class KitchenService {
           totalAmount: o.total_amount ?? null,
           paidAmount: o.paid_amount ?? null,
           remainingAmount: o.remaining_amount ?? null,
+          payments: (o.payment_transactions || [])
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            .map((p) => ({
+              id: p.id,
+              baseAmount: p.base_amount,
+              tipAmount: p.tip_amount,
+              totalCharged: p.total_amount_charged,
+              cardType: p.card_type,
+              createdAt: p.created_at,
+            })),
           dishes: this._mapDishes(allDishes),
         };
       })
