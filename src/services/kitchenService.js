@@ -167,6 +167,7 @@ class KitchenService {
       .from("table_order")
       .select(
         `id, status, created_at, folio,
+         total_amount, paid_amount, remaining_amount,
          tables(table_number),
          user_order(
            id, guest_name,
@@ -195,6 +196,9 @@ class KitchenService {
           identifier: o.tables ? `Mesa ${o.tables.table_number}` : "FlexBill",
           createdAt: o.created_at,
           folio: o.folio ?? null,
+          totalAmount: o.total_amount ?? null,
+          paidAmount: o.paid_amount ?? null,
+          remainingAmount: o.remaining_amount ?? null,
           dishes: this._mapDishes(allDishes),
         };
       })
