@@ -169,7 +169,7 @@ class KitchenService {
         `id, status, created_at, folio,
          total_amount, paid_amount, remaining_amount,
          tables(table_number),
-         payment_transactions(id, base_amount, tip_amount, total_amount_charged, card_type, created_at),
+         payment_transactions(id, user_id, base_amount, tip_amount, total_amount_charged, card_type, created_at),
          user_order(
            id, guest_name, guest_id,
            dish_order(id, item, quantity, status, images, custom_fields)
