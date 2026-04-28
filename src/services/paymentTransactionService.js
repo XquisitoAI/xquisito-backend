@@ -106,6 +106,7 @@ class PaymentTransactionService {
 
         // Metadata
         currency = "MXN",
+        transaction_by = "Invitado",
       } = transactionData;
 
       // Validar datos requeridos
@@ -238,6 +239,7 @@ class PaymentTransactionService {
 
         // Metadata
         currency,
+        transaction_by,
       };
 
       console.log("📝 Insertando transacción en BD:", {
