@@ -21,34 +21,20 @@ async function resolvePaymentProvider(restaurantId) {
   if (isNaN(restaurantIdInt)) return "ecartpay";
 
   try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("resolvePaymentProvider timeout")),
-        5000,
-      ),
-    );
+    const { data: restaurant } = await supabase
+      .from("restaurants")
+      .select("client_id")
+      .eq("id", restaurantIdInt)
+      .single();
 
-    const { data: branch } = await Promise.race([
-      supabase
-        .from("branches")
-        .select("client_id")
-        .eq("restaurant_id", restaurantIdInt)
-        .limit(1)
-        .single(),
-      timeout,
-    ]);
+    if (!restaurant?.client_id) return "ecartpay";
 
-    if (!branch?.client_id) return "ecartpay";
-
-    const { data: integration } = await Promise.race([
-      supabase
-        .from("payment_integrations")
-        .select("payment_providers(code)")
-        .eq("client_id", branch.client_id)
-        .eq("is_active", true)
-        .single(),
-      timeout,
-    ]);
+    const { data: integration } = await supabase
+      .from("payment_integrations")
+      .select("payment_providers(code)")
+      .eq("client_id", restaurant.client_id)
+      .eq("is_active", true)
+      .single();
 
     return integration?.payment_providers?.code || "ecartpay";
   } catch (err) {
@@ -901,7 +887,7 @@ class PaymentController {
           },
         ],
         webhookUrl: `${process.env.BASE_URL || "http://localhost:5000"}/api/payments/webhooks/ecartpay`,
-        redirectUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success?orderId=${orderId}&amount=${amount}&table=${tableNumber}`,
+        redirectUrl: `${process.env.FRONTEND_URL || "https://pickandgo.xquisito.ai"}/payment-success?orderId=${orderId}&amount=${amount}&table=${tableNumber}`,
       });
 
       if (!orderResult.success) {
@@ -1788,7 +1774,7 @@ class PaymentController {
       }
 
       console.log(
-        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}`,
+        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}, restaurant: ${restaurantId}`,
       );
 
       const ecartPay = await resolveEcartPayInstance(restaurantId);
@@ -1851,7 +1837,7 @@ class PaymentController {
         description: `Xquisito Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
         tableNumber: tableNumber || null,
         referenceId: `xq_applepay_${Date.now()}`,
-        redirectUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success`,
+        redirectUrl: `${process.env.FRONTEND_URL || "https://pickandgo.xquisito.ai"}/payment-success`,
       });
 
       if (!orderResult.success || !orderResult.order?.id) {
