@@ -1871,6 +1871,110 @@ class PaymentController {
       });
     }
   }
+
+  async createGooglePayOrder(req, res) {
+    try {
+      const userId = req.user?.id;
+      const isGuest = req.isGuest || req.user?.isGuest;
+      const { amount, currency = "MXN", tableNumber, restaurantId } = req.body;
+
+      if (!amount || typeof amount !== "number" || amount <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            type: "validation_error",
+            message: "amount es requerido y debe ser mayor a 0",
+          },
+        });
+      }
+
+      console.log(
+        `🟢 createGooglePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}`,
+      );
+
+      const ecartPay = ecartPayService;
+
+      let customerId;
+
+      if (!isGuest && userId) {
+        const existingCustomer = await ecartPay.findCustomerByUserId(userId);
+
+        if (existingCustomer.success && existingCustomer.customer?.id) {
+          customerId = existingCustomer.customer.id;
+        } else {
+          const { data: profileData } = await supabaseAdmin
+            .from("profiles")
+            .select("first_name, last_name, phone")
+            .eq("id", userId)
+            .maybeSingle();
+
+          const customerName = profileData?.first_name
+            ? [profileData.first_name, profileData.last_name]
+                .filter(Boolean)
+                .join(" ")
+            : "Guest";
+          const phone =
+            profileData?.phone || `55${Date.now().toString().slice(-8)}`;
+
+          const newCustomer = await ecartPay.createCustomer({
+            name: customerName,
+            phone,
+            userId,
+          });
+
+          if (newCustomer.success) {
+            customerId = newCustomer.customer.id;
+          } else {
+            console.warn(
+              "⚠️ No se pudo crear customer para Google Pay, continuando sin customer:",
+              newCustomer.error,
+            );
+          }
+        }
+      }
+
+      const orderResult = await ecartPay.createOrder({
+        customerId,
+        amount,
+        currency,
+        quantity: 1,
+        description: `Xquisito Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
+        tableNumber: tableNumber || null,
+        referenceId: `xq_googlepay_${Date.now()}`,
+        redirectUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success`,
+      });
+
+      if (!orderResult.success || !orderResult.order?.id) {
+        console.error(
+          "❌ No se pudo crear orden para Google Pay:",
+          orderResult.error,
+        );
+        return res.status(500).json({
+          success: false,
+          error: {
+            type: "api_error",
+            message: "No se pudo crear la orden de pago",
+          },
+        });
+      }
+
+      console.log("✅ Orden Google Pay creada:", orderResult.order.id);
+
+      return res.json({
+        success: true,
+        orderId: orderResult.order.id,
+      });
+    } catch (error) {
+      console.error("❌ Error en createGooglePayOrder:", error);
+      return res.status(500).json({
+        success: false,
+        error: {
+          type: "internal_error",
+          message: "Internal server error",
+        },
+      });
+    }
+  }
 }
 
 module.exports = new PaymentController();

@@ -23,6 +23,7 @@ router.put(
 router.post("/payments", paymentController.processPayment);
 router.get("/payments/history", paymentController.getPaymentHistory);
 router.post("/payments/apple-pay/order", paymentController.createApplePayOrder);
+router.post("/payments/google-pay/order", paymentController.createGooglePayOrder);
 
 // Payment Transactions (maximum traceability system)
 router.post(
