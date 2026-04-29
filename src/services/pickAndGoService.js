@@ -133,6 +133,10 @@ class PickAndGoService {
         query = query.eq("payment_status", filters.payment_status);
       }
 
+      if (filters.restaurant_id) {
+        query = query.eq("restaurant_id", filters.restaurant_id);
+      }
+
       if (filters.limit) {
         query = query.limit(filters.limit);
       }
