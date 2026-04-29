@@ -132,7 +132,7 @@ class PickAndGoController {
   async getUserOrders(req, res) {
     try {
       const { userId } = req.params;
-      const { order_status, payment_status, limit } = req.query;
+      const { order_status, payment_status, limit, restaurant_id } = req.query;
 
       if (!userId) {
         return res.status(400).json({
@@ -145,6 +145,7 @@ class PickAndGoController {
         order_status,
         payment_status,
         limit: limit ? parseInt(limit) : null,
+        restaurant_id: restaurant_id ? parseInt(restaurant_id) : null,
       };
 
       const result = await pickAndGoService.getUserOrders(userId, filters);
