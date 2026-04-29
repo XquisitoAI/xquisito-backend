@@ -180,7 +180,7 @@ async function notifyDishReady(orderId, dishName) {
       ? `¡Hola ${order.customer_name}! `
       : "¡Hola! ";
     const folioText = order.folio ? ` (Pedido #${order.folio})` : "";
-    const message = `${greeting}Tu platillo ${dishName} esta listo para recoger${folioText}.`;
+    const message = `${greeting}Tu platillo está listo para recoger${folioText}.`;
 
     const twilio = require("twilio");
     const client = twilio(
