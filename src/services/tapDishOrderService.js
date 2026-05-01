@@ -13,6 +13,7 @@ class TapDishOrderService {
         custom_fields = null,
         extra_price = 0,
         menu_item_id = null,
+        special_instructions = null,
       } = dishData;
 
       // Usar función SQL para agregar platillo a tap order existente
@@ -27,6 +28,7 @@ class TapDishOrderService {
           p_custom_fields: custom_fields,
           p_extra_price: extra_price,
           p_menu_item_id: menu_item_id,
+          p_special_instructions: special_instructions || null,
         },
       );
 
