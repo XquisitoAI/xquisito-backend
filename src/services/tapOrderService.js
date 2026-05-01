@@ -105,6 +105,8 @@ class TapOrderService {
         custom_fields = null,
         extra_price = 0,
         menu_item_id = null,
+        special_instructions = null,
+        order_notes = null,
       } = dishData;
 
       // Usar función SQL para crear orden completa con primer platillo
@@ -125,6 +127,8 @@ class TapOrderService {
           p_custom_fields: custom_fields,
           p_extra_price: extra_price,
           p_menu_item_id: menu_item_id,
+          p_special_instructions: special_instructions || null,
+          p_order_notes: order_notes || null,
         },
       );
 

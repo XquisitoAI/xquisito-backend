@@ -26,7 +26,8 @@ jobs:
 
       - name: Run npm audit
         # 1117042: protobufjs via libsignal/@whiskeysockets/baileys - unfixable upstream dependency
-        run: npx better-npm-audit audit --level high --exclude 1117042
+        # 1117318: @clerk/shared authorization bypass - unfixable until Clerk publishes a fix
+        run: npx better-npm-audit audit --level high --exclude 1117042,1117318
 
   semgrep:
     name: Semgrep SAST
