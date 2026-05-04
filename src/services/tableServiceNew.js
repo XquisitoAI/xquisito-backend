@@ -26,6 +26,7 @@ class TableService {
         .select(
           `
                     id,
+                    menu_item_id,
                     item,
                     quantity,
                     price,
@@ -64,6 +65,7 @@ class TableService {
       // Transformar datos para mantener compatibilidad
       return data.map((item) => ({
         dish_order_id: item.id,
+        menu_item_id: item.menu_item_id || null,
         item: item.item,
         quantity: item.quantity,
         price: item.price,
