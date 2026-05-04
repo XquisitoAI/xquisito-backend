@@ -365,6 +365,40 @@ class TapOrderController {
     }
   }
 
+  // GET /api/tap-orders/restaurant/:restaurantId/user/:clientId/last - Última orden del usuario
+  async getLastOrderByUser(req, res) {
+    try {
+      const { clientId, restaurantId } = req.params;
+
+      if (!clientId || !restaurantId) {
+        return res.status(400).json({
+          success: false,
+          message: "clientId and restaurantId are required",
+        });
+      }
+
+      const result = await tapOrderService.getLastOrderByUser(
+        clientId,
+        parseInt(restaurantId),
+      );
+
+      if (!result.success) {
+        return res.status(400).json({ success: false, message: result.error });
+      }
+
+      res.status(200).json({
+        success: true,
+        hasLastOrder: result.hasLastOrder,
+        data: result.data,
+      });
+    } catch (error) {
+      console.error("Error getting last order by user:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal server error" });
+    }
+  }
+
   // DELETE /api/tap-orders/:id - Abandonar orden
   async abandonOrder(req, res) {
     try {

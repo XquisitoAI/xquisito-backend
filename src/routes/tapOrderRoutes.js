@@ -31,6 +31,12 @@ router.get(
   tapOrderController.getActiveOrderByUser,
 );
 
+// Obtener última orden de un usuario en un restaurante
+router.get(
+  "/tap-orders/restaurant/:restaurantId/user/:clientId/last",
+  tapOrderController.getLastOrderByUser,
+);
+
 // Obtener tap order por ID con resumen completo
 router.get("/tap-orders/:id", tapOrderController.getTapOrderById);
 

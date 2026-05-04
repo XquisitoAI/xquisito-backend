@@ -393,6 +393,44 @@ class TapOrderService {
     }
   }
 
+  // Obtener la última orden de un usuario en un restaurante
+  async getLastOrderByUser(clientId, restaurantId) {
+    try {
+      const { data, error } = await supabase
+        .from("tap_orders_and_pay")
+        .select(
+          `
+          id,
+          created_at,
+          tables!inner(id, table_number, restaurant_id),
+          dish_order(id, item, quantity, price, extra_price, images, custom_fields, menu_item_id, special_instructions)
+        `,
+        )
+        .eq("clerk_user_id", clientId)
+        .eq("tables.restaurant_id", restaurantId)
+        .neq("order_status", "abandoned")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        return { success: true, hasLastOrder: false, data: null };
+      }
+
+      const dishes = (data.dish_order || []).filter((d) => d.menu_item_id);
+
+      return {
+        success: true,
+        hasLastOrder: dishes.length > 0,
+        data: dishes.length > 0 ? { tap_order_id: data.id, dishes } : null,
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
   // Abandonar orden (cleanup)
   async abandonOrder(tap_order_id) {
     try {
