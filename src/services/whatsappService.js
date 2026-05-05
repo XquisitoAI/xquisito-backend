@@ -225,11 +225,11 @@ async function notifyDishReady(orderId, dishName) {
                 parameters: [
                   {
                     type: "text",
-                    text: order.customer_name || "cliente",
+                    text: order.customer_name?.trim() || "cliente",
                   },
                   {
                     type: "text",
-                    text: restaurant?.name || "el restaurante",
+                    text: restaurant?.name?.trim() || "el restaurante",
                   },
                 ],
               },
