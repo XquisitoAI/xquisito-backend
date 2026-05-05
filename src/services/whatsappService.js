@@ -192,7 +192,8 @@ async function notifyDishReady(orderId, dishName) {
     );
 
     const digits = order.customer_phone.replace(/\D/g, "");
-    const phone = digits.length > 10 ? digits : `52${digits}`;
+    const normalized = digits.startsWith("52") ? digits : `521${digits}`;
+    const phone = `+${normalized}`;
 
     const response = await fetch(
       `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
@@ -210,6 +211,15 @@ async function notifyDishReady(orderId, dishName) {
             name: "pedido_listo",
             language: { code: "es_MX" },
             components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "text",
+                    text: order.folio || "",
+                  },
+                ],
+              },
               {
                 type: "body",
                 parameters: [
