@@ -165,41 +165,74 @@ async function sendMessage(phone, text) {
   }
 }
 
-// Notificación de platillo listo via Twilio SMS
+// Notificación de platillo listo via Meta WhatsApp API
 async function notifyDishReady(orderId, dishName) {
   try {
     const { data: order } = await supabase
       .from("pick_and_go_orders")
-      .select("customer_phone, customer_name, folio")
+      .select(`
+        customer_phone,
+        customer_name,
+        folio,
+        restaurant:restaurant_id (
+          name
+        )
+      `)
       .eq("id", orderId)
       .single();
 
-    if (!order?.customer_phone) return;
-
-    const greeting = order.customer_name
-      ? `¡Hola ${order.customer_name}! `
-      : "¡Hola! ";
-    const folioText = order.folio ? ` (Pedido #${order.folio})` : "";
-    const message = `${greeting}Tu platillo está listo para recoger${folioText}.`;
-
-    const twilio = require("twilio");
-    const client = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN,
-    );
+    if (!order?.customer_phone) return false;
 
     const digits = order.customer_phone.replace(/\D/g, "");
-    const phone = digits.length > 10 ? `+${digits}` : `+52${digits}`;
+    const phone = digits.length > 10 ? digits : `52${digits}`;
 
-    await client.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phone,
-    });
+    const response = await fetch(
+      `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: phone,
+          type: "template",
+          template: {
+            name: "pedido_listo",
+            language: { code: "es_MX" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: order.customer_name || "cliente",
+                  },
+                  {
+                    type: "text",
+                    text: order.restaurant?.name || "el restaurante",
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      }
+    );
 
-    console.log(`[SMS] Notificación enviada a ${phone}`);
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error("[WhatsApp] Error de Meta API:", result.error);
+      return false;
+    }
+
+    console.log(`[WhatsApp] Notificación enviada a ${phone}`);
+    return true;
   } catch (err) {
-    console.error("[SMS] Error en notifyDishReady:", err.message);
+    console.error("[WhatsApp] Error en notifyDishReady:", err.message);
+    return false;
   }
 }
 
