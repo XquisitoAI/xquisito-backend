@@ -170,18 +170,26 @@ async function notifyDishReady(orderId, dishName) {
   try {
     const { data: order } = await supabase
       .from("pick_and_go_orders")
-      .select(`
-        customer_phone,
-        customer_name,
-        folio,
-        restaurant:restaurant_id (
-          name
-        )
-      `)
+      .select("customer_phone, customer_name, folio, restaurant_id")
       .eq("id", orderId)
       .single();
 
     if (!order?.customer_phone) return false;
+
+    const { data: restaurant } = await supabase
+      .from("restaurants")
+      .select("name")
+      .eq("id", order.restaurant_id)
+      .single();
+
+    console.log(
+      "Nombre: " +
+        order.customer_name +
+        ", Phone: " +
+        order.customer_phone +
+        " Restaurant: " +
+        restaurant?.name,
+    );
 
     const digits = order.customer_phone.replace(/\D/g, "");
     const phone = digits.length > 10 ? digits : `52${digits}`;
@@ -211,14 +219,14 @@ async function notifyDishReady(orderId, dishName) {
                   },
                   {
                     type: "text",
-                    text: order.restaurant?.name || "el restaurante",
+                    text: restaurant?.name || "el restaurante",
                   },
                 ],
               },
             ],
           },
         }),
-      }
+      },
     );
 
     const result = await response.json();
