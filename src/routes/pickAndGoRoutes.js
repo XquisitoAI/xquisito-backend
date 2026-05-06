@@ -136,6 +136,17 @@ router.post("/orders/:orderId/dishes", pickAndGoController.createDishOrder);
  */
 router.put("/dishes/:dishId/status", pickAndGoController.updateDishStatus);
 
+/**
+ * Actualizar cooking_status de una orden Pick & Go
+ * PUT /api/pick-and-go/orders/:orderId/cooking-status
+ *
+ * Body:
+ * {
+ *   "cooking_status": "preparing|ready|delivered"
+ * }
+ */
+router.put("/orders/:orderId/cooking-status", pickAndGoController.updateCookingStatus);
+
 // ===================================
 // CONSULTAS POR USUARIO
 // ===================================

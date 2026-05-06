@@ -634,6 +634,65 @@ class PickAndGoController {
     }
   }
 
+  // Actualizar cooking_status de una orden Pick & Go
+  async updateCookingStatus(req, res) {
+    try {
+      const { orderId } = req.params;
+      const { cooking_status } = req.body;
+
+      if (!orderId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "orderId is required" });
+      }
+
+      if (!cooking_status) {
+        return res
+          .status(400)
+          .json({ success: false, error: "cooking_status is required" });
+      }
+
+      const validStatuses = ["preparing", "ready", "delivered"];
+      if (!validStatuses.includes(cooking_status)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid cooking_status. Must be one of: ${validStatuses.join(", ")}`,
+        });
+      }
+
+      const result = await pickAndGoService.updateCookingStatus(
+        orderId,
+        cooking_status,
+      );
+
+      if (!result.success) {
+        return res.status(500).json(result);
+      }
+
+      // Notificar a todos los Crew del restaurante
+      try {
+        const restaurantId = await kitchenService.getRestaurantIdForUser(
+          req.auth.userId,
+        );
+        socketEmitter.emitKitchenDishStatusChanged(
+          restaurantId,
+          orderId,
+          cooking_status,
+        );
+      } catch (_) {}
+
+      // Notificación WhatsApp cuando el pedido está listo
+      if (cooking_status === "ready" && result.data?.id) {
+        whatsappService.notifyDishReady(result.data.id).catch(() => {});
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("💥 Error in updateCookingStatus controller:", error);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+
   /**
    * Actualizar estado de un dish order
    * PUT /api/pick-and-go/dishes/:dishId/status

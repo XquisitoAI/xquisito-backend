@@ -591,6 +591,7 @@ class PickAndGoService {
                     total_amount,
                     payment_status,
                     order_status,
+                    cooking_status,
                     restaurant_id,
                     branch_number,
                     created_at,
@@ -599,6 +600,7 @@ class PickAndGoService {
         )
         .eq("clerk_user_id", clientId)
         .neq("order_status", "abandoned")
+        .neq("cooking_status", "delivered")
         .order("created_at", { ascending: false });
 
       if (restaurantId) {
@@ -615,27 +617,23 @@ class PickAndGoService {
 
       const activeOrders = [];
       for (const order of data) {
-        const pendingDishes =
-          order.dish_order?.filter((dish) => dish.status !== "delivered") || [];
-
-        if (pendingDishes.length > 0) {
-          activeOrders.push({
-            pick_and_go_order: {
-              id: order.id,
-              folio: order.folio,
-              clerk_user_id: order.clerk_user_id,
-              customer_name: order.customer_name,
-              total_amount: order.total_amount,
-              payment_status: order.payment_status,
-              order_status: order.order_status,
-              restaurant_id: order.restaurant_id,
-              branch_number: order.branch_number,
-              created_at: order.created_at,
-            },
-            dishes: order.dish_order,
-            pending_dishes_count: pendingDishes.length,
-          });
-        }
+        activeOrders.push({
+          pick_and_go_order: {
+            id: order.id,
+            folio: order.folio,
+            clerk_user_id: order.clerk_user_id,
+            customer_name: order.customer_name,
+            total_amount: order.total_amount,
+            payment_status: order.payment_status,
+            order_status: order.order_status,
+            cooking_status: order.cooking_status,
+            restaurant_id: order.restaurant_id,
+            branch_number: order.branch_number,
+            created_at: order.created_at,
+          },
+          dishes: order.dish_order,
+          pending_dishes_count: order.dish_order?.length || 0,
+        });
       }
 
       if (activeOrders.length === 0) {
@@ -653,12 +651,66 @@ class PickAndGoService {
     }
   }
 
-  /**
-   * Actualizar estado de un dish order de Pick & Go
-   * @param {string} dishId - ID del dish order
-   * @param {string} status - Nuevo estado
-   * @returns {Object} - Resultado de la operación
-   */
+  // Actualizar cooking_status de una orden Pick & Go
+  async updateCookingStatus(orderId, cookingStatus) {
+    try {
+      console.log("🍳 Updating Pick & Go cooking status:", {
+        orderId,
+        cookingStatus,
+      });
+
+      // orderId puede ser el ID de pick_and_go_orders o el de payment_transactions
+      // Intentar actualizar directamente; si no encuentra filas, resolver via payment_transactions
+      let resolvedOrderId = orderId;
+
+      const { count } = await supabase
+        .from("pick_and_go_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("id", orderId);
+
+      if (!count) {
+        // El ID no es de pick_and_go_orders — buscar via payment_transactions
+        const { data: pt } = await supabase
+          .from("payment_transactions")
+          .select("id_pick_and_go_order")
+          .eq("id", orderId)
+          .maybeSingle();
+
+        if (!pt?.id_pick_and_go_order) {
+          throw new Error(
+            `No se encontró la orden pick-and-go para el ID: ${orderId}`,
+          );
+        }
+        resolvedOrderId = pt.id_pick_and_go_order;
+        console.log("🔍 Resolved pick-and-go order ID:", resolvedOrderId);
+      }
+
+      const { error } = await supabase
+        .from("pick_and_go_orders")
+        .update({
+          cooking_status: cookingStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", resolvedOrderId);
+
+      if (error) {
+        console.error("❌ Error updating cooking status:", error);
+        throw error;
+      }
+
+      console.log(
+        "✅ Pick & Go cooking status updated successfully:",
+        resolvedOrderId,
+        cookingStatus,
+      );
+      return { success: true, data: { id: resolvedOrderId } };
+    } catch (error) {
+      console.error("💥 Error in updateCookingStatus:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Actualizar estado de un dish order de Pick & Go
   async updateDishStatus(dishId, status) {
     try {
       console.log("🍽️ Updating Pick & Go dish status:", { dishId, status });
