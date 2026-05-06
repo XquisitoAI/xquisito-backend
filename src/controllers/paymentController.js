@@ -1761,7 +1761,7 @@ class PaymentController {
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
-      const { amount, currency = "MXN", tableNumber, restaurantId } = req.body;
+      const { amount, currency = "MXN", tableNumber } = req.body;
 
       if (!amount || typeof amount !== "number" || amount <= 0) {
         return res.status(400).json({
@@ -1774,10 +1774,10 @@ class PaymentController {
       }
 
       console.log(
-        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}, restaurant: ${restaurantId}`,
+        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}`,
       );
 
-      const ecartPay = await resolveEcartPayInstance(restaurantId);
+      const ecartPay = ecartPayService;
 
       // Buscar o crear customer solo para usuarios autenticados
       let customerId;
