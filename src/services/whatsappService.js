@@ -166,7 +166,7 @@ async function sendMessage(phone, text) {
 }
 
 // Notificación de platillo listo via Meta WhatsApp API
-async function notifyDishReady(orderId, dishName) {
+async function notifyDishReady(orderId) {
   try {
     const { data: order } = await supabase
       .from("pick_and_go_orders")

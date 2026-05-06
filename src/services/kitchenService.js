@@ -94,28 +94,28 @@ class KitchenService {
     const { data, error } = await supabase
       .from("pick_and_go_orders")
       .select(
-        `id, order_status, created_at, customer_name, folio, order_notes,
+        `id, order_status, cooking_status, created_at, customer_name, folio, order_notes,
          dish_order(id, item, quantity, status, images, custom_fields, special_instructions)`,
       )
       .eq("restaurant_id", restaurantId)
-      .eq("branch_number", branchNumber);
+      .eq("branch_number", branchNumber)
+      .neq("cooking_status", "delivered");
 
     if (error) {
       console.error("[KITCHEN] pick&go orders:", error.message);
       return [];
     }
 
-    return (data || [])
-      .map((o) => ({
-        id: o.id,
-        orderType: "pick_and_go",
-        identifier: `Pick & Go${o.customer_name ? ` - ${o.customer_name}` : ""}`,
-        createdAt: o.created_at,
-        folio: o.folio ?? null,
-        orderNotes: o.order_notes || null,
-        dishes: this._mapDishes(o.dish_order),
-      }))
-      .filter((o) => o.dishes.some((d) => d.status !== "delivered"));
+    return (data || []).map((o) => ({
+      id: o.id,
+      orderType: "pick_and_go",
+      identifier: `Pick & Go${o.customer_name ? ` - ${o.customer_name}` : ""}`,
+      createdAt: o.created_at,
+      folio: o.folio ?? null,
+      orderNotes: o.order_notes || null,
+      cookingStatus: o.cooking_status,
+      dishes: this._mapDishes(o.dish_order),
+    }));
   }
 
   // Room Service
