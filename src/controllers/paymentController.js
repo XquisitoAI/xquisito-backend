@@ -1876,7 +1876,7 @@ class PaymentController {
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
-      const { amount, currency = "MXN", tableNumber, restaurantId } = req.body;
+      const { amount, currency = "MXN", tableNumber } = req.body;
 
       if (!amount || typeof amount !== "number" || amount <= 0) {
         return res.status(400).json({
