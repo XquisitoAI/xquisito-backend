@@ -685,13 +685,15 @@ class PickAndGoService {
         console.log("🔍 Resolved pick-and-go order ID:", resolvedOrderId);
       }
 
-      const { error } = await supabase
+      const { data: updatedOrder, error } = await supabase
         .from("pick_and_go_orders")
         .update({
           cooking_status: cookingStatus,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", resolvedOrderId);
+        .eq("id", resolvedOrderId)
+        .select("id, restaurant_id")
+        .single();
 
       if (error) {
         console.error("❌ Error updating cooking status:", error);
@@ -703,7 +705,13 @@ class PickAndGoService {
         resolvedOrderId,
         cookingStatus,
       );
-      return { success: true, data: { id: resolvedOrderId } };
+      return {
+        success: true,
+        data: {
+          id: resolvedOrderId,
+          restaurant_id: updatedOrder?.restaurant_id ?? null,
+        },
+      };
     } catch (error) {
       console.error("💥 Error in updateCookingStatus:", error);
       return { success: false, error: error.message };
@@ -715,10 +723,12 @@ class PickAndGoService {
     try {
       console.log("🍽️ Updating Pick & Go dish status:", { dishId, status });
 
-      // Verificar que el dish pertenece a una orden Pick & Go
+      // Verificar que el dish pertenece a una orden Pick & Go y obtener restaurant_id
       const { data: dish, error: fetchError } = await supabase
         .from("dish_order")
-        .select("id, pick_and_go_order_id, status")
+        .select(
+          "id, pick_and_go_order_id, status, pick_and_go_orders(restaurant_id)",
+        )
         .eq("id", dishId)
         .single();
 
@@ -752,7 +762,13 @@ class PickAndGoService {
         data.id,
         status,
       );
-      return { success: true, data };
+      return {
+        success: true,
+        data: {
+          ...data,
+          restaurant_id: dish.pick_and_go_orders?.restaurant_id ?? null,
+        },
+      };
     } catch (error) {
       console.error("💥 Error in updateDishStatus:", error);
       return { success: false, error: error.message };

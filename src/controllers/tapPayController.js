@@ -580,6 +580,11 @@ class TapPayController {
             dishId,
             status,
           );
+          socketEmitter.emitOrderUpdate(
+            order.restaurant_id,
+            { dishId, status, tap_pay_order_id: result.tap_pay_order_id },
+            "updated",
+          );
         }
       }
 

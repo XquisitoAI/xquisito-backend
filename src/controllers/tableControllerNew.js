@@ -363,6 +363,11 @@ class TableController {
             dishId,
             status,
           );
+          socketEmitter.emitOrderUpdate(
+            parseInt(restaurantId),
+            { dishId, status, serviceType: "flex-bill" },
+            "updated",
+          );
         }
 
         res.json({
