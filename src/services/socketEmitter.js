@@ -14,9 +14,7 @@ class SocketEmitter {
       const roomName = `restaurant:${restaurantId}`;
       const room = io.sockets.adapter.rooms.get(roomName);
       const socketCount = room ? room.size : 0;
-      console.log(
-        `📡 Emitting ${event} to ${roomName} — sockets en room: ${socketCount}`,
-      );
+
       io.to(roomName).emit(event, data);
       return true;
     } catch (error) {
@@ -36,9 +34,6 @@ class SocketEmitter {
   // Emite un trabajo de impresión a dispositivos xquisito-crew del restaurante
   // printData: { branchId, items: [{name, quantity, clasificacion}], orderInfo: {identifier} }
   emitPrintJob(restaurantId, printData) {
-    console.log(
-      `[BACKEND:PRINT] 🖨️ emitPrintJob → restaurant=${restaurantId} branch=${printData.branchId} identifier="${printData.orderInfo?.identifier}" items=${printData.items?.length}`,
-    );
     return this.emitToRestaurant(restaurantId, "kitchen:print_job", printData);
   }
 

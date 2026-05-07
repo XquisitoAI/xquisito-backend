@@ -389,11 +389,6 @@ class UserController {
     try {
       const { clerkUserId } = req.params;
 
-      console.log(
-        "📝 Getting order history (from payment_transactions) for:",
-        clerkUserId
-      );
-
       if (!clerkUserId) {
         return res.status(400).json({
           success: false,
@@ -425,7 +420,7 @@ class UserController {
           total_amount_charged,
           created_at,
           currency
-        `
+        `,
         )
         .eq("user_id", clerkUserId)
         .order("created_at", { ascending: false });
@@ -442,8 +437,6 @@ class UserController {
         });
       }
 
-      console.log(`✅ Found ${transactions?.length || 0} transactions`);
-
       if (!transactions || transactions.length === 0) {
         return res.json({ success: true, data: [] });
       }
@@ -456,12 +449,12 @@ class UserController {
       ];
       const tapOrderIds = [
         ...new Set(
-          transactions.map((tx) => tx.id_tap_orders_and_pay).filter(Boolean)
+          transactions.map((tx) => tx.id_tap_orders_and_pay).filter(Boolean),
         ),
       ];
       const pickAndGoOrdersIds = [
         ...new Set(
-          transactions.map((tx) => tx.id_pick_and_go_order).filter(Boolean)
+          transactions.map((tx) => tx.id_pick_and_go_order).filter(Boolean),
         ),
       ];
       const roomOrderIds = [
@@ -469,7 +462,7 @@ class UserController {
       ];
       const tapPayOrderIds = [
         ...new Set(
-          transactions.map((tx) => tx.id_tap_pay_order).filter(Boolean)
+          transactions.map((tx) => tx.id_tap_pay_order).filter(Boolean),
         ),
       ];
       const restaurantIds = [
@@ -477,12 +470,12 @@ class UserController {
       ];
       const paymentMethodIds = [
         ...new Set(
-          transactions.map((tx) => tx.payment_method_id).filter(Boolean)
+          transactions.map((tx) => tx.payment_method_id).filter(Boolean),
         ),
       ];
 
       console.log(
-        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders, ${roomOrderIds.length} room_orders, ${tapPayOrderIds.length} room_orders`
+        `📊 IDs to fetch: ${tableOrderIds.length} flex_bill_orders, ${tapOrderIds.length} tap_order_and_pay_orders, ${pickAndGoOrdersIds.length} pick_and_go_orders, ${roomOrderIds.length} room_orders, ${tapPayOrderIds.length} room_orders`,
       );
 
       // ========================================
@@ -502,13 +495,13 @@ class UserController {
               table_number,
               restaurant_id
             )
-          `
+          `,
           )
           .in("id", tableOrderIds);
 
         if (tableOrders) {
           console.log(
-            `✅ Fetched ${tableOrders.length} table_orders (Flex Bill)`
+            `✅ Fetched ${tableOrders.length} table_orders (Flex Bill)`,
           );
           tableOrders.forEach((order) => {
             tableOrdersMap[order.id] = order;
@@ -519,7 +512,7 @@ class UserController {
         // Nota: No filtramos por user_id para mostrar todos los items de la transacción
         console.log(
           `🔍 Fetching ALL user_orders for table_order_ids:`,
-          tableOrderIds
+          tableOrderIds,
         );
         const { data: userOrders, error: userOrdersError } = await supabase
           .from("user_order")
@@ -539,7 +532,7 @@ class UserController {
               custom_fields,
               extra_price
             )
-          `
+          `,
           )
           .in("table_order_id", tableOrderIds);
 
@@ -547,7 +540,7 @@ class UserController {
           console.error("❌ Error fetching user_orders:", userOrdersError);
         }
         console.log(
-          `✅ Fetched ${userOrders?.length || 0} user_orders with dishes`
+          `✅ Fetched ${userOrders?.length || 0} user_orders with dishes`,
         );
 
         if (userOrders) {
@@ -559,7 +552,7 @@ class UserController {
                 tableOrdersMap[tableOrderId].dishes = [];
               }
               tableOrdersMap[tableOrderId].dishes.push(
-                ...(userOrder.dish_order || [])
+                ...(userOrder.dish_order || []),
               );
             }
           });
@@ -584,13 +577,13 @@ class UserController {
               table_number,
               restaurant_id
             )
-          `
+          `,
           )
           .in("id", tapOrderIds);
 
         if (tapOrders) {
           console.log(
-            `✅ Fetched ${tapOrders.length} tap_orders (Tap Order & Pay)`
+            `✅ Fetched ${tapOrders.length} tap_orders (Tap Order & Pay)`,
           );
           tapOrders.forEach((order) => {
             tapOrdersMap[order.id] = order;
@@ -612,7 +605,7 @@ class UserController {
             images,
             custom_fields,
             extra_price
-          `
+          `,
           )
           .in("tap_order_id", tapOrderIds)
           .not("tap_order_id", "is", null);
@@ -645,13 +638,13 @@ class UserController {
             order_status,
             created_at,
             total_amount
-          `
+          `,
           )
           .in("id", pickAndGoOrdersIds);
 
         if (pickOrders) {
           console.log(
-            `✅ Fetched ${pickOrders.length} pick_and_go_orders (Pick & Go)`
+            `✅ Fetched ${pickOrders.length} pick_and_go_orders (Pick & Go)`,
           );
           pickOrders.forEach((order) => {
             pickAndGoOrdersMap[order.id] = order;
@@ -673,7 +666,7 @@ class UserController {
             images,
             custom_fields,
             extra_price
-          `
+          `,
           )
           .in("pick_and_go_order_id", pickAndGoOrdersIds)
           .not("pick_and_go_order_id", "is", null);
@@ -710,13 +703,13 @@ class UserController {
               room_number,
               restaurant_id
             )
-          `
+          `,
           )
           .in("id", roomOrderIds);
 
         if (roomOrders) {
           console.log(
-            `✅ Fetched ${roomOrders.length} room_orders (Room Service)`
+            `✅ Fetched ${roomOrders.length} room_orders (Room Service)`,
           );
           roomOrders.forEach((order) => {
             roomOrdersMap[order.id] = order;
@@ -738,7 +731,7 @@ class UserController {
             images,
             custom_fields,
             extra_price
-          `
+          `,
           )
           .in("room_order_id", roomOrderIds)
           .not("room_order_id", "is", null);
@@ -774,7 +767,7 @@ class UserController {
               id,
               table_number
             )
-          `
+          `,
           )
           .in("id", tapPayOrderIds);
 
@@ -800,7 +793,7 @@ class UserController {
             images,
             custom_fields,
             extra_price
-          `
+          `,
           )
           .in("tap_pay_order_id", tapPayOrderIds)
           .not("tap_pay_order_id", "is", null);
@@ -910,11 +903,11 @@ class UserController {
         // Calcular totales de los platos
         const totalQuantity = dishes.reduce(
           (sum, d) => sum + (d.quantity || 0),
-          0
+          0,
         );
         const dishesTotal = dishes.reduce(
           (sum, d) => sum + d.quantity * (d.price + (d.extra_price || 0)),
-          0
+          0,
         );
 
         return {
@@ -974,7 +967,7 @@ class UserController {
       });
 
       console.log(
-        `✅ Processed ${orderHistory.length} transactions into history`
+        `✅ Processed ${orderHistory.length} transactions into history`,
       );
 
       res.json({
@@ -997,10 +990,6 @@ class UserController {
   // Get user order history (from payment_transactions)
   async getOrderHistory(req, res) {
     try {
-      console.log(
-        "📝 Getting order history (from payment_transactions) for all users"
-      );
-
       // ========================================
       // 1. Consultar transacciones del usuario
       // ========================================
@@ -1019,7 +1008,7 @@ class UserController {
           total_amount_charged,
           created_at,
           currency
-        `
+        `,
         )
         .order("created_at", { ascending: false });
 
@@ -1035,8 +1024,6 @@ class UserController {
         });
       }
 
-      console.log(`✅ Found ${transactions?.length || 0} transactions`);
-
       if (!transactions || transactions.length === 0) {
         return res.json({ success: true, data: [] });
       }
@@ -1049,7 +1036,7 @@ class UserController {
       ];
       const tapOrderIds = [
         ...new Set(
-          transactions.map((tx) => tx.id_tap_orders_and_pay).filter(Boolean)
+          transactions.map((tx) => tx.id_tap_orders_and_pay).filter(Boolean),
         ),
       ];
       const restaurantIds = [
@@ -1057,12 +1044,12 @@ class UserController {
       ];
       const paymentMethodIds = [
         ...new Set(
-          transactions.map((tx) => tx.payment_method_id).filter(Boolean)
+          transactions.map((tx) => tx.payment_method_id).filter(Boolean),
         ),
       ];
 
       console.log(
-        `📊 IDs to fetch: ${tableOrderIds.length} table_orders, ${tapOrderIds.length} tap_orders`
+        `📊 IDs to fetch: ${tableOrderIds.length} table_orders, ${tapOrderIds.length} tap_orders`,
       );
 
       // ========================================
@@ -1082,13 +1069,13 @@ class UserController {
               table_number,
               restaurant_id
             )
-          `
+          `,
           )
           .in("id", tableOrderIds);
 
         if (tableOrders) {
           console.log(
-            `✅ Fetched ${tableOrders.length} table_orders (Flex Bill)`
+            `✅ Fetched ${tableOrders.length} table_orders (Flex Bill)`,
           );
           tableOrders.forEach((order) => {
             tableOrdersMap[order.id] = order;
@@ -1114,7 +1101,7 @@ class UserController {
               custom_fields,
               extra_price
             )
-          `
+          `,
           )
           .in("table_order_id", tableOrderIds);
 
@@ -1127,7 +1114,7 @@ class UserController {
                 tableOrdersMap[tableOrderId].dishes = [];
               }
               tableOrdersMap[tableOrderId].dishes.push(
-                ...(userOrder.dish_order || [])
+                ...(userOrder.dish_order || []),
               );
             }
           });
@@ -1152,13 +1139,13 @@ class UserController {
               table_number,
               restaurant_id
             )
-          `
+          `,
           )
           .in("id", tapOrderIds);
 
         if (tapOrders) {
           console.log(
-            `✅ Fetched ${tapOrders.length} tap_orders (Tap Order & Pay)`
+            `✅ Fetched ${tapOrders.length} tap_orders (Tap Order & Pay)`,
           );
           tapOrders.forEach((order) => {
             tapOrdersMap[order.id] = order;
@@ -1180,7 +1167,7 @@ class UserController {
             images,
             custom_fields,
             extra_price
-          `
+          `,
           )
           .in("tap_order_id", tapOrderIds)
           .not("tap_order_id", "is", null);
@@ -1269,17 +1256,17 @@ class UserController {
 
         console.log(
           `💳 Transaction ${tx.id} - payment_method_id: ${tx.payment_method_id}, paymentMethod found:`,
-          paymentMethod
+          paymentMethod,
         );
 
         // Calcular totales de los platos
         const totalQuantity = dishes.reduce(
           (sum, d) => sum + (d.quantity || 0),
-          0
+          0,
         );
         const dishesTotal = dishes.reduce(
           (sum, d) => sum + d.quantity * (d.price + (d.extra_price || 0)),
-          0
+          0,
         );
 
         return {
@@ -1333,7 +1320,7 @@ class UserController {
       });
 
       console.log(
-        `✅ Processed ${orderHistory.length} transactions into history`
+        `✅ Processed ${orderHistory.length} transactions into history`,
       );
 
       res.json({

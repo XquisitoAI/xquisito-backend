@@ -6,6 +6,7 @@ const { savePaymentMethodToUserOrder } = require("../services/tableServiceNew");
 const paymentTransactionService = require("../services/paymentTransactionService");
 const socketEmitter = require("../services/socketEmitter");
 const { pciLog, PCI_ACTIONS } = require("../utils/pciLog");
+const { logOrderFlowStep } = require("../utils/orderFlowLog");
 const POSSyncService = require("../services/pos/POSSyncService");
 const supabase = require("../config/supabase");
 const { supabaseAdmin } = require("../config/supabaseAuth");
@@ -536,7 +537,7 @@ class PaymentController {
       );
       const provider = await resolvePaymentProvider(restaurantId);
       console.log(`[processPayment] provider resolved: ${provider}`);
-      const ecartPay = await resolveEcartPayInstance(restaurantId);
+      const ecartPay = ecartPayService;
       console.log(`[processPayment] ecartPay instance resolved`);
       console.log(
         `[PaymentProvider] Procesando pago con proveedor: ${provider} (restaurantId: ${restaurantId})`,
@@ -815,6 +816,19 @@ class PaymentController {
             },
           });
 
+          logOrderFlowStep({
+            order_id: null,
+            order_type: null,
+            restaurant_id: parseInt(restaurantId, 10) || null,
+            step: "payment",
+            status: "success",
+            metadata: {
+              ecartpay_order_id: directPaymentResult.order.id,
+              amount,
+              type: "direct_charge",
+            },
+          }).catch(() => {});
+
           res.status(200).json({
             success: true,
             payment: {
@@ -919,6 +933,19 @@ class PaymentController {
           type: "order_with_link",
         },
       });
+
+      logOrderFlowStep({
+        order_id: null,
+        order_type: null,
+        restaurant_id: parseInt(restaurantId, 10) || null,
+        step: "payment",
+        status: "success",
+        metadata: {
+          ecartpay_order_id: orderResult.order.id,
+          amount,
+          type: "order_with_link",
+        },
+      }).catch(() => {});
 
       res.status(200).json({
         success: true,
@@ -1357,10 +1384,6 @@ class PaymentController {
         });
       }
 
-      console.log(
-        `📊 Creating payment transaction for ${isGuest ? "guest" : "user"}: ${userId}`,
-      );
-
       const transactionData = req.body;
 
       // Validar datos requeridos
@@ -1385,8 +1408,6 @@ class PaymentController {
         });
       }
 
-      console.log(missingFields);
-
       // Validar que exista al menos un tipo de orden
       if (
         !transactionData.id_table_order &&
@@ -1404,8 +1425,6 @@ class PaymentController {
           },
         });
       }
-
-      console.log("Exito hasta aqui");
 
       // Crear transacción
       const result = await paymentTransactionService.createTransaction(
@@ -1510,24 +1529,65 @@ class PaymentController {
       }
 
       // Sincronizar pago con POS (solo FlexBill - los demás se sincronizan desde sus servicios)
-      try {
-        if (transactionData.id_table_order) {
-          const tip = transactionData.tip_amount || 0;
-          const amount = transactionData.base_amount || 0;
-          // FlexBill - sincronizar pago con propina
-          POSSyncService.syncFlexBillPayment(
-            transactionData.id_table_order,
-            amount,
-            tip,
-          ).catch((err) =>
-            console.error("Error sincronizando pago FlexBill con POS:", err),
-          );
-        }
-        // NOTA: Tap Order & Pay, Pick & Go, Room Service se sincronizan
-        // desde sus respectivos servicios cuando el status cambia a "completed"
-      } catch (posSyncError) {
-        console.error("⚠️ Failed to sync payment with POS:", posSyncError);
+      if (transactionData.id_table_order) {
+        const tip = transactionData.tip_amount || 0;
+        const amount = transactionData.base_amount || 0;
+        const restaurantId = transactionData.restaurant_id ?? null;
+        const orderId = transactionData.id_table_order;
+        // FlexBill - sincronizar pago con propina
+        POSSyncService.syncFlexBillPayment(orderId, amount, tip)
+          .then((result) => {
+            const status = !result
+              ? "skipped"
+              : result.success
+                ? "success"
+                : "error";
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: "flex-bill",
+              restaurant_id: restaurantId,
+              step: "pos_sync",
+              status,
+              error_message:
+                !result || result.success
+                  ? null
+                  : "syncFlexBillPayment returned falsy",
+              metadata: result
+                ? { posOrderId: result.posOrderId, isClosed: result.isClosed }
+                : { reason: "no_pos_integration" },
+            }).catch(() => {});
+            // FlexBill: el print ocurre por platillo (syncFlexBillDish), no por pago
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: "flex-bill",
+              restaurant_id: restaurantId,
+              step: "print",
+              status: "skipped",
+              metadata: { reason: "flexbill_print_per_dish_not_per_payment" },
+            }).catch(() => {});
+          })
+          .catch((err) => {
+            console.error("Error sincronizando pago FlexBill con POS:", err);
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: "flex-bill",
+              restaurant_id: restaurantId,
+              step: "pos_sync",
+              status: "error",
+              error_message: err.message,
+            }).catch(() => {});
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: "flex-bill",
+              restaurant_id: restaurantId,
+              step: "print",
+              status: "error",
+              error_message: "pos_sync threw before print evaluated",
+            }).catch(() => {});
+          });
       }
+      // NOTA: Tap Order & Pay, Pick & Go, Room Service se sincronizan
+      // desde sus respectivos servicios cuando el status cambia a "completed"
 
       res.status(201).json({
         success: true,
@@ -1753,10 +1813,7 @@ class PaymentController {
     }
   }
 
-  /**
-   * Crea una orden en Ecart Pay para Apple Pay y devuelve el orderId.
-   * El SDK de Apple Pay de Ecart Pay necesita este ID antes de renderizar el botón.
-   */
+  // Crea una orden en Ecart Pay para Apple Pay y devuelve el orderId.
   async createApplePayOrder(req, res) {
     try {
       const userId = req.user?.id;
@@ -1774,10 +1831,10 @@ class PaymentController {
       }
 
       console.log(
-        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}, restaurantId: ${restaurantId}`,
+        `🍎 createApplePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}, restaurant: ${restaurantId}`,
       );
 
-      const ecartPay = await resolveEcartPayInstance(restaurantId);
+      const ecartPay = ecartPayService;
 
       // Buscar o crear customer solo para usuarios autenticados
       let customerId;
@@ -1787,7 +1844,6 @@ class PaymentController {
 
         if (existingCustomer.success && existingCustomer.customer?.id) {
           customerId = existingCustomer.customer.id;
-          console.log("✅ Customer existente encontrado:", customerId);
         } else {
           // No existe — crear con nombre real del perfil
           const { data: profileData } = await supabaseAdmin
@@ -1812,15 +1868,10 @@ class PaymentController {
 
           if (newCustomer.success) {
             customerId = newCustomer.customer.id;
-            console.log(
-              "✅ Customer creado para Apple Pay:",
-              customerId,
-              customerName,
-            );
           } else {
             // No bloquear Apple Pay si falla la creación del customer
             console.warn(
-              "⚠️ No se pudo crear customer para Apple Pay, continuando sin customer:",
+              "No se pudo crear customer para Apple Pay, continuando sin customer:",
               newCustomer.error,
             );
           }
@@ -1892,7 +1943,7 @@ class PaymentController {
         `🟢 createGooglePayOrder para ${isGuest ? "guest" : "user"}: ${userId}, monto: ${amount} ${currency}, restaurantId: ${restaurantId}`,
       );
 
-      const ecartPay = await resolveEcartPayInstance(restaurantId);
+      const ecartPay = ecartPayService;
 
       let customerId;
 

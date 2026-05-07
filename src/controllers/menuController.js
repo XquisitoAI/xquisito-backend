@@ -13,17 +13,16 @@ const getAllSections = async (req, res) => {
 
     const sections = await menuService.getAllSections();
 
-    console.log(`✅ Found ${sections.length} menu sections`);
     res.json({
       success: true,
-      data: sections
+      data: sections,
     });
   } catch (error) {
     console.error("❌ Error getting menu sections:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -41,35 +40,38 @@ const createSection = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Section name is required"
+        message: "Section name is required",
       });
     }
 
     const section = await menuService.createSection({
       name: name.trim(),
-      display_order
+      display_order,
     });
 
     console.log("✅ Menu section created successfully:", section.id);
     res.status(201).json({
       success: true,
-      data: section
+      data: section,
     });
   } catch (error) {
     console.error("❌ Error creating menu section:", error.message);
 
-    if (error.message.includes("duplicate") || error.message.includes("unique")) {
+    if (
+      error.message.includes("duplicate") ||
+      error.message.includes("unique")
+    ) {
       return res.status(400).json({
         success: false,
         error: "duplicate_error",
-        message: "A section with this name already exists"
+        message: "A section with this name already exists",
       });
     }
 
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -89,23 +91,26 @@ const updateSection = async (req, res) => {
     console.log("✅ Menu section updated successfully");
     res.json({
       success: true,
-      data: section
+      data: section,
     });
   } catch (error) {
     console.error("❌ Error updating menu section:", error.message);
 
-    if (error.message.includes("duplicate") || error.message.includes("unique")) {
+    if (
+      error.message.includes("duplicate") ||
+      error.message.includes("unique")
+    ) {
       return res.status(400).json({
         success: false,
         error: "duplicate_error",
-        message: "A section with this name already exists"
+        message: "A section with this name already exists",
       });
     }
 
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -124,7 +129,7 @@ const deleteSection = async (req, res) => {
     console.log("✅ Menu section deleted successfully");
     res.json({
       success: true,
-      message: "Section deleted successfully"
+      message: "Section deleted successfully",
     });
   } catch (error) {
     console.error("❌ Error deleting menu section:", error.message);
@@ -133,14 +138,14 @@ const deleteSection = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "constraint_error",
-        message: "Cannot delete section that contains menu items"
+        message: "Cannot delete section that contains menu items",
       });
     }
 
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -158,7 +163,7 @@ const reorderSections = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Sections must be an array"
+        message: "Sections must be an array",
       });
     }
 
@@ -167,14 +172,14 @@ const reorderSections = async (req, res) => {
     console.log("✅ Menu sections reordered successfully");
     res.json({
       success: true,
-      message: "Sections reordered successfully"
+      message: "Sections reordered successfully",
     });
   } catch (error) {
     console.error("❌ Error reordering menu sections:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -190,26 +195,25 @@ const getAllItems = async (req, res) => {
   try {
     const { section_id, is_available, active_sections_only } = req.query;
 
-    console.log("🔍 Getting menu items with filters:", req.query);
-
     const filters = {};
     if (section_id) filters.section_id = parseInt(section_id);
-    if (is_available !== undefined) filters.is_available = is_available === 'true';
-    if (active_sections_only !== undefined) filters.active_sections_only = active_sections_only !== 'false';
+    if (is_available !== undefined)
+      filters.is_available = is_available === "true";
+    if (active_sections_only !== undefined)
+      filters.active_sections_only = active_sections_only !== "false";
 
     const items = await menuService.getAllItems(filters);
 
-    console.log(`✅ Found ${items.length} menu items`);
     res.json({
       success: true,
-      data: items
+      data: items,
     });
   } catch (error) {
     console.error("❌ Error getting menu items:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -221,21 +225,18 @@ const getItemById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    console.log("🔍 Getting menu item by ID:", id);
-
     const item = await menuService.getItemById(parseInt(id));
 
-    console.log("✅ Menu item found");
     res.json({
       success: true,
-      data: item
+      data: item,
     });
   } catch (error) {
     console.error("❌ Error getting menu item:", error.message);
     res.status(404).json({
       success: false,
       error: "not_found",
-      message: "Menu item not found"
+      message: "Menu item not found",
     });
   }
 };
@@ -250,15 +251,19 @@ const createItem = async (req, res) => {
     console.log("🔍 Creating new menu item:", {
       name: itemData.name,
       section_id: itemData.section_id,
-      price: itemData.price
+      price: itemData.price,
     });
 
     // Validaciones básicas
-    if (!itemData.name || !itemData.section_id || itemData.price === undefined) {
+    if (
+      !itemData.name ||
+      !itemData.section_id ||
+      itemData.price === undefined
+    ) {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Name, section_id, and price are required"
+        message: "Name, section_id, and price are required",
       });
     }
 
@@ -267,7 +272,7 @@ const createItem = async (req, res) => {
     console.log("✅ Menu item created successfully:", item.id);
     res.status(201).json({
       success: true,
-      data: item
+      data: item,
     });
   } catch (error) {
     console.error("❌ Error creating menu item:", error.message);
@@ -276,7 +281,7 @@ const createItem = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Invalid section ID"
+        message: "Invalid section ID",
       });
     }
 
@@ -284,14 +289,14 @@ const createItem = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "validation_error",
-        message: "Cannot add items to inactive section"
+        message: "Cannot add items to inactive section",
       });
     }
 
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -311,14 +316,14 @@ const updateItem = async (req, res) => {
     console.log("✅ Menu item updated successfully");
     res.json({
       success: true,
-      data: item
+      data: item,
     });
   } catch (error) {
     console.error("❌ Error updating menu item:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -337,14 +342,14 @@ const deleteItem = async (req, res) => {
     console.log("✅ Menu item deleted successfully");
     res.json({
       success: true,
-      message: "Item deleted successfully"
+      message: "Item deleted successfully",
     });
   } catch (error) {
     console.error("❌ Error deleting menu item:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -365,14 +370,14 @@ const getCompleteMenu = async (req, res) => {
     console.log("✅ Complete menu retrieved successfully");
     res.json({
       success: true,
-      data: menu
+      data: menu,
     });
   } catch (error) {
     console.error("❌ Error getting complete menu:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -382,21 +387,21 @@ const getCompleteMenu = async (req, res) => {
  */
 const getMenuStats = async (req, res) => {
   try {
-    console.log("🔍 Getting menu statistics");
+    console.log(" statistics");
 
     const stats = await menuService.getMenuStats();
 
     console.log("✅ Menu statistics retrieved successfully");
     res.json({
       success: true,
-      data: stats
+      data: stats,
     });
   } catch (error) {
     console.error("❌ Error getting menu statistics:", error.message);
     res.status(500).json({
       success: false,
       error: "server_error",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -418,5 +423,5 @@ module.exports = {
 
   // Especiales
   getCompleteMenu,
-  getMenuStats
+  getMenuStats,
 };

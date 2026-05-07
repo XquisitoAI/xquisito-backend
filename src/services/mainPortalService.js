@@ -779,13 +779,6 @@ const createBranch = async (branchData) => {
       );
     }
 
-    console.log(
-      "✅ Found restaurant_id:",
-      restaurant.id,
-      "for client_id:",
-      branchData.client_id,
-    );
-
     // Calcular el número total de habitaciones desde los rangos
     const roomRanges = branchData.room_ranges || [];
     const totalRooms = roomRanges.reduce((total, range) => {

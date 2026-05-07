@@ -62,7 +62,6 @@ const getReviewsByMenuItem = async (req, res) => {
 
     const reviews = await reviewsService.getReviewsByMenuItem(menuItemId);
 
-    //console.log(`✅ Found ${reviews.length} reviews`);
     res.json({
       success: true,
       data: reviews,

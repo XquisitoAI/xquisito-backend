@@ -50,7 +50,7 @@ const validateSupabaseAuthConfig = () => {
 
   if (!supabaseServiceRoleKey) {
     console.warn(
-      "⚠️ SUPABASE_SERVICE_ROLE_KEY no está configurado. Algunas funcionalidades de administración pueden no estar disponibles."
+      "⚠️ SUPABASE_SERVICE_ROLE_KEY no está configurado. Algunas funcionalidades de administración pueden no estar disponibles.",
     );
   }
 
@@ -59,7 +59,7 @@ const validateSupabaseAuthConfig = () => {
     errors.forEach((error) => console.error(`   - ${error}`));
     throw new Error("Configuración de Supabase Auth incompleta");
   } else {
-    console.log("✅ Configuración de Supabase Auth completa");
+    console.log("SUPABASE AUTH: Configuración de Supabase Auth completa");
   }
 
   return true;

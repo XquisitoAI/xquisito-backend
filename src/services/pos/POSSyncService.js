@@ -20,17 +20,6 @@ function logTicketSimulation({ identifier, folio, orderedBy, items }) {
       return line;
     })
     .join("\n");
-  console.log(
-    `\n[TICKET] ${SEP}\n` +
-      `  ${identifier}` +
-      (folio ? `  |  Folio: ${folio}` : "") +
-      (orderedBy ? `\n  Cliente: ${orderedBy}` : "") +
-      `\n  ${SEP}\n` +
-      `${itemLines}\n` +
-      `  ${SEP}\n` +
-      `  → AGENTE (con folio SR real)\n` +
-      `[/TICKET]\n`,
-  );
 }
 
 // Helper: envía print_job al agente para órdenes FlexBill después del sync con SR
@@ -218,6 +207,10 @@ class POSSyncService {
         });
         console.log(`   ✅ Registro creado`);
 
+        let printSent = false;
+        let agentWasConnected = false;
+        let printError = null;
+
         // 7.1 Actualizar folio en la tabla de la orden
         if (posResponse.posOrderId) {
           console.log(`\n📝 [syncOrder] Guardando folio en ${orderType}...`);
@@ -235,7 +228,10 @@ class POSSyncService {
           }
 
           // Disparar print_job al agente con folio SR real
-          if (agentConnectionManager.isConnected(integration.branch_id)) {
+          agentWasConnected = agentConnectionManager.isConnected(
+            integration.branch_id,
+          );
+          if (agentWasConnected) {
             try {
               const { data: dishItems } = await supabaseAdmin
                 .from("dish_order")
@@ -286,7 +282,7 @@ class POSSyncService {
                   items: printItems,
                 });
 
-                agentConnectionManager.send(
+                printSent = agentConnectionManager.send(
                   integration.branch_id,
                   "print_job",
                   {
@@ -304,6 +300,7 @@ class POSSyncService {
                 );
               }
             } catch (printErr) {
+              printError = printErr.message;
               console.error(
                 "[PRINT_JOB] syncOrder print error:",
                 printErr.message,
@@ -321,6 +318,9 @@ class POSSyncService {
           success: true,
           posOrderId: posResponse.posOrderId,
           provider: integration.provider_code,
+          printSent,
+          agentWasConnected,
+          printError,
         };
       } catch (error) {
         // 8. Registrar error de sincronización
@@ -1217,21 +1217,13 @@ class POSSyncService {
    */
   static async syncPaidOrder(orderId, orderType, paymentAmount, tip = 0) {
     try {
-      console.log(`\n${"=".repeat(60)}`);
-      console.log(`🔄 [syncPaidOrder] INICIO`);
-      console.log(`   orderId: ${orderId}`);
-      console.log(`   orderType: ${orderType}`);
-      console.log(`   paymentAmount: $${paymentAmount}`);
-      console.log(`   tip: $${tip}`);
-
       // El tip ahora viene directamente desde PaymentTransactionService.createTransaction
       const tipAmount = tip || 0;
-      console.log(`${"=".repeat(60)}`);
 
       let posOrderId = null;
+      let orderResult = null;
 
       // 0. Verificar si ya fue sincronizada
-      console.log(`\n📋 [syncPaidOrder] Buscando sync existente...`);
       const { data: existingSync, error: syncError } = await supabaseAdmin
         .from("pos_order_sync")
         .select("id, pos_order_id, sync_status")
@@ -1242,20 +1234,12 @@ class POSSyncService {
         .limit(1)
         .single();
 
-      console.log(`   existingSync: ${JSON.stringify(existingSync)}`);
-      if (syncError) console.log(`   syncError: ${syncError.message}`);
-
       if (existingSync && existingSync.pos_order_id) {
         // Orden ya existe en POS, usar el folio existente para aplicar pago
         posOrderId = existingSync.pos_order_id;
-        console.log(`\n✅ [syncPaidOrder] Orden YA EXISTE en POS`);
-        console.log(`   Usando folio existente: ${posOrderId}`);
       } else {
         // 1. Crear la orden en POS primero
-        console.log(`\n🆕 [syncPaidOrder] Orden NO existe, creando en POS...`);
-        const orderResult = await this.syncOrder(orderId, orderType);
-
-        console.log(`   syncOrder resultado: ${JSON.stringify(orderResult)}`);
+        orderResult = await this.syncOrder(orderId, orderType);
 
         if (!orderResult || !orderResult.success) {
           console.warn(`\n❌ [syncPaidOrder] syncOrder FALLÓ`);
@@ -1263,23 +1247,17 @@ class POSSyncService {
         }
 
         posOrderId = orderResult.posOrderId;
-        console.log(`   Nuevo folio: ${posOrderId}`);
       }
 
       if (!posOrderId) {
         console.warn(`\n❌ [syncPaidOrder] No se obtuvo posOrderId`);
-        console.log(`${"=".repeat(60)}\n`);
         return { success: false, error: "No se pudo obtener folio POS" };
       }
-      console.log(`\n✅ [syncPaidOrder] Folio POS listo: ${posOrderId}`);
 
       // 2. Obtener la integración para aplicar el pago
-      console.log(`\n📋 [syncPaidOrder] Obteniendo orden e integración...`);
       const order = await this.getLocalOrder(orderId, orderType);
-      console.log(`   order encontrada: ${order ? "SI" : "NO"}`);
 
       const integration = await this.getPOSIntegration(order);
-      console.log(`   integration encontrada: ${integration ? "SI" : "NO"}`);
 
       if (!integration) {
         console.warn(
@@ -1294,15 +1272,7 @@ class POSSyncService {
         };
       }
 
-      console.log(`   provider_code: ${integration.provider_code}`);
-      console.log(`   branch_id: ${integration.branch_id}`);
-
       // 3. Crear instancia del POS service y aplicar pago
-      console.log(`\n💳 [syncPaidOrder] Aplicando pago al POS...`);
-      console.log(`   folio: ${posOrderId}`);
-      console.log(`   amount: $${paymentAmount || 0}`);
-      console.log(`   tip: $${tipAmount}`);
-      console.log(`   reference: XQ-${orderId.substring(0, 8)}`);
 
       const posService = POSFactory.createPOSService(
         integration,
@@ -1317,13 +1287,7 @@ class POSSyncService {
           reference: `XQ-${orderId.substring(0, 8)}`,
         });
 
-        console.log(`\n✅ [syncPaidOrder] Pago aplicado exitosamente`);
-        console.log(`   status: ${paymentResult.status}`);
-        console.log(`   isClosed: ${paymentResult.isClosed}`);
-        console.log(`   totals: ${JSON.stringify(paymentResult.totals)}`);
-
         // 4. Actualizar registro de sync con estado cerrado
-        console.log(`\n📝 [syncPaidOrder] Actualizando pos_order_sync...`);
         const { data: sync } = await supabaseAdmin
           .from("pos_order_sync")
           .select("id")
@@ -1333,8 +1297,7 @@ class POSSyncService {
 
         if (sync) {
           const newStatus = paymentResult.isClosed ? "closed" : "synced";
-          console.log(`   sync.id: ${sync.id}`);
-          console.log(`   newStatus: ${newStatus}`);
+
           await this.updateOrderSync(sync.id, {
             sync_status: newStatus,
             response_payload: {
@@ -1342,14 +1305,8 @@ class POSSyncService {
               payment: paymentResult,
             },
           });
-          console.log(`   ✅ Sync actualizado`);
         } else {
-          console.log(`   ⚠️ No se encontró sync para actualizar`);
         }
-
-        console.log(`\n${"=".repeat(60)}`);
-        console.log(`🔄 [syncPaidOrder] FIN - ÉXITO`);
-        console.log(`${"=".repeat(60)}\n`);
 
         return {
           success: true,
@@ -1358,12 +1315,14 @@ class POSSyncService {
           orderCreated: true,
           paymentApplied: true,
           isClosed: paymentResult.isClosed,
+          printSent: orderResult?.printSent ?? null,
+          agentWasConnected: orderResult?.agentWasConnected ?? false,
+          printError: orderResult?.printError ?? null,
         };
       } catch (paymentError) {
         console.error(`\n❌ [syncPaidOrder] Error aplicando pago:`);
         console.error(`   mensaje: ${paymentError.message}`);
         console.error(`   stack: ${paymentError.stack}`);
-        console.log(`${"=".repeat(60)}\n`);
 
         return {
           success: true,
@@ -1378,7 +1337,6 @@ class POSSyncService {
       console.error(`\n❌ [syncPaidOrder] Error general:`);
       console.error(`   mensaje: ${error.message}`);
       console.error(`   stack: ${error.stack}`);
-      console.log(`${"=".repeat(60)}\n`);
       return null;
     }
   }
@@ -1386,10 +1344,6 @@ class POSSyncService {
   // Sincronizar pago de Tap & Pay con el POS
   static async syncTapPayPayment(posOrderId, branchId, amount, tip = 0) {
     try {
-      console.log(
-        `💳 Sincronizando pago Tap&Pay de $${amount} (propina: $${tip}) para check ${posOrderId}...`,
-      );
-
       // Obtener integración
       const { data: integration } = await supabaseAdmin
         .from("pos_integrations")
@@ -1430,10 +1384,6 @@ class POSSyncService {
           response_payload: result,
         });
       }
-
-      console.log(
-        `✅ Pago aplicado. Check ${posOrderId} status: ${result.status}`,
-      );
 
       return {
         success: true,
