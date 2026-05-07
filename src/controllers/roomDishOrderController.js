@@ -202,7 +202,7 @@ exports.updateDishStatus = async (req, res) => {
 
     if (error) throw error;
 
-    // Notificar a todos los Crew del restaurante
+    // Notificar a todos los Crew del restaurante y al dashboard
     try {
       const restaurantId = await kitchenService.getRestaurantIdForUser(
         req.auth.userId,
@@ -211,6 +211,11 @@ exports.updateDishStatus = async (req, res) => {
         restaurantId,
         dishOrderId,
         status,
+      );
+      socketEmitter.emitOrderUpdate(
+        restaurantId,
+        { dishId: dishOrderId, status },
+        "updated",
       );
     } catch (_) {}
 

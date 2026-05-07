@@ -669,17 +669,19 @@ class PickAndGoController {
         return res.status(500).json(result);
       }
 
-      // Notificar a todos los Crew del restaurante
-      try {
-        const restaurantId = await kitchenService.getRestaurantIdForUser(
-          req.auth.userId,
-        );
-        socketEmitter.emitKitchenDishStatusChanged(
+      // Notificar al dashboard (admin-portal) y a crew (xquisito-crew)
+      const restaurantId = result.data?.restaurant_id;
+      if (restaurantId) {
+        socketEmitter.emitOrderUpdate(
           restaurantId,
-          orderId,
-          cooking_status,
+          { id: result.data.id, cooking_status, serviceType: "pick-and-go" },
+          "updated",
         );
-      } catch (_) {}
+      } else {
+        console.warn(
+          "⚠️ [updateCookingStatus] restaurant_id no disponible, socket omitido",
+        );
+      }
 
       // Notificación WhatsApp cuando el pedido está listo
       if (cooking_status === "ready" && result.data?.id) {
@@ -731,17 +733,28 @@ class PickAndGoController {
         return res.status(404).json(result);
       }
 
-      // Notificar a todos los Crew del restaurante
-      try {
-        const restaurantId = await kitchenService.getRestaurantIdForUser(
-          req.auth.userId,
-        );
+      // Notificar a todos los Crew del restaurante y al dashboard
+      const restaurantId = result.data?.restaurant_id;
+      if (restaurantId) {
         socketEmitter.emitKitchenDishStatusChanged(
           restaurantId,
           dishId,
           status,
         );
-      } catch (_) {}
+        socketEmitter.emitOrderUpdate(
+          restaurantId,
+          {
+            dishId,
+            status,
+            pick_and_go_order_id: result.data?.pick_and_go_order_id,
+          },
+          "updated",
+        );
+      } else {
+        console.warn(
+          "⚠️ [updateDishStatus] restaurant_id no disponible, socket omitido",
+        );
+      }
 
       // Notificación WhatsApp al cliente cuando el platillo está listo
       if (status === "ready" && result.data?.pick_and_go_order_id) {

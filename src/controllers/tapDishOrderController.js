@@ -402,7 +402,7 @@ class TapDishOrderController {
         });
       }
 
-      // Notificar a todos los Crew del restaurante
+      // Notificar a todos los Crew del restaurante y al dashboard
       try {
         const restaurantId = await kitchenService.getRestaurantIdForUser(
           req.auth.userId,
@@ -411,6 +411,11 @@ class TapDishOrderController {
           restaurantId,
           dishOrderId,
           status,
+        );
+        socketEmitter.emitOrderUpdate(
+          restaurantId,
+          { dishId: dishOrderId, status },
+          "updated",
         );
       } catch (_) {}
 
