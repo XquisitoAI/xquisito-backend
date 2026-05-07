@@ -44,8 +44,11 @@ router.get("/agents/connected", posController.getConnectedAgents);
 
 // ==================== SYNC DE MENÚ ====================
 
-// Estado del agente POS
+// Estado del agente POS (por branchId UUID)
 router.get("/branch/:branchId/agent-status", posController.getAgentStatus);
+
+// Estado del agente POS (por restaurantId + branchNumber)
+router.get("/restaurant/:restaurantId/branch/:branchNumber/agent-status", posController.getAgentStatusByRestaurant);
 
 // Sincronizar menú (bidireccional)
 router.post("/branch/:branchId/sync-menu", posController.syncMenu);

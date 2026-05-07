@@ -5,8 +5,6 @@ const getRestaurantById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    console.log("🔍 Getting restaurant by ID:", id);
-
     const restaurant = await restaurantService.getRestaurantById(parseInt(id));
 
     console.log("✅ Restaurant found:", restaurant.name);
@@ -38,8 +36,6 @@ const getRestaurantMenu = async (req, res) => {
   try {
     const { id } = req.params;
 
-    console.log("🔍 Getting menu for restaurant:", id);
-
     const menu = await restaurantService.getRestaurantMenu(parseInt(id));
 
     console.log(`✅ Menu retrieved successfully with ${menu.length} sections`);
@@ -70,8 +66,6 @@ const getRestaurantMenu = async (req, res) => {
 const getRestaurantWithMenu = async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log("🔍 Getting restaurant with complete menu:", id);
 
     const data = await restaurantService.getRestaurantWithMenu(parseInt(id));
 
@@ -106,7 +100,6 @@ const getAllRestaurants = async (req, res) => {
 
     const restaurants = await restaurantService.getAllRestaurants();
 
-    console.log(`✅ Found ${restaurants.length} active restaurants`);
     res.json({
       success: true,
       data: restaurants,
@@ -126,11 +119,10 @@ const getRestaurantBranches = async (req, res) => {
   try {
     const { id } = req.params;
 
-    console.log("🔍 Getting branches for restaurant:", id);
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(id),
+    );
 
-    const branches = await restaurantService.getRestaurantBranches(parseInt(id));
-
-    console.log(`✅ Found ${branches.length} branches for restaurant ${id}`);
     res.json({
       success: true,
       data: branches,
@@ -159,30 +151,31 @@ const validateRestaurant = async (req, res) => {
   try {
     const { restaurantId } = req.params;
 
-    console.log(`🔍 Validating restaurant ${restaurantId}`);
-
     // 1. Verificar restaurante
-    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    const restaurant = await restaurantService.getRestaurantById(
+      parseInt(restaurantId),
+    );
     if (!restaurant) {
       return res.json({
         success: true,
-        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" },
       });
     }
 
     // 2. Verificar que tenga sucursales activas
-    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(restaurantId),
+    );
     if (branches.length === 0) {
       return res.json({
         success: true,
-        data: { valid: false, error: "NO_BRANCHES" }
+        data: { valid: false, error: "NO_BRANCHES" },
       });
     }
 
-    console.log(`✅ Restaurant validation successful`);
     res.json({
       success: true,
-      data: { valid: true }
+      data: { valid: true },
     });
   } catch (error) {
     console.error("❌ Error validating restaurant:", error.message);
@@ -199,39 +192,42 @@ const validateRestaurantAndBranch = async (req, res) => {
   try {
     const { restaurantId, branchNumber } = req.params;
 
-    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}`);
-
     // 1. Verificar restaurante
-    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    const restaurant = await restaurantService.getRestaurantById(
+      parseInt(restaurantId),
+    );
     if (!restaurant) {
       return res.json({
         success: true,
-        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" },
       });
     }
 
     // 2. Obtener sucursales
-    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(restaurantId),
+    );
     if (branches.length === 0) {
       return res.json({
         success: true,
-        data: { valid: false, error: "NO_BRANCHES" }
+        data: { valid: false, error: "NO_BRANCHES" },
       });
     }
 
     // 3. Verificar que la sucursal existe
-    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    const branch = branches.find(
+      (b) => b.branch_number === parseInt(branchNumber),
+    );
     if (!branch) {
       return res.json({
         success: true,
-        data: { valid: false, error: "BRANCH_NOT_FOUND" }
+        data: { valid: false, error: "BRANCH_NOT_FOUND" },
       });
     }
 
-    console.log(`✅ Restaurant and branch validation successful`);
     res.json({
       success: true,
-      data: { valid: true }
+      data: { valid: true },
     });
   } catch (error) {
     console.error("❌ Error validating restaurant and branch:", error.message);
@@ -249,51 +245,61 @@ const validateRestaurantBranchTable = async (req, res) => {
     const { restaurantId, branchNumber, tableNumber } = req.params;
     const { service } = req.query; // Obtener el servicio desde query params
 
-    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, table ${tableNumber}, service: ${service || 'not specified'}`);
-
     // 1. Verificar restaurante
-    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    const restaurant = await restaurantService.getRestaurantById(
+      parseInt(restaurantId),
+    );
     if (!restaurant) {
       return res.json({
         success: true,
-        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" },
       });
     }
 
     // 2. Obtener sucursales
-    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(restaurantId),
+    );
     if (branches.length === 0) {
       return res.json({
         success: true,
-        data: { valid: false, error: "NO_BRANCHES" }
+        data: { valid: false, error: "NO_BRANCHES" },
       });
     }
 
     // 3. Verificar que la sucursal existe
-    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    const branch = branches.find(
+      (b) => b.branch_number === parseInt(branchNumber),
+    );
     if (!branch) {
       return res.json({
         success: true,
-        data: { valid: false, error: "BRANCH_NOT_FOUND" }
+        data: { valid: false, error: "BRANCH_NOT_FOUND" },
       });
     }
 
     // 4. Validar que la mesa existe en la tabla 'tables'
-    const tableExists = await restaurantService.validateTable(branch.id, parseInt(tableNumber));
+    const tableExists = await restaurantService.validateTable(
+      branch.id,
+      parseInt(tableNumber),
+    );
     if (!tableExists) {
       return res.json({
         success: true,
-        data: { valid: false, error: "TABLE_NOT_FOUND" }
+        data: { valid: false, error: "TABLE_NOT_FOUND" },
       });
     }
 
     // 5. Validar que el cliente tiene habilitado el servicio específico (si se proporciona)
     if (service) {
-      const hasService = await restaurantService.validateClientService(restaurant.client_id, service);
+      const hasService = await restaurantService.validateClientService(
+        restaurant.client_id,
+        service,
+      );
       if (!hasService) {
         return res.json({
           success: true,
-          data: { valid: false, error: "SERVICE_NOT_AVAILABLE" }
+          data: { valid: false, error: "SERVICE_NOT_AVAILABLE" },
         });
       }
     }
@@ -301,7 +307,7 @@ const validateRestaurantBranchTable = async (req, res) => {
     console.log(`✅ Validation successful`);
     res.json({
       success: true,
-      data: { valid: true }
+      data: { valid: true },
     });
   } catch (error) {
     console.error("❌ Error validating:", error.message);
@@ -319,58 +325,68 @@ const validateRestaurantBranchRoom = async (req, res) => {
     const { restaurantId, branchNumber, roomNumber } = req.params;
     const { service } = req.query; // Obtener el servicio desde query params
 
-    console.log(`🔍 Validating restaurant ${restaurantId}, branch ${branchNumber}, room ${roomNumber}, service: ${service || 'room-service'}`);
-
     // 1. Verificar restaurante
-    const restaurant = await restaurantService.getRestaurantById(parseInt(restaurantId));
+    const restaurant = await restaurantService.getRestaurantById(
+      parseInt(restaurantId),
+    );
     if (!restaurant) {
       return res.json({
         success: true,
-        data: { valid: false, error: "RESTAURANT_NOT_FOUND" }
+        data: { valid: false, error: "RESTAURANT_NOT_FOUND" },
       });
     }
 
     // 2. Obtener sucursales
-    const branches = await restaurantService.getRestaurantBranches(parseInt(restaurantId));
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(restaurantId),
+    );
     if (branches.length === 0) {
       return res.json({
         success: true,
-        data: { valid: false, error: "NO_BRANCHES" }
+        data: { valid: false, error: "NO_BRANCHES" },
       });
     }
 
     // 3. Verificar que la sucursal existe
-    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    const branch = branches.find(
+      (b) => b.branch_number === parseInt(branchNumber),
+    );
     if (!branch) {
       return res.json({
         success: true,
-        data: { valid: false, error: "BRANCH_NOT_FOUND" }
+        data: { valid: false, error: "BRANCH_NOT_FOUND" },
       });
     }
 
     // 4. Validar que la habitación existe en la tabla 'rooms'
-    const roomExists = await restaurantService.validateRoom(branch.id, parseInt(roomNumber));
+    const roomExists = await restaurantService.validateRoom(
+      branch.id,
+      parseInt(roomNumber),
+    );
     if (!roomExists) {
       return res.json({
         success: true,
-        data: { valid: false, error: "ROOM_NOT_FOUND" }
+        data: { valid: false, error: "ROOM_NOT_FOUND" },
       });
     }
 
     // 5. Validar que el cliente tiene habilitado el servicio específico (si se proporciona, por defecto "room-service")
     const serviceToValidate = service || "room-service";
-    const hasService = await restaurantService.validateClientService(restaurant.client_id, serviceToValidate);
+    const hasService = await restaurantService.validateClientService(
+      restaurant.client_id,
+      serviceToValidate,
+    );
     if (!hasService) {
       return res.json({
         success: true,
-        data: { valid: false, error: "SERVICE_NOT_AVAILABLE" }
+        data: { valid: false, error: "SERVICE_NOT_AVAILABLE" },
       });
     }
 
     console.log(`✅ Room validation successful`);
     res.json({
       success: true,
-      data: { valid: true }
+      data: { valid: true },
     });
   } catch (error) {
     console.error("❌ Error validating room:", error.message);
@@ -387,10 +403,10 @@ const getRestaurantMenuByBranch = async (req, res) => {
   try {
     const { id, branchNumber } = req.params;
 
-    console.log(`🔍 Getting menu for restaurant ${id}, branch ${branchNumber}`);
-
     // Obtener todas las sucursales para encontrar el branch_id por branch_number
-    const branches = await restaurantService.getRestaurantBranches(parseInt(id));
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(id),
+    );
 
     if (branches.length === 0) {
       return res.status(404).json({
@@ -401,7 +417,9 @@ const getRestaurantMenuByBranch = async (req, res) => {
     }
 
     // Buscar la sucursal por branch_number
-    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    const branch = branches.find(
+      (b) => b.branch_number === parseInt(branchNumber),
+    );
 
     if (!branch) {
       return res.status(404).json({
@@ -414,7 +432,7 @@ const getRestaurantMenuByBranch = async (req, res) => {
     // Obtener el menú filtrado por sucursal
     const menu = await restaurantService.getRestaurantMenuByBranch(
       parseInt(id),
-      branch.id
+      branch.id,
     );
 
     console.log(`✅ Menu retrieved successfully with ${menu.length} sections`);
@@ -448,10 +466,10 @@ const getRestaurantWithMenuByBranch = async (req, res) => {
   try {
     const { id, branchNumber } = req.params;
 
-    console.log(`🔍 Getting restaurant with menu for restaurant ${id}, branch ${branchNumber}`);
-
     // Obtener todas las sucursales para encontrar el branch_id por branch_number
-    const branches = await restaurantService.getRestaurantBranches(parseInt(id));
+    const branches = await restaurantService.getRestaurantBranches(
+      parseInt(id),
+    );
 
     if (branches.length === 0) {
       return res.status(404).json({
@@ -462,7 +480,9 @@ const getRestaurantWithMenuByBranch = async (req, res) => {
     }
 
     // Buscar la sucursal por branch_number
-    const branch = branches.find(b => b.branch_number === parseInt(branchNumber));
+    const branch = branches.find(
+      (b) => b.branch_number === parseInt(branchNumber),
+    );
 
     if (!branch) {
       return res.status(404).json({
@@ -475,10 +495,9 @@ const getRestaurantWithMenuByBranch = async (req, res) => {
     // Obtener restaurante con menú filtrado
     const data = await restaurantService.getRestaurantWithMenuByBranch(
       parseInt(id),
-      branch.id
+      branch.id,
     );
 
-    console.log(`✅ Restaurant and branch-filtered menu retrieved successfully`);
     res.json({
       success: true,
       data: {
@@ -488,7 +507,10 @@ const getRestaurantWithMenuByBranch = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error getting restaurant with menu by branch:", error.message);
+    console.error(
+      "❌ Error getting restaurant with menu by branch:",
+      error.message,
+    );
 
     if (error.message.includes("not found")) {
       return res.status(404).json({

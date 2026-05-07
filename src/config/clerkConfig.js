@@ -42,13 +42,13 @@ const getClerkConfig = (project) => {
 
   if (!config) {
     throw new Error(
-      `Configuración de Clerk no encontrada para el proyecto: ${project}`
+      `Configuración de Clerk no encontrada para el proyecto: ${project}`,
     );
   }
 
   if (!config.secretKey) {
     throw new Error(
-      `CLERK_SECRET_KEY no configurado para el proyecto: ${project}`
+      `CLERK_SECRET_KEY no configurado para el proyecto: ${project}`,
     );
   }
 
@@ -64,7 +64,7 @@ const validateClerkConfigs = () => {
   // Validar configuración xquisito (existente)
   if (!clerkConfigs.xquisito.secretKey) {
     errors.push(
-      "CLERK_SECRET_KEY_XQUISITO o CLERK_SECRET_KEY no está configurado"
+      "CLERK_SECRET_KEY_XQUISITO o CLERK_SECRET_KEY no está configurado",
     );
   }
 
@@ -82,10 +82,10 @@ const validateClerkConfigs = () => {
     console.warn("⚠️ Algunas configuraciones de Clerk están incompletas:");
     errors.forEach((error) => console.warn(`   - ${error}`));
     console.warn(
-      "   El sistema funcionará con las configuraciones disponibles."
+      "   El sistema funcionará con las configuraciones disponibles.",
     );
   } else {
-    console.log("✅ Todas las configuraciones de Clerk están completas");
+    console.log("CLERK: Configuración de Clerk completa");
   }
 
   return errors.length === 0;

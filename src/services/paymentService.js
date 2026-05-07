@@ -155,10 +155,6 @@ class PaymentService {
         if (existingCustomer.success) {
           // Customer exists, use it
           ecartPayCustomerId = existingCustomer.customer.id;
-          console.log(
-            "✅ Found existing eCartpay customer:",
-            ecartPayCustomerId,
-          );
         } else {
           // Create new customer
           console.log("👤 Creating new EcartPay customer for:", {
@@ -219,10 +215,6 @@ class PaymentService {
         const existingCustomer = await ecartPay.findCustomerByUserId(userId);
         if (existingCustomer.success) {
           ecartPayCustomerId = existingCustomer.customer.id;
-          console.log(
-            "✅ Found eCartPay customer by user_id:",
-            ecartPayCustomerId,
-          );
         } else {
           const phone =
             user.user.phone || `1${Date.now().toString().slice(-9)}`;

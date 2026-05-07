@@ -499,7 +499,7 @@ class POSController {
 
   // ==================== SYNC DE MENÚ ====================
 
-  // Obtener estado del agente para una sucursal
+  // Obtener estado del agente para una sucursal (por branchId UUID)
   async getAgentStatus(req, res) {
     try {
       const { branchId } = req.params;
@@ -516,6 +516,35 @@ class POSController {
         success: false,
         error: error.message,
       });
+    }
+  }
+
+  // Obtener estado del agente por restaurantId + branchNumber (para frontends sin branchId UUID)
+  async getAgentStatusByRestaurant(req, res) {
+    try {
+      const restaurantId = parseInt(req.params.restaurantId, 10);
+      const branchNumber = parseInt(req.params.branchNumber, 10);
+
+      if (isNaN(restaurantId) || isNaN(branchNumber)) {
+        return res.status(400).json({ success: false, error: "restaurantId y branchNumber deben ser números" });
+      }
+
+      const { data: branch } = await require("../config/supabase")
+        .from("branches")
+        .select("id")
+        .eq("restaurant_id", restaurantId)
+        .eq("branch_number", branchNumber)
+        .single();
+
+      if (!branch) {
+        return res.json({ success: true, hasIntegration: false, isAgentConnected: false, isActive: false, providerName: null });
+      }
+
+      const status = await POSMenuSyncService.getAgentStatus(branch.id);
+      res.json({ success: true, branch_id: branch.id, ...status });
+    } catch (error) {
+      console.error("Error obteniendo estado del agente:", error);
+      res.status(500).json({ success: false, error: error.message });
     }
   }
 

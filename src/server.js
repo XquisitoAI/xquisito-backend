@@ -30,9 +30,7 @@ app.set("io", io);
 
 // Usar httpServer.listen en lugar de app.listen
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Xquisito Backend server running on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔌 WebSocket server ready`);
+  console.log(`XQUISITO server running on port ${PORT}`);
 
   // Iniciar cron job de renovacion de suscripciones
   // Solo iniciar si no estamos en ambiente de pruebas
@@ -41,7 +39,6 @@ httpServer.listen(PORT, () => {
     process.env.ENABLE_RENEWAL_JOB !== "false"
   ) {
     renewalJob.start();
-    console.log("📅 Cron job de renovacion de suscripciones iniciado");
   }
 
   // Iniciar conexión de WhatsApp (Baileys - comentado, usando Twilio SMS)

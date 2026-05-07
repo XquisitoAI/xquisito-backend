@@ -34,12 +34,6 @@ class EcartPayService {
     // Add request interceptor for logging
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        console.log(
-          `🌐 EcartPay API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
-        );
-        console.log(
-          `🔑 Authorization: ${config.headers.Authorization ? config.headers.Authorization.substring(0, 20) + "..." : "None"}`,
-        );
         return config;
       },
       (error) => Promise.reject(error),
@@ -86,8 +80,6 @@ class EcartPayService {
 
       this.authToken = response.data.token;
       this.tokenExpiry = Date.now() + 55 * 60 * 1000; // 55 minutes (5 min buffer)
-
-      console.log("✅ EcartPay token generated successfully");
 
       return this.authToken;
     } catch (error) {
@@ -139,13 +131,6 @@ class EcartPayService {
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
 
-      console.log("📋 Creating eCartpay customer with data:", {
-        phone: customerData.phone || "0000000000",
-        first_name: firstName,
-        last_name: lastName,
-        user_id: customerData.userId,
-      });
-
       const response = await this.makeAuthenticatedRequest(
         "post",
         "/customers",
@@ -157,8 +142,6 @@ class EcartPayService {
           // Note: email is NOT sent in customer creation according to docs
         },
       );
-
-      console.log("✅ eCartpay customer created successfully:", response.data);
 
       return {
         success: true,
@@ -300,19 +283,12 @@ class EcartPayService {
    */
   async getCustomerCards(customerId) {
     try {
-      console.log("💳 Getting cards for customer:", customerId);
-
       const response = await this.makeAuthenticatedRequest(
         "get",
         `/customers/${customerId}/cards`,
       );
 
       const cards = response.data?.docs || response.data || [];
-
-      console.log(
-        `✅ Found ${Array.isArray(cards) ? cards.length : 0} cards for customer:`,
-        customerId,
-      );
 
       return {
         success: true,
@@ -357,12 +333,6 @@ class EcartPayService {
       const defaultCard =
         cards.find((card) => card.is_default || card.default) || cards[0];
 
-      console.log("✅ Default card found:", {
-        id: defaultCard.id,
-        last_four: defaultCard.last_four || defaultCard.number?.slice(-4),
-        brand: defaultCard.brand || defaultCard.card_type,
-      });
-
       return {
         success: true,
         card: defaultCard,
@@ -390,8 +360,6 @@ class EcartPayService {
           cvc: paymentMethodData.cvv,
         },
       );
-
-      console.log("Payment method created successfully:", response.data?.id);
 
       return {
         success: true,
@@ -430,18 +398,11 @@ class EcartPayService {
 
   async detachPaymentMethod(paymentMethodId) {
     try {
-      console.log(
-        "🗑️ Deleting payment method from EcartPay using correct endpoint:",
-        paymentMethodId,
-      );
-
       // Use the correct endpoint from EcartPay documentation: DELETE /api/cards/{card_id}
       const response = await this.makeAuthenticatedRequest(
         "delete",
         `/cards/${paymentMethodId}`,
       );
-
-      console.log("✅ Payment method deleted successfully from EcartPay");
 
       return {
         success: true,
@@ -476,24 +437,11 @@ class EcartPayService {
         reference_id: checkoutData.referenceId || `xq_${Date.now()}`,
       };
 
-      console.log("💳 Creating eCartPay checkout with stored method:", {
-        customerId: checkoutData.customerId,
-        amount: checkoutData.amount,
-        currency: checkoutData.currency,
-        referenceId: payload.reference_id,
-      });
-
       const response = await this.makeAuthenticatedRequest(
         "post",
         "/checkouts",
         payload,
       );
-
-      console.log("✅ eCartPay checkout created:", {
-        id: response.data?.id,
-        publicId: response.data?.public_id,
-        hasLink: !!response.data?.link,
-      });
 
       return {
         success: true,
@@ -518,13 +466,6 @@ class EcartPayService {
     installments = null,
   ) {
     try {
-      console.log(
-        "🔑 Generating card token for customer:",
-        customerId,
-        "card:",
-        cardId,
-      );
-
       // Based on EcartPay documentation, the /tokens endpoint expects:
       // - id: the card_id
       // - cvc: the card's CVC (we don't store this for security)
@@ -548,21 +489,10 @@ class EcartPayService {
       // For production, you may need to ask user to re-enter CVC for tokenization
       // For now, we'll try without CVC and see what the API returns
 
-      console.log("🔑 Token generation payload:", {
-        id: cardId,
-        hasName: !!cardholderName,
-        note: "CVC not included for security reasons",
-      });
-
       const response = await this.makeAuthenticatedRequest(
         "post",
         "/tokens",
         payload,
-      );
-
-      console.log(
-        "✅ Card token generated successfully:",
-        response.data?.token ? "present" : "missing",
       );
 
       return {
@@ -605,23 +535,11 @@ class EcartPayService {
           `${process.env.BASE_URL || "http://localhost:5000"}/api/payments/webhooks/ecartpay`,
       };
 
-      console.log("🛒 Creating eCartPay order with token:", {
-        customerId: orderData.customerId,
-        token: orderData.token ? "present" : "missing",
-        itemsCount: payload.items.length,
-        currency: payload.currency,
-      });
-
       const response = await this.makeAuthenticatedRequest(
         "post",
         "/orders",
         payload,
       );
-
-      console.log("✅ eCartPay order with token created successfully:", {
-        id: response.data?.id,
-        status: response.data?.status,
-      });
 
       return {
         success: true,
@@ -641,11 +559,6 @@ class EcartPayService {
 
   async processCheckoutWithPaymentMethod(customerId, cardId, orderData) {
     try {
-      console.log("💳 Processing payment with stored card:", {
-        customerId,
-        cardId,
-      });
-
       // Step 1: Generate token for the stored card (with optional MSI config)
       const tokenResult = await this.generateCardToken(
         customerId,
@@ -668,8 +581,6 @@ class EcartPayService {
         return orderResult;
       }
 
-      console.log("✅ Payment processed successfully with stored card");
-
       return {
         success: true,
         order: orderResult.order,
@@ -685,8 +596,6 @@ class EcartPayService {
   }
 
   async createOrder(orderData) {
-    console.log("OrderData", orderData);
-
     try {
       if (!orderData.items || orderData.items.length === 0) {
         // Create default item if not provided
@@ -730,22 +639,11 @@ class EcartPayService {
         payload.redirect_url = orderData.redirectUrl;
       }
 
-      console.log("🛒 Creating eCartPay order with payload:", {
-        ...payload,
-        items: payload.items.map((item) => ({ ...item, price: "***" })),
-      });
-
       const response = await this.makeAuthenticatedRequest(
         "post",
         "/orders",
         payload,
       );
-
-      console.log("✅ eCartPay order created successfully:", {
-        id: response.data?.id,
-        status: response.data?.status,
-        payLink: response.data?.pay_link ? "present" : "missing",
-      });
 
       return {
         success: true,
@@ -761,10 +659,6 @@ class EcartPayService {
   }
 
   async createPayment(paymentData) {
-    console.log(
-      "⚠️  Using deprecated createPayment - consider using createOrder instead",
-    );
-
     // For backward compatibility, convert to order creation
     return this.createOrder({
       customerId: paymentData.customerId,
@@ -785,14 +679,10 @@ class EcartPayService {
 
   async getOrder(orderId) {
     try {
-      console.log("🔍 Getting eCartPay order:", orderId);
-
       const response = await this.makeAuthenticatedRequest(
         "get",
         `/orders/${orderId}`,
       );
-
-      console.log("✅ eCartPay order retrieved:", response.data?.id);
 
       return {
         success: true,
@@ -811,10 +701,6 @@ class EcartPayService {
   }
 
   async confirmPayment(paymentId, paymentMethodId) {
-    console.log(
-      "⚠️  confirmPayment is deprecated for eCartPay orders - orders are auto-confirmed via webhook",
-    );
-
     // Try to get order status instead
     return this.getOrder(paymentId);
   }
@@ -869,8 +755,6 @@ class EcartPayService {
   // Admin/Debug methods for managing eCartPay data
   async listAllCustomers(limit = 100) {
     try {
-      console.log("📋 Listing all eCartPay customers...");
-
       const response = await this.makeAuthenticatedRequest(
         "get",
         "/customers",
@@ -879,8 +763,6 @@ class EcartPayService {
           params: { limit },
         },
       );
-
-      console.log(`✅ Found ${response.data?.data?.length || 0} customers`);
 
       // Handle the response structure from eCartPay
       const customers =
@@ -901,14 +783,10 @@ class EcartPayService {
 
   async deleteCustomer(customerId) {
     try {
-      console.log(`🗑️ Deleting eCartPay customer: ${customerId}`);
-
       const response = await this.makeAuthenticatedRequest(
         "delete",
         `/customers/${customerId}`,
       );
-
-      console.log("✅ Customer deleted successfully");
 
       return {
         success: true,
@@ -925,8 +803,6 @@ class EcartPayService {
 
   async deleteAllTestCustomers() {
     try {
-      console.log("🧹 Starting cleanup of test customers...");
-
       // Get all customers
       const customersResult = await this.listAllCustomers();
       if (!customersResult.success) {
@@ -934,7 +810,6 @@ class EcartPayService {
       }
 
       const customers = customersResult.customers;
-      console.log(`📊 Total customers to review: ${customers.length}`);
 
       // Filter test customers (those with test emails or user_ids)
       const testCustomers = customers.filter((customer) => {
@@ -955,14 +830,9 @@ class EcartPayService {
         );
       });
 
-      console.log(`🎯 Found ${testCustomers.length} test customers to delete`);
-
       // Delete each test customer
       const deleteResults = [];
       for (const customer of testCustomers) {
-        console.log(
-          `🗑️ Deleting test customer: ${customer.id} (${customer.email})`,
-        );
         const result = await this.deleteCustomer(customer.id);
         deleteResults.push({ customer, result });
 
@@ -972,10 +842,6 @@ class EcartPayService {
 
       const successCount = deleteResults.filter((r) => r.result.success).length;
       const failCount = deleteResults.filter((r) => !r.result.success).length;
-
-      console.log(
-        `✅ Cleanup complete: ${successCount} deleted, ${failCount} failed`,
-      );
 
       return {
         success: true,

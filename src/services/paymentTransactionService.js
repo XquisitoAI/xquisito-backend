@@ -1,5 +1,14 @@
 const supabase = require("../config/supabase");
 const POSSyncService = require("./pos/POSSyncService");
+const { logOrderFlowStep } = require("../utils/orderFlowLog");
+
+const ORDER_TYPE_LABEL = {
+  tap_orders_and_pay: "tap-order-pay",
+  tap_pay_orders: "tap-pay",
+  pick_and_go_orders: "pick-n-go",
+  room_orders: "room-service",
+  table_order: "flex-bill",
+};
 
 class PaymentTransactionService {
   // Detecta el tipo y marca de tarjeta
@@ -16,9 +25,6 @@ class PaymentTransactionService {
         .single();
 
       if (error || !paymentMethod) {
-        console.warn(
-          "⚠️ No se pudo obtener tipo de tarjeta, asumiendo crédito",
-        );
         return { cardType: "credit", cardBrand: "unknown" };
       }
 
@@ -157,7 +163,6 @@ class PaymentTransactionService {
         payment_method_id,
         isGuest,
       );
-      console.log(`💳 Tarjeta detectada: tipo=${cardType}, marca=${cardBrand}`);
 
       // Calcular comisión E-cart según tipo y marca de tarjeta
       const ecartCommission = this.calculateEcartCommission(
@@ -165,7 +170,6 @@ class PaymentTransactionService {
         cardType,
         cardBrand,
       );
-      console.log("💰 Comisión E-cart calculada:", ecartCommission);
 
       // Calcular ingresos netos
       const baseAmountNum = parseFloat(base_amount);
@@ -188,11 +192,6 @@ class PaymentTransactionService {
         xquisitoClientChargeNum +
         xquisitoRestaurantChargeNum -
         ecartCommissionTotalNum;
-
-      console.log("💵 Ingresos netos calculados:", {
-        restaurant_net_income: restaurantNetIncome.toFixed(2),
-        xquisito_net_income: xquisitoNetIncome.toFixed(2),
-      });
 
       // Preparar datos para inserción
       const transactionRecord = {
@@ -242,15 +241,6 @@ class PaymentTransactionService {
         transaction_by,
       };
 
-      console.log("📝 Insertando transacción en BD:", {
-        payment_method_id: "***",
-        restaurant_id: "***",
-        base_amount: transactionRecord.base_amount,
-        total_amount_charged: transactionRecord.total_amount_charged,
-        card_type: cardType,
-        ecart_commission_total: ecartCommission.ecart_commission_total,
-      });
-
       // Insertar en la base de datos
       const { data, error } = await supabase
         .from("payment_transactions")
@@ -262,8 +252,6 @@ class PaymentTransactionService {
         console.error("❌ Error al insertar transacción:", error);
         throw error;
       }
-
-      console.log("✅ Transacción guardada exitosamente:", data.id);
 
       // Sincronizar con POS después de guardar la transacción
       // Determinar el tipo de orden y su ID
@@ -284,12 +272,17 @@ class PaymentTransactionService {
         orderType = "room_orders";
       }
 
+      logOrderFlowStep({
+        order_id: orderId ?? null,
+        order_type: ORDER_TYPE_LABEL[orderType] ?? orderType,
+        restaurant_id,
+        step: "db_register",
+        status: "success",
+        metadata: { transaction_id: data.id },
+      }).catch(() => {});
+
       if (orderId && orderType) {
-        console.log(`\n🔄 [PaymentTransaction] Sincronizando pago con POS...`);
-        console.log(`   orderId: ${orderId}`);
-        console.log(`   orderType: ${orderType}`);
-        console.log(`   base_amount: $${baseAmountNum}`);
-        console.log(`   tip_amount: $${tipAmountNum}`);
+        const label = ORDER_TYPE_LABEL[orderType] ?? orderType;
 
         // Sincronizar en background (no bloquear respuesta al cliente)
         POSSyncService.syncPaidOrder(
@@ -299,23 +292,101 @@ class PaymentTransactionService {
           tipAmountNum,
         )
           .then((result) => {
-            if (result?.success) {
-              console.log(
-                `✅ [PaymentTransaction] POS sync exitoso: folio ${result.posOrderId}`,
-              );
+            if (!result) {
+              // null = sin integración POS
+              logOrderFlowStep({
+                order_id: orderId,
+                order_type: label,
+                restaurant_id,
+                step: "pos_sync",
+                status: "skipped",
+                metadata: { reason: "no_pos_integration" },
+              }).catch(() => {});
+              logOrderFlowStep({
+                order_id: orderId,
+                order_type: label,
+                restaurant_id,
+                step: "print",
+                status: "skipped",
+                metadata: { reason: "no_pos_integration" },
+              }).catch(() => {});
+              return;
+            }
+            if (result.success) {
             } else {
               console.warn(
                 `⚠️ [PaymentTransaction] POS sync falló:`,
                 result?.error || "Sin integración",
               );
             }
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: label,
+              restaurant_id,
+              step: "pos_sync",
+              status: result.success ? "success" : "error",
+              error_message: result.success
+                ? null
+                : (result.error ?? "POS sync failed"),
+              metadata: result.success
+                ? { posOrderId: result.posOrderId, isClosed: result.isClosed }
+                : null,
+            }).catch(() => {});
+
+            const printStatus =
+              result.printSent === null
+                ? "skipped"
+                : !result.agentWasConnected
+                  ? "error"
+                  : result.printError
+                    ? "error"
+                    : result.printSent
+                      ? "success"
+                      : "error";
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: label,
+              restaurant_id,
+              step: "print",
+              status: printStatus,
+              error_message:
+                result.printError ??
+                (printStatus === "error"
+                  ? "agentConnectionManager.send() returned false"
+                  : null),
+              metadata: {
+                posOrderId: result.posOrderId,
+                reason:
+                  result.printSent === null
+                    ? "order_already_synced_previously"
+                    : !result.agentWasConnected
+                      ? "agent_not_connected"
+                      : null,
+              },
+            }).catch(() => {});
           })
-          .catch((err) =>
+          .catch((err) => {
             console.error(
               `❌ [PaymentTransaction] Error en POS sync:`,
               err.message,
-            ),
-          );
+            );
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: label,
+              restaurant_id,
+              step: "pos_sync",
+              status: "error",
+              error_message: err.message,
+            }).catch(() => {});
+            logOrderFlowStep({
+              order_id: orderId,
+              order_type: label,
+              restaurant_id,
+              step: "print",
+              status: "error",
+              error_message: "pos_sync threw before print could be attempted",
+            }).catch(() => {});
+          });
       }
 
       return {
@@ -324,6 +395,14 @@ class PaymentTransactionService {
       };
     } catch (error) {
       console.error("❌ Error en createTransaction:", error);
+      logOrderFlowStep({
+        order_id: null,
+        order_type: null,
+        restaurant_id: transactionData?.restaurant_id ?? null,
+        step: "db_register",
+        status: "error",
+        error_message: error.message,
+      }).catch(() => {});
       return {
         success: false,
         error: {

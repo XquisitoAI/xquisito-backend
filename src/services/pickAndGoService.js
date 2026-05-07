@@ -8,8 +8,6 @@ class PickAndGoService {
   // Crear una nueva orden Pick & Go
   async createOrder(orderData) {
     try {
-      console.log("🆕 Creating new Pick & Go order:", orderData);
-
       const { data, error } = await supabase
         .from("pick_and_go_orders")
         .insert([
@@ -36,8 +34,6 @@ class PickAndGoService {
         throw error;
       }
 
-      console.log("✅ Pick & Go order created successfully:", data.id);
-
       return { success: true, data };
     } catch (error) {
       console.error("💥 Error in createOrder:", error);
@@ -52,8 +48,6 @@ class PickAndGoService {
    */
   async getOrderById(orderId) {
     try {
-      console.log("🔍 Getting Pick & Go order:", orderId);
-
       // Obtener orden principal
       const { data: order, error: orderError } = await supabase
         .from("pick_and_go_orders")
@@ -94,13 +88,6 @@ class PickAndGoService {
         payments: payments || [],
       };
 
-      console.log(
-        "✅ Order retrieved successfully with",
-        items?.length || 0,
-        "items and",
-        payments?.length || 0,
-        "payments",
-      );
       return { success: true, data: result };
     } catch (error) {
       console.error("💥 Error in getOrderById:", error);
@@ -116,8 +103,6 @@ class PickAndGoService {
    */
   async getUserOrders(clerkUserId, filters = {}) {
     try {
-      console.log("👤 Getting user orders for:", clerkUserId);
-
       let query = supabase
         .from("pick_and_go_orders")
         .select("*")
@@ -148,7 +133,6 @@ class PickAndGoService {
         throw error;
       }
 
-      console.log("✅ Retrieved", data?.length || 0, "orders for user");
       return { success: true, data: data || [] };
     } catch (error) {
       console.error("💥 Error in getUserOrders:", error);
@@ -206,8 +190,6 @@ class PickAndGoService {
    */
   async updateOrderStatus(orderId, orderStatus, additionalData = {}) {
     try {
-      console.log("🔄 Updating order status:", orderId, "to", orderStatus);
-
       const updateData = {
         order_status: orderStatus,
         updated_at: new Date().toISOString(),
@@ -225,8 +207,6 @@ class PickAndGoService {
         console.error("❌ Error updating order status:", error);
         throw error;
       }
-
-      console.log("✅ Order status updated successfully");
 
       // POS sync ahora se hace desde PaymentTransactionService.createTransaction
       // cuando se crea el pago, donde ya tenemos acceso directo al tip_amount
@@ -246,8 +226,6 @@ class PickAndGoService {
    */
   async updatePaymentStatus(orderId, paymentStatus) {
     try {
-      console.log("💳 Updating payment status:", orderId, "to", paymentStatus);
-
       const { data, error } = await supabase
         .from("pick_and_go_orders")
         .update({
@@ -263,7 +241,6 @@ class PickAndGoService {
         throw error;
       }
 
-      console.log("✅ Payment status updated successfully");
       return { success: true, data };
     } catch (error) {
       console.error("💥 Error in updatePaymentStatus:", error);
@@ -389,7 +366,6 @@ class PickAndGoService {
         throw error;
       }
 
-      console.log("✅ Retrieved", data?.length || 0, "restaurant orders");
       return { success: true, data: data || [] };
     } catch (error) {
       console.error("💥 Error in getRestaurantOrders:", error);
@@ -444,7 +420,6 @@ class PickAndGoService {
         throw error;
       }
 
-      console.log("✅ Retrieved", data?.length || 0, "branch orders");
       return { success: true, data: data || [] };
     } catch (error) {
       console.error("💥 Error in getBranchOrders:", error);
@@ -519,15 +494,6 @@ class PickAndGoService {
     specialInstructions = null,
   ) {
     try {
-      console.log("🍽️ Creating Pick & Go dish order:", {
-        pickAndGoOrderId,
-        item,
-        quantity,
-        userId,
-        guestId,
-        guestName,
-      });
-
       // Insertar directamente en dish_order sin pasar por el sistema de mesas
       // NOTA: user_id, guest_id, guest_name NO se insertan aquí porque ya están en pick_and_go_orders
       const { data, error } = await supabase
@@ -556,8 +522,6 @@ class PickAndGoService {
         console.error("❌ Error creating Pick & Go dish order:", error);
         throw error;
       }
-
-      console.log("✅ Pick & Go dish order created successfully:", data.id);
 
       // Obtener restaurant_id del orden padre para notificaciones de socket
       const { data: parentOrder } = await supabase

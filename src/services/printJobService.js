@@ -79,21 +79,7 @@ function emitPrintJob({
             return line;
           })
           .join("\n");
-        console.log(
-          `\n[TICKET] ${SEP}\n` +
-            `  ${printData.orderInfo.identifier}` +
-            (printData.orderInfo.folio
-              ? `  |  Folio: ${printData.orderInfo.folio}`
-              : "") +
-            (printData.orderInfo.orderedBy
-              ? `\n  Cliente: ${printData.orderInfo.orderedBy}`
-              : "") +
-            `\n  ${SEP}\n` +
-            `${itemLines}\n` +
-            `  ${SEP}\n` +
-            `  → CREW   restaurant=${restaurantId}\n` +
-            `[/TICKET]\n`,
-        );
+
         socketEmitter.emitPrintJob(restaurantId, printData);
       }
     } catch (e) {

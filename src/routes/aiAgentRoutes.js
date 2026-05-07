@@ -149,12 +149,6 @@ router.post("/chat/stream", async (req, res) => {
          */
       },
     );
-    console.log({
-      message,
-      session_id: session_id || null,
-      stream: true,
-      user_context,
-    });
 
     if (!response.ok) {
       const errorText = await response.text();

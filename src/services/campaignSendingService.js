@@ -4,7 +4,7 @@ class CampaignSendingService {
   constructor() {
     this.supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     );
   }
 
@@ -19,7 +19,7 @@ class CampaignSendingService {
       // 2. Check if campaign was already sent (silently skip if already sent)
       if (campaign.first_sent_at) {
         console.log(
-          `ℹ️ Campaign ${campaignId} was already sent at ${campaign.first_sent_at}. Skipping send to prevent duplicates.`
+          `ℹ️ Campaign ${campaignId} was already sent at ${campaign.first_sent_at}. Skipping send to prevent duplicates.`,
         );
         return {
           success: true,
@@ -36,7 +36,7 @@ class CampaignSendingService {
       // 4. Get customers from the segment
       const customers = await this.getSegmentCustomers(
         campaign.segment_id,
-        campaign.restaurant_id
+        campaign.restaurant_id,
       );
 
       console.log(`👥 Found ${customers.length} customers in segment`);
@@ -52,7 +52,7 @@ class CampaignSendingService {
       await this.updateCampaignAfterSend(campaign.id, sendResults);
 
       console.log(
-        `✅ Campaign sent successfully. Success: ${sendResults.success}, Failed: ${sendResults.failed}`
+        `✅ Campaign sent successfully. Success: ${sendResults.success}, Failed: ${sendResults.failed}`,
       );
 
       return {
@@ -81,7 +81,7 @@ class CampaignSendingService {
           segment_name,
           filters
         )
-      `
+      `,
       )
       .eq("id", campaignId)
       .single();
@@ -98,7 +98,7 @@ class CampaignSendingService {
 
     if (templatesError) {
       throw new Error(
-        `Error fetching campaign templates: ${templatesError.message}`
+        `Error fetching campaign templates: ${templatesError.message}`,
       );
     }
 
@@ -111,7 +111,7 @@ class CampaignSendingService {
     // Check if campaign is active
     if (campaign.status !== "running") {
       throw new Error(
-        `Campaign must be in 'running' status to send. Current status: ${campaign.status}`
+        `Campaign must be in 'running' status to send. Current status: ${campaign.status}`,
       );
     }
 
@@ -158,7 +158,7 @@ class CampaignSendingService {
       if (customersError) {
         console.error("Error from get_segment_customers RPC:", customersError);
         throw new Error(
-          `Error fetching segment customers: ${customersError.message}`
+          `Error fetching segment customers: ${customersError.message}`,
         );
       }
 
@@ -167,7 +167,6 @@ class CampaignSendingService {
         return [];
       }
 
-      console.log(`✅ Found ${customers.length} customers in segment`);
       return customers;
     } catch (error) {
       console.error("Error getting segment customers:", error);
@@ -217,12 +216,12 @@ class CampaignSendingService {
       const template = campaign.templates.find(
         (t) =>
           (deliveryMethod === "sms" && t.template_id) ||
-          (deliveryMethod === "whatsapp" && t.template_whatsapp_id)
+          (deliveryMethod === "whatsapp" && t.template_whatsapp_id),
       );
 
       if (!template) {
         console.warn(
-          `No ${deliveryMethod} template found for campaign ${campaign.id}`
+          `No ${deliveryMethod} template found for campaign ${campaign.id}`,
         );
         return;
       }
@@ -233,12 +232,12 @@ class CampaignSendingService {
       // Get recipient contact info
       const recipientContact = this.getRecipientContact(
         customer,
-        deliveryMethod
+        deliveryMethod,
       );
 
       if (!recipientContact) {
         console.warn(
-          `No ${deliveryMethod} contact info for customer ${customer.user_id}`
+          `No ${deliveryMethod} contact info for customer ${customer.user_id}`,
         );
         return;
       }
@@ -246,7 +245,7 @@ class CampaignSendingService {
       // TODO: Implement actual SMS/WhatsApp sending via API (Twilio, etc.)
       // For now, we'll just log and record in database
       console.log(
-        `📨 [${deliveryMethod.toUpperCase()}] Sending to +${recipientContact}`
+        `📨 [${deliveryMethod.toUpperCase()}] Sending to +${recipientContact}`,
       );
 
       // Record the send in campaign_sends table
@@ -364,7 +363,7 @@ class CampaignSendingService {
       const twilio = require("twilio");
       const client = twilio(
         process.env.TWILIO_ACCOUNT_SID,
-        process.env.TWILIO_AUTH_TOKEN
+        process.env.TWILIO_AUTH_TOKEN,
       );
 
       const messageData = {
@@ -376,7 +375,7 @@ class CampaignSendingService {
       const message = await client.messages.create(messageData);
 
       console.log(
-        `✅ ${imageUrl ? "MMS" : "SMS"} sent via Twilio to ${PHONE}. SID: ${message.sid}`
+        `✅ ${imageUrl ? "MMS" : "SMS"} sent via Twilio to ${PHONE}. SID: ${message.sid}`,
       );
       return message;
     } catch (error) {

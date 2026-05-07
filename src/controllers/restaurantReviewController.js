@@ -49,7 +49,6 @@ const getReviewsByRestaurant = async (req, res) => {
     const reviews =
       await restaurantReviewsService.getReviewsByRestaurant(restaurantId);
 
-    console.log(`✅ Found ${reviews.length} reviews`);
     res.json({
       success: true,
       data: reviews,
