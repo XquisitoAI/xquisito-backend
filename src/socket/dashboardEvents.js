@@ -171,7 +171,21 @@ async function registerDashboardHandlers(io, socket) {
       .select("master_crew_device_id")
       .eq("id", branchId)
       .single();
-    const masterDeviceId = branchRow?.master_crew_device_id || null;
+    let masterDeviceId = branchRow?.master_crew_device_id || null;
+
+    // Auto-asignar master si no hay uno o si el master no está conectado
+    const masterIsOnline =
+      masterDeviceId && branchDevices.get(branchId)?.has(masterDeviceId);
+    if (!masterIsOnline) {
+      masterDeviceId = deviceId;
+      await supabase
+        .from("branches")
+        .update({ master_crew_device_id: masterDeviceId })
+        .eq("id", branchId);
+      console.log(
+        `[CREW] Auto-assigned master: device=${masterDeviceId} branch=${branchId}`,
+      );
+    }
 
     // Emitir estado actual a todos en la sucursal (incluyendo el nuevo)
     const devices = getDevicesForEmit(branchId, masterDeviceId);
