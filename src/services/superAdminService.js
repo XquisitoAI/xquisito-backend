@@ -242,138 +242,64 @@ class SuperAdminService {
     }
   }
 
-  // Obtiene el número de diners activos (usuarios que han hecho órdenes)
+  // Obtiene el número de diners activos (usuarios únicos con transacciones en el período)
   async getActiveDiners(filters) {
     try {
-      const {
-        start_date,
-        end_date,
-        restaurant_id,
-        service,
-        gender,
-        age_range,
-      } = filters;
+      const { start_date, end_date, restaurant_id, service, gender, age_range } = filters;
 
-      // Obtener usuarios únicos de user_order (Flex Bill)
-      let flexBillQuery = supabase
-        .from("user_order")
-        .select(
-          "user_id, guest_id, table_order!inner(created_at, table_id, tables!inner(restaurant_id))",
-        );
+      const startFilter = start_date ? this.toLocalMidnightUTC(start_date) : null;
+      const endFilter = end_date ? this.toNextLocalMidnightUTC(end_date) : null;
 
-      if (start_date)
-        flexBillQuery = flexBillQuery.gte("table_order.created_at", start_date);
-      if (end_date)
-        flexBillQuery = flexBillQuery.lt(
-          "table_order.created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      let query = supabase
+        .from("payment_transactions")
+        .select("user_id");
+
+      if (startFilter) query = query.gte("created_at", startFilter);
+      if (endFilter) query = query.lt("created_at", endFilter);
+
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
-          flexBillQuery = flexBillQuery.in(
-            "table_order.tables.restaurant_id",
-            restaurant_id,
-          );
+          query = query.in("restaurant_id", restaurant_id);
         } else {
-          flexBillQuery = flexBillQuery.eq(
-            "table_order.tables.restaurant_id",
-            restaurant_id,
-          );
+          query = query.eq("restaurant_id", restaurant_id);
         }
       }
 
-      // Obtener usuarios únicos de tap_orders_and_pay (Tap Order & Pay)
-      let tapOrderQuery = supabase
-        .from("tap_orders_and_pay")
-        .select("clerk_user_id, tables!inner(restaurant_id)");
-
-      if (start_date)
-        tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
-      if (end_date)
-        tapOrderQuery = tapOrderQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
-      if (restaurant_id && restaurant_id !== "todos") {
-        if (Array.isArray(restaurant_id)) {
-          tapOrderQuery = tapOrderQuery.in(
-            "tables.restaurant_id",
-            restaurant_id,
-          );
-        } else {
-          tapOrderQuery = tapOrderQuery.eq(
-            "tables.restaurant_id",
-            restaurant_id,
-          );
-        }
+      if (service && service !== "todos") {
+        if (service === "flex-bill") query = query.not("id_table_order", "is", null);
+        else if (service === "tap-order-pay") query = query.not("id_tap_orders_and_pay", "is", null);
+        else if (service === "pick-and-go") query = query.not("id_pick_and_go_order", "is", null);
+        else if (service === "room-service") query = query.not("id_room_order", "is", null);
+        else if (service === "tap-and-pay") query = query.not("id_tap_pay_order", "is", null);
       }
 
-      const [flexBillResult, tapOrderResult] = await Promise.all([
-        service === "todos" || service === "flex-bill"
-          ? flexBillQuery
-          : { data: [] },
-        service === "todos" || service === "tap-order-pay"
-          ? tapOrderQuery
-          : { data: [] },
-      ]);
+      const { data, error } = await query;
+      if (error) throw error;
 
-      // Combinar todos los IDs únicos (user_id, guest_id, clerk_user_id)
-      const allUserIds = new Set();
-      const allGuestIds = new Set();
+      // Obtener IDs únicos de usuarios
+      const uniqueUserIds = new Set(
+        (data || []).filter((r) => r.user_id).map((r) => r.user_id)
+      );
 
-      // Procesar Flex Bill - user_id y guest_id
-      if (flexBillResult.data) {
-        flexBillResult.data.forEach((row) => {
-          // Preferir user_id (usuario registrado) sobre guest_id
-          if (row.user_id) {
-            allUserIds.add(row.user_id);
-          } else if (row.guest_id) {
-            allGuestIds.add(row.guest_id);
-          }
-        });
-      }
+      if (uniqueUserIds.size === 0) return 0;
 
-      // Procesar Tap Order & Pay - clerk_user_id
-      if (tapOrderResult.data) {
-        tapOrderResult.data.forEach((row) => {
-          if (row.clerk_user_id) allUserIds.add(row.clerk_user_id);
-        });
-      }
-
-      // Si hay filtros demográficos, filtrar por usuarios registrados
-      if (
-        (gender !== "todos" || age_range !== "todos") &&
-        allUserIds.size > 0
-      ) {
-        let userQuery = supabase
-          .from("users")
-          .select("id")
-          .in("id", Array.from(allUserIds));
-
-        if (gender !== "todos") {
-          userQuery = userQuery.eq("gender", gender);
-        }
-
+      // Aplicar filtros demográficos si los hay
+      if (gender !== "todos" || age_range !== "todos") {
+        let userQuery = supabase.from("users").select("id").in("id", Array.from(uniqueUserIds));
+        if (gender !== "todos") userQuery = userQuery.eq("gender", gender);
         if (age_range !== "todos") {
           const ageFilter = this.getAgeFilter(age_range);
           if (ageFilter) {
             userQuery = userQuery.gte("age", ageFilter.min);
-            if (ageFilter.max) {
-              userQuery = userQuery.lte("age", ageFilter.max);
-            }
+            if (ageFilter.max) userQuery = userQuery.lte("age", ageFilter.max);
           }
         }
-
-        const { data: filteredUsers, error } = await userQuery;
-        if (error) throw error;
-
-        // Solo contamos usuarios registrados que cumplen los filtros demográficos
-        // Los invitados (guest_id) no tienen demografía, así que no se incluyen cuando hay filtros
+        const { data: filteredUsers, error: userError } = await userQuery;
+        if (userError) throw userError;
         return filteredUsers ? filteredUsers.length : 0;
       }
 
-      // Sin filtros demográficos: contar usuarios registrados + invitados
-      return allUserIds.size + allGuestIds.size;
+      return uniqueUserIds.size;
     } catch (error) {
       console.error("Error getting active diners:", error);
       return 0;
