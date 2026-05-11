@@ -184,6 +184,10 @@ class SuperAdminService {
           volume_by_service: volumeByService,
           orders_by_service: ordersByService,
           transactions_by_service: transactionsByService,
+          income_by_service: volumeByService.map((s) => ({
+            service: s.service,
+            income: s.income || 0,
+          })),
         },
         filters_applied: filters,
         timestamp: new Date().toISOString(),
@@ -620,7 +624,7 @@ class SuperAdminService {
       if (service === "todos" || service === "flex-bill") {
         let flexBillQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, id_table_order");
+          .select("total_amount_charged, xquisito_net_income, id_table_order");
 
         if (start_date)
           flexBillQuery = flexBillQuery.gte("created_at", start_date);
@@ -645,6 +649,12 @@ class SuperAdminService {
               0,
             )
           : 0;
+        const flexBillIncome = flexBillResult.data
+          ? flexBillResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              0,
+            )
+          : 0;
 
         console.log(
           `💰 Flex Bill Volume: ${flexBillVolume} (${flexBillResult.data?.length || 0} transactions)`,
@@ -653,6 +663,7 @@ class SuperAdminService {
         results.push({
           service: "Flex Bill",
           volume: parseFloat(flexBillVolume.toFixed(2)),
+          income: parseFloat(flexBillIncome.toFixed(2)),
         });
       }
 
@@ -660,7 +671,7 @@ class SuperAdminService {
       if (service === "todos" || service === "tap-order-pay") {
         let tapOrderQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, id_tap_orders_and_pay");
+          .select("total_amount_charged, xquisito_net_income, id_tap_orders_and_pay");
 
         if (start_date)
           tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
@@ -685,6 +696,12 @@ class SuperAdminService {
               0,
             )
           : 0;
+        const tapOrderIncome = tapOrderResult.data
+          ? tapOrderResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              0,
+            )
+          : 0;
 
         console.log(
           `💰 Tap Order & Pay Volume: ${tapOrderVolume} (${tapOrderResult.data?.length || 0} transactions)`,
@@ -693,6 +710,7 @@ class SuperAdminService {
         results.push({
           service: "Tap Order & Pay",
           volume: parseFloat(tapOrderVolume.toFixed(2)),
+          income: parseFloat(tapOrderIncome.toFixed(2)),
         });
       }
 
@@ -700,7 +718,7 @@ class SuperAdminService {
       if (service === "todos" || service === "pick-and-go") {
         let pickAndGoQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, id_pick_and_go_order");
+          .select("total_amount_charged, xquisito_net_income, id_pick_and_go_order");
 
         if (start_date)
           pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
@@ -725,6 +743,12 @@ class SuperAdminService {
               0,
             )
           : 0;
+        const pickAndGoIncome = pickAndGoResult.data
+          ? pickAndGoResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              0,
+            )
+          : 0;
 
         console.log(
           `💰 Pick & Go Volume: ${pickAndGoVolume} (${pickAndGoResult.data?.length || 0} transactions)`,
@@ -733,6 +757,7 @@ class SuperAdminService {
         results.push({
           service: "Pick & Go",
           volume: parseFloat(pickAndGoVolume.toFixed(2)),
+          income: parseFloat(pickAndGoIncome.toFixed(2)),
         });
       }
 
@@ -740,7 +765,7 @@ class SuperAdminService {
       if (service === "todos" || service === "room-service") {
         let roomServiceQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, id_room_order");
+          .select("total_amount_charged, xquisito_net_income, id_room_order");
 
         if (start_date)
           roomServiceQuery = roomServiceQuery.gte("created_at", start_date);
@@ -771,6 +796,12 @@ class SuperAdminService {
               0,
             )
           : 0;
+        const roomServiceIncome = roomServiceResult.data
+          ? roomServiceResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              0,
+            )
+          : 0;
 
         console.log(
           `💰 Room Service Volume: ${roomServiceVolume} (${roomServiceResult.data?.length || 0} transactions)`,
@@ -779,6 +810,7 @@ class SuperAdminService {
         results.push({
           service: "Room Service",
           volume: parseFloat(roomServiceVolume.toFixed(2)),
+          income: parseFloat(roomServiceIncome.toFixed(2)),
         });
       }
 
@@ -786,7 +818,7 @@ class SuperAdminService {
       if (service === "todos" || service === "tap-and-pay") {
         let tapAndPayQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, id_tap_pay_order");
+          .select("total_amount_charged, xquisito_net_income, id_tap_pay_order");
 
         if (start_date)
           tapAndPayQuery = tapAndPayQuery.gte("created_at", start_date);
@@ -811,6 +843,12 @@ class SuperAdminService {
               0,
             )
           : 0;
+        const tapPayIncome = tapAndPayResult.data
+          ? tapAndPayResult.data.reduce(
+              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              0,
+            )
+          : 0;
 
         console.log(
           `💰 Tap & Pay Service Volume: ${tapPayVolume} (${tapAndPayResult.data?.length || 0} transactions)`,
@@ -819,6 +857,7 @@ class SuperAdminService {
         results.push({
           service: "Tap & Pay",
           volume: parseFloat(tapPayVolume.toFixed(2)),
+          income: parseFloat(tapPayIncome.toFixed(2)),
         });
       }
 
@@ -1399,7 +1438,7 @@ class SuperAdminService {
       // Obtener transacciones de Flex Bill
       let flexBillQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, restaurant_id")
+        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
         .not("id_table_order", "is", null);
 
       if (startFilter)
@@ -1416,7 +1455,7 @@ class SuperAdminService {
       // Obtener transacciones de Tap Order & Pay
       let tapOrderQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, restaurant_id")
+        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
         .not("id_tap_orders_and_pay", "is", null);
 
       if (startFilter)
@@ -1433,7 +1472,7 @@ class SuperAdminService {
       // Obtener transacciones de Pick & Go
       let pickAndGoQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, restaurant_id")
+        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
         .not("id_pick_and_go_order", "is", null);
 
       if (startFilter)
@@ -1451,7 +1490,7 @@ class SuperAdminService {
       // Obtener transacciones de Room Service
       let roomServiceQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, restaurant_id")
+        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
         .not("id_room_order", "is", null);
 
       if (startFilter)
@@ -1475,7 +1514,7 @@ class SuperAdminService {
       // Obtener transacciones de Tap & Pay
       let tapPayQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, restaurant_id")
+        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
         .not("id_tap_pay_order", "is", null);
 
       if (startFilter) tapPayQuery = tapPayQuery.gte("created_at", startFilter);
@@ -1915,24 +1954,31 @@ class SuperAdminService {
       }
     };
 
+    const makeEntry = (date) => ({
+      date,
+      "Flex Bill": 0,
+      "Tap Order & Pay": 0,
+      "Pick & Go": 0,
+      "Room Service": 0,
+      "Tap & Pay": 0,
+      ...(dataType === "volume"
+        ? {
+            "Flex Bill_income": 0,
+            "Tap Order & Pay_income": 0,
+            "Pick & Go_income": 0,
+            "Room Service_income": 0,
+            "Tap & Pay_income": 0,
+          }
+        : {}),
+    });
+
     // Procesar datos de Flex Bill
     flexBillData.forEach((item) => {
       const dateKey = getDateKey(item.created_at);
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = {
-          date: dateKey,
-          "Flex Bill": 0,
-          "Tap Order & Pay": 0,
-          "Pick & Go": 0,
-          "Room Service": 0,
-          "Tap & Pay": 0,
-        };
-      }
-
+      if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Flex Bill"] += parseFloat(
-          item.total_amount_charged || 0,
-        );
+        grouped[dateKey]["Flex Bill"] += parseFloat(item.total_amount_charged || 0);
+        grouped[dateKey]["Flex Bill_income"] += parseFloat(item.xquisito_net_income || 0);
       } else {
         grouped[dateKey]["Flex Bill"] += 1;
       }
@@ -1941,21 +1987,10 @@ class SuperAdminService {
     // Procesar datos de Tap Order & Pay
     tapOrderData.forEach((item) => {
       const dateKey = getDateKey(item.created_at);
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = {
-          date: dateKey,
-          "Flex Bill": 0,
-          "Tap Order & Pay": 0,
-          "Pick & Go": 0,
-          "Room Service": 0,
-          "Tap & Pay": 0,
-        };
-      }
-
+      if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Tap Order & Pay"] += parseFloat(
-          item.total_amount_charged || 0,
-        );
+        grouped[dateKey]["Tap Order & Pay"] += parseFloat(item.total_amount_charged || 0);
+        grouped[dateKey]["Tap Order & Pay_income"] += parseFloat(item.xquisito_net_income || 0);
       } else {
         grouped[dateKey]["Tap Order & Pay"] += 1;
       }
@@ -1964,43 +1999,22 @@ class SuperAdminService {
     // Procesar datos de Pick & Go
     pickAndGoData.forEach((item) => {
       const dateKey = getDateKey(item.created_at);
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = {
-          date: dateKey,
-          "Flex Bill": 0,
-          "Tap Order & Pay": 0,
-          "Pick & Go": 0,
-          "Room Service": 0,
-          "Tap & Pay": 0,
-        };
-      }
-
+      if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Pick & Go"] += parseFloat(
-          item.total_amount_charged || 0,
-        );
+        grouped[dateKey]["Pick & Go"] += parseFloat(item.total_amount_charged || 0);
+        grouped[dateKey]["Pick & Go_income"] += parseFloat(item.xquisito_net_income || 0);
       } else {
         grouped[dateKey]["Pick & Go"] += 1;
       }
     });
 
-    // Procesar datos de Room service
+    // Procesar datos de Room Service
     roomServiceData.forEach((item) => {
       const dateKey = getDateKey(item.created_at);
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = {
-          date: dateKey,
-          "Flex Bill": 0,
-          "Tap Order & Pay": 0,
-          "Pick & Go": 0,
-          "Room Service": 0,
-        };
-      }
-
+      if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Room Service"] += parseFloat(
-          item.total_amount_charged || 0,
-        );
+        grouped[dateKey]["Room Service"] += parseFloat(item.total_amount_charged || 0);
+        grouped[dateKey]["Room Service_income"] += parseFloat(item.xquisito_net_income || 0);
       } else {
         grouped[dateKey]["Room Service"] += 1;
       }
@@ -2009,21 +2023,10 @@ class SuperAdminService {
     // Procesar datos de Tap & Pay
     tapPayData.forEach((item) => {
       const dateKey = getDateKey(item.created_at);
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = {
-          date: dateKey,
-          "Flex Bill": 0,
-          "Tap Order & Pay": 0,
-          "Pick & Go": 0,
-          "Room Service": 0,
-          "Tap & Pay": 0,
-        };
-      }
-
+      if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Tap & Pay"] += parseFloat(
-          item.total_amount_charged || 0,
-        );
+        grouped[dateKey]["Tap & Pay"] += parseFloat(item.total_amount_charged || 0);
+        grouped[dateKey]["Tap & Pay_income"] += parseFloat(item.xquisito_net_income || 0);
       } else {
         grouped[dateKey]["Tap & Pay"] += 1;
       }
@@ -2052,15 +2055,7 @@ class SuperAdminService {
           if (existingData) {
             filledData.push(existingData);
           } else {
-            // Agregar día con valores en 0
-            filledData.push({
-              date: dateKey,
-              "Flex Bill": 0,
-              "Tap Order & Pay": 0,
-              "Pick & Go": 0,
-              "Room Service": 0,
-              "Tap & Pay": 0,
-            });
+            filledData.push(makeEntry(dateKey));
           }
 
           // Avanzar al siguiente día
@@ -2104,15 +2099,7 @@ class SuperAdminService {
           if (existingData) {
             filledData.push(existingData);
           } else {
-            // Agregar semana con valores en 0
-            filledData.push({
-              date: dateKey,
-              "Flex Bill": 0,
-              "Tap Order & Pay": 0,
-              "Pick & Go": 0,
-              "Room Service": 0,
-              "Tap & Pay": 0,
-            });
+            filledData.push(makeEntry(dateKey));
           }
 
           // Avanzar a la siguiente semana (7 días) usando UTC
@@ -2139,15 +2126,7 @@ class SuperAdminService {
           if (existingData) {
             filledData.push(existingData);
           } else {
-            // Agregar mes con valores en 0
-            filledData.push({
-              date: dateKey,
-              "Flex Bill": 0,
-              "Tap Order & Pay": 0,
-              "Pick & Go": 0,
-              "Room Service": 0,
-              "Tap & Pay": 0,
-            });
+            filledData.push(makeEntry(dateKey));
           }
 
           // Avanzar al siguiente mes
@@ -2169,14 +2148,7 @@ class SuperAdminService {
           if (existingData) {
             filledData.push(existingData);
           } else {
-            filledData.push({
-              date: dateKey,
-              "Flex Bill": 0,
-              "Tap Order & Pay": 0,
-              "Pick & Go": 0,
-              "Room Service": 0,
-              "Tap & Pay": 0,
-            });
+            filledData.push(makeEntry(dateKey));
           }
 
           currentDate.setUTCHours(currentDate.getUTCHours() + 1);
