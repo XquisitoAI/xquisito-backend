@@ -12,8 +12,18 @@ const ORDER_TYPE_LABEL = {
 
 class PaymentTransactionService {
   // Detecta el tipo y marca de tarjeta
-  async detectCardType(paymentMethodId, isGuest) {
+  async detectCardType(paymentMethodId, isGuest, paymentSource = null) {
     try {
+      if (!paymentMethodId) {
+        if (paymentSource === "apple_pay")
+          return { cardType: "digital_wallet", cardBrand: "apple_pay" };
+        if (paymentSource === "google_pay")
+          return { cardType: "digital_wallet", cardBrand: "google_pay" };
+        if (paymentSource === "dev")
+          return { cardType: "dev", cardBrand: "dev" };
+        return { cardType: "unknown", cardBrand: "unknown" };
+      }
+
       const tableName = isGuest
         ? "guest_payment_methods"
         : "user_payment_methods";
@@ -113,6 +123,8 @@ class PaymentTransactionService {
         // Metadata
         currency = "MXN",
         transaction_by = "Invitado",
+        payment_source = null,
+        ecartpay_order_id = null,
       } = transactionData;
 
       // Validar datos requeridos
@@ -162,6 +174,7 @@ class PaymentTransactionService {
       const { cardType, cardBrand } = await this.detectCardType(
         payment_method_id,
         isGuest,
+        payment_source,
       );
 
       // Calcular comisión E-cart según tipo y marca de tarjeta
@@ -239,6 +252,8 @@ class PaymentTransactionService {
         // Metadata
         currency,
         transaction_by,
+        payment_source: payment_source || null,
+        ecartpay_order_id: ecartpay_order_id || null,
       };
 
       // Insertar en la base de datos

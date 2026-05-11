@@ -805,25 +805,48 @@ class PickAndGoController {
         currency,
         is_guest,
         user_id,
+        payment_source,
+        ecartpay_order_id,
       } = req.body;
 
       if (!customer_name) {
-        return res.status(400).json({ success: false, error: "customer_name is required" });
+        return res
+          .status(400)
+          .json({ success: false, error: "customer_name is required" });
       }
       if (!restaurant_id) {
-        return res.status(400).json({ success: false, error: "restaurant_id is required" });
+        return res
+          .status(400)
+          .json({ success: false, error: "restaurant_id is required" });
       }
       if (!branch_number) {
-        return res.status(400).json({ success: false, error: "branch_number is required" });
+        return res
+          .status(400)
+          .json({ success: false, error: "branch_number is required" });
       }
       if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ success: false, error: "items array is required and must not be empty" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "items array is required and must not be empty",
+          });
       }
       if (!base_amount || base_amount <= 0) {
-        return res.status(400).json({ success: false, error: "base_amount must be greater than 0" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "base_amount must be greater than 0",
+          });
       }
       if (!total_amount_charged || total_amount_charged <= 0) {
-        return res.status(400).json({ success: false, error: "total_amount_charged must be greater than 0" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "total_amount_charged must be greater than 0",
+          });
       }
 
       const result = await pickAndGoService.confirmOrder({
@@ -855,6 +878,8 @@ class PickAndGoController {
         currency,
         is_guest,
         user_id,
+        payment_source: payment_source || null,
+        ecartpay_order_id: ecartpay_order_id || null,
       });
 
       if (!result.success) {
@@ -870,7 +895,8 @@ class PickAndGoController {
           quantity: item.quantity || 1,
           menu_item_id: item.menuItemId || item.menu_item_id || null,
           custom_fields: item.customFields || item.custom_fields || null,
-          special_instructions: item.specialInstructions || item.special_instructions || null,
+          special_instructions:
+            item.specialInstructions || item.special_instructions || null,
         })),
       );
 
