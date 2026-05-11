@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const paymentTransactionService = require("./paymentTransactionService");
 
 /**
  * Servicio para gestionar pedidos Pick & Go
@@ -539,6 +540,125 @@ class PickAndGoService {
       console.error("💥 Error in createDishOrder:", error);
       return { success: false, error: error.message };
     }
+  }
+
+  // Crea orden, dish orders y transacción de pago de forma atómica
+  async confirmOrder(data) {
+    const {
+      clerk_user_id,
+      customer_name,
+      customer_email,
+      customer_phone,
+      restaurant_id,
+      branch_number,
+      total_amount,
+      session_data,
+      prep_metadata,
+      order_notes,
+      items,
+      payment_method_id,
+      base_amount,
+      tip_amount,
+      iva_tip,
+      xquisito_commission_total,
+      xquisito_commission_client,
+      xquisito_commission_restaurant,
+      iva_xquisito_client,
+      iva_xquisito_restaurant,
+      xquisito_client_charge,
+      xquisito_restaurant_charge,
+      xquisito_rate_applied,
+      total_amount_charged,
+      transaction_by,
+      currency,
+      is_guest,
+      user_id,
+    } = data;
+
+    // 1. Crear la orden ya pagada y confirmada
+    const { data: order, error: orderError } = await supabase
+      .from("pick_and_go_orders")
+      .insert([{
+        clerk_user_id,
+        customer_name,
+        customer_email,
+        customer_phone,
+        total_amount: total_amount || 0,
+        restaurant_id,
+        branch_number,
+        payment_status: "paid",
+        order_status: "confirmed",
+        session_data: session_data || {},
+        prep_metadata: prep_metadata || {},
+        order_notes: order_notes || null,
+      }])
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
+    const orderId = order.id;
+
+    // 2. Insertar todos los dish orders en lote
+    if (items && items.length > 0) {
+      const dishRecords = items.map((item) => ({
+        pick_and_go_order_id: orderId,
+        item: item.item,
+        quantity: item.quantity || 1,
+        price: item.price,
+        status: "preparing",
+        payment_status: "not_paid",
+        images: item.images || [],
+        custom_fields: item.customFields || item.custom_fields || null,
+        extra_price: item.extraPrice || item.extra_price || 0,
+        special_instructions: item.specialInstructions || item.special_instructions || null,
+        menu_item_id: item.menuItemId || item.menu_item_id || null,
+        user_order_id: null,
+      }));
+
+      const { error: dishError } = await supabase
+        .from("dish_order")
+        .insert(dishRecords)
+        .select();
+
+      if (dishError) throw dishError;
+    }
+
+    // 3. Registrar transacción (el POS sync ocurre en background dentro del servicio)
+    const transactionResult = await paymentTransactionService.createTransaction(
+      {
+        payment_method_id,
+        restaurant_id,
+        pick_and_go_order_id: orderId,
+        base_amount,
+        tip_amount,
+        iva_tip,
+        xquisito_commission_total,
+        xquisito_commission_client,
+        xquisito_commission_restaurant,
+        iva_xquisito_client,
+        iva_xquisito_restaurant,
+        xquisito_client_charge,
+        xquisito_restaurant_charge,
+        xquisito_rate_applied,
+        total_amount_charged,
+        transaction_by,
+        currency: currency || "MXN",
+      },
+      is_guest || false,
+      user_id || null,
+    );
+
+    if (!transactionResult.success) {
+      console.error("❌ [confirmOrder] Transaction recording failed:", transactionResult.error);
+    }
+
+    return {
+      success: true,
+      data: {
+        order,
+        transaction: transactionResult.transaction || null,
+      },
+    };
   }
 
   // Obtener orden activa por clientId (user_id o guest_id) - retorna orden con dish_orders sin entregar
