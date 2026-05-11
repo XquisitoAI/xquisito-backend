@@ -162,6 +162,8 @@ class SuperAdminController {
         view_type: req.query.view_type || "daily",
         start_date: req.query.start_date,
         end_date: req.query.end_date,
+        start_time: req.query.start_time || null,
+        end_time: req.query.end_time || null,
         restaurant_id: restaurantId,
         service: req.query.service || "todos",
       };
@@ -207,6 +209,8 @@ class SuperAdminController {
         view_type: req.query.view_type || "daily",
         start_date: req.query.start_date,
         end_date: req.query.end_date,
+        start_time: req.query.start_time || null,
+        end_time: req.query.end_time || null,
         restaurant_id: restaurantId,
         service: req.query.service || "todos",
       };
@@ -252,6 +256,8 @@ class SuperAdminController {
         view_type: req.query.view_type || "daily",
         start_date: req.query.start_date,
         end_date: req.query.end_date,
+        start_time: req.query.start_time || null,
+        end_time: req.query.end_time || null,
         restaurant_id: restaurantId,
         service: req.query.service || "todos",
       };
@@ -297,6 +303,8 @@ class SuperAdminController {
         view_type: req.query.view_type || "daily",
         start_date: req.query.start_date,
         end_date: req.query.end_date,
+        start_time: req.query.start_time || null,
+        end_time: req.query.end_time || null,
         restaurant_id: restaurantId,
         service: req.query.service || "todos",
       };
