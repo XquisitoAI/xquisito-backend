@@ -1,6 +1,7 @@
 const supabase = require("../config/supabase");
 const paymentTransactionService = require("./paymentTransactionService");
 const { calculateCommissions } = require("../utils/commissionCalculator");
+const { logOrderFlowStep } = require("../utils/orderFlowLog");
 
 /**
  * Servicio para gestionar pedidos Pick & Go
@@ -624,7 +625,27 @@ class PickAndGoService {
       if (dishError) throw dishError;
     }
 
-    // 3. Registrar transacción — comisiones recalculadas server-side, valores del cliente ignorados
+    // 3. Log del paso payment — solo para flujos que no pasan por processPayment
+    // (Apple Pay / Google Pay / system-default-card). Para tarjetas guardadas,
+    // processPayment ya escribió este log.
+    const isDirectPayment =
+      !payment_method_id || payment_method_id === "system-default-card";
+    if (isDirectPayment) {
+      logOrderFlowStep({
+        order_id: orderId,
+        order_type: "pick-n-go",
+        restaurant_id,
+        step: "payment",
+        status: "success",
+        metadata: {
+          payment_method_id: payment_method_id || null,
+          total_amount_charged: Number(total_amount_charged) || 0,
+          currency: currency || "MXN",
+        },
+      }).catch(() => {});
+    }
+
+    // 4. Registrar transacción — comisiones recalculadas server-side, valores del cliente ignorados
     const commissions = calculateCommissions(
       Number(base_amount) || 0,
       Number(tip_amount) || 0,
