@@ -1,4 +1,8 @@
 const supabase = require("../config/supabase");
+const paymentTransactionService = require("./paymentTransactionService");
+const { calculateCommissions } = require("../utils/commissionCalculator");
+const { logOrderFlowStep } = require("../utils/orderFlowLog");
+const ecartPayService = require("./ecartpayService");
 
 /**
  * Servicio para gestionar pedidos Pick & Go
@@ -539,6 +543,194 @@ class PickAndGoService {
       console.error("💥 Error in createDishOrder:", error);
       return { success: false, error: error.message };
     }
+  }
+
+  // Crea orden, dish orders y transacción de pago de forma atómica
+  async confirmOrder(data) {
+    const {
+      clerk_user_id,
+      customer_name,
+      customer_email,
+      customer_phone,
+      restaurant_id,
+      branch_number,
+      total_amount,
+      session_data,
+      prep_metadata,
+      order_notes,
+      items,
+      payment_method_id,
+      base_amount,
+      tip_amount,
+      iva_tip,
+      xquisito_commission_total,
+      xquisito_commission_client,
+      xquisito_commission_restaurant,
+      iva_xquisito_client,
+      iva_xquisito_restaurant,
+      xquisito_client_charge,
+      xquisito_restaurant_charge,
+      xquisito_rate_applied,
+      total_amount_charged,
+      transaction_by,
+      currency,
+      is_guest,
+      user_id,
+      payment_source = null,
+      ecartpay_order_id = null,
+    } = data;
+
+    // 0. Verificar pago en EcartPay si se proporcionó el ID de orden
+    if (ecartpay_order_id) {
+      const verification = await ecartPayService.getOrder(ecartpay_order_id);
+      if (verification.success && verification.order) {
+        const orderStatus = verification.order.status;
+        const PAID_STATUSES = ["paid", "completed", "succeeded", "approved"];
+        if (!PAID_STATUSES.includes(orderStatus)) {
+          console.warn(
+            `[confirmOrder] EcartPay order ${ecartpay_order_id} status: ${orderStatus}`,
+          );
+          return {
+            success: false,
+            error: `El pago no fue confirmado por EcartPay (status: ${orderStatus})`,
+          };
+        }
+        const ecartAmount = parseFloat(verification.order.amount || 0);
+        const expectedAmount = parseFloat(total_amount_charged || 0);
+        if (Math.abs(ecartAmount - expectedAmount) > 1) {
+          console.warn(
+            `[confirmOrder] Amount mismatch: EcartPay ${ecartAmount} vs expected ${expectedAmount}`,
+          );
+          return {
+            success: false,
+            error: "El monto del pago no coincide con el total de la orden",
+          };
+        }
+      } else {
+        console.warn(
+          `[confirmOrder] No se pudo verificar orden EcartPay ${ecartpay_order_id}, continuando`,
+        );
+      }
+    }
+
+    // 1. Crear la orden ya pagada y confirmada
+    const { data: order, error: orderError } = await supabase
+      .from("pick_and_go_orders")
+      .insert([
+        {
+          clerk_user_id,
+          customer_name,
+          customer_email,
+          customer_phone,
+          total_amount: total_amount || 0,
+          restaurant_id,
+          branch_number,
+          payment_status: "paid",
+          order_status: "confirmed",
+          session_data: session_data || {},
+          prep_metadata: prep_metadata || {},
+          order_notes: order_notes || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
+    const orderId = order.id;
+
+    // 2. Insertar todos los dish orders en lote
+    if (items && items.length > 0) {
+      const dishRecords = items.map((item) => ({
+        pick_and_go_order_id: orderId,
+        item: item.item,
+        quantity: item.quantity || 1,
+        price: item.price,
+        status: "preparing",
+        payment_status: "not_paid",
+        images: item.images || [],
+        custom_fields: item.customFields || item.custom_fields || null,
+        extra_price: item.extraPrice || item.extra_price || 0,
+        special_instructions:
+          item.specialInstructions || item.special_instructions || null,
+        menu_item_id: item.menuItemId || item.menu_item_id || null,
+        user_order_id: null,
+      }));
+
+      const { error: dishError } = await supabase
+        .from("dish_order")
+        .insert(dishRecords)
+        .select();
+
+      if (dishError) throw dishError;
+    }
+
+    // 3. Log del paso payment — solo para flujos que no pasan por processPayment
+    // (Apple Pay / Google Pay / system-default-card). Para tarjetas guardadas,
+    // processPayment ya escribió este log.
+    const isDirectPayment =
+      !payment_method_id || payment_method_id === "system-default-card";
+    if (isDirectPayment) {
+      logOrderFlowStep({
+        order_id: orderId,
+        order_type: "pick-n-go",
+        restaurant_id,
+        step: "payment",
+        status: "success",
+        metadata: {
+          payment_method_id: payment_method_id || null,
+          total_amount_charged: Number(total_amount_charged) || 0,
+          currency: currency || "MXN",
+        },
+      }).catch(() => {});
+    }
+
+    // 4. Registrar transacción — comisiones recalculadas server-side, valores del cliente ignorados
+    const commissions = calculateCommissions(
+      Number(base_amount) || 0,
+      Number(tip_amount) || 0,
+    );
+
+    const transactionResult = await paymentTransactionService.createTransaction(
+      {
+        payment_method_id,
+        restaurant_id,
+        pick_and_go_order_id: orderId,
+        base_amount: Number(base_amount) || 0,
+        tip_amount: Number(tip_amount) || 0,
+        iva_tip: commissions.ivaTip,
+        xquisito_commission_total: commissions.xquisitoCommissionTotal,
+        xquisito_commission_client: commissions.xquisitoCommissionClient,
+        xquisito_commission_restaurant:
+          commissions.xquisitoCommissionRestaurant,
+        iva_xquisito_client: commissions.ivaXquisitoClient,
+        iva_xquisito_restaurant: commissions.ivaXquisitoRestaurant,
+        xquisito_client_charge: commissions.xquisitoClientCharge,
+        xquisito_restaurant_charge: commissions.xquisitoRestaurantCharge,
+        xquisito_rate_applied: commissions.xquisitoRateApplied,
+        total_amount_charged: commissions.totalAmountCharged,
+        transaction_by,
+        currency: currency || "MXN",
+        payment_source: payment_source || null,
+        ecartpay_order_id: ecartpay_order_id || null,
+      },
+      is_guest || false,
+      user_id || null,
+    );
+
+    if (!transactionResult.success) {
+      console.error(
+        "❌ [confirmOrder] Transaction recording failed:",
+        transactionResult.error,
+      );
+    }
+
+    return {
+      success: true,
+      data: {
+        order,
+        transaction: transactionResult.transaction || null,
+      },
+    };
   }
 
   // Obtener orden activa por clientId (user_id o guest_id) - retorna orden con dish_orders sin entregar

@@ -40,6 +40,16 @@ const pickAndGoController = require("../controllers/pickAndGoController");
 router.post("/orders", pickAndGoController.createOrder);
 
 /**
+ * Confirmar orden Pick & Go de forma atómica
+ * POST /api/pick-and-go/orders/confirm
+ *
+ * Crea la orden con paid+confirmed, inserta todos los dish orders en lote
+ * y registra la transacción de pago en una sola llamada HTTP.
+ * DEBE estar antes de GET /orders/:orderId para evitar que "confirm" sea capturado como :orderId.
+ */
+router.post("/orders/confirm", pickAndGoController.confirmOrder);
+
+/**
  * Obtener orden por ID con todos sus detalles
  * GET /api/pick-and-go/orders/:orderId
  *

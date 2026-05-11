@@ -1033,9 +1033,19 @@ class PaymentController {
         id: webhookData.data?.object?.id,
       });
 
-      // Verify webhook signature if needed
-      // const signature = req.headers['ecartpay-signature'];
-      // const isValid = ecartPayService.verifyWebhookSignature(req.body, signature);
+      const signature = req.headers["ecartpay-signature"];
+      const rawBody = req.rawBody;
+      const isValid = ecartPayService.verifyWebhookSignature(
+        rawBody || Buffer.from(JSON.stringify(webhookData)),
+        signature,
+      );
+      if (!isValid) {
+        console.warn("🚫 Webhook signature verification failed — rejecting");
+        return res.status(401).json({
+          success: false,
+          error: { type: "unauthorized", message: "Invalid webhook signature" },
+        });
+      }
 
       switch (webhookData.type) {
         case "payment_intent.succeeded":

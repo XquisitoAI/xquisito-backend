@@ -1,4 +1,5 @@
 const axios = require("axios");
+const crypto = require("crypto");
 
 class EcartPayService {
   constructor({ publicKey, secretKey, environment } = {}) {
@@ -948,6 +949,40 @@ class EcartPayService {
     if (month < 1 || month > 12) return false;
 
     return true;
+  }
+
+  verifyWebhookSignature(rawBody, signature) {
+    const secret = process.env.ECARTPAY_WEBHOOK_SECRET;
+
+    if (!secret || secret === "whsec_YOUR_WEBHOOK_SECRET_HERE") {
+      console.warn(
+        "⚠️  ECARTPAY_WEBHOOK_SECRET not configured — skipping webhook signature verification",
+      );
+      return true;
+    }
+
+    if (!signature) {
+      console.warn("⚠️  Webhook received without ecartpay-signature header");
+      return false;
+    }
+
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(rawBody)
+      .digest("hex");
+
+    const received = signature.startsWith("sha256=")
+      ? signature.slice(7)
+      : signature;
+
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(expected, "hex"),
+        Buffer.from(received, "hex"),
+      );
+    } catch {
+      return false;
+    }
   }
 }
 

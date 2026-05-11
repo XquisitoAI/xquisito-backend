@@ -1,5 +1,6 @@
 "use strict";
 
+const { parsePhoneNumber, isValidPhoneNumber } = require("libphonenumber-js");
 const supabase = require("../config/supabase");
 
 async function notifyDishReady(orderId) {
@@ -27,9 +28,20 @@ async function notifyDishReady(orderId) {
         restaurant?.name,
     );
 
-    const digits = order.customer_phone.replace(/\D/g, "");
-    const normalized = digits.startsWith("52") ? digits : `521${digits}`;
-    const phone = `+${normalized}`;
+    const raw = order.customer_phone.trim();
+    const digits = raw.replace(/\D/g, "");
+
+    // Try assuming the digits already include a country code, then fall back to Mexico
+    const candidates = [`+${digits}`, `+52${digits}`];
+    const withPlus = candidates.find((c) => isValidPhoneNumber(c));
+
+    if (!withPlus) {
+      console.error(`[WhatsApp] Número inválido: ${raw}`);
+      return false;
+    }
+
+    const parsed = parsePhoneNumber(withPlus);
+    const phone = parsed.format("E.164"); // e.g. "+525551234567"
 
     const response = await fetch(
       `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
@@ -54,8 +66,14 @@ async function notifyDishReady(orderId) {
               {
                 type: "body",
                 parameters: [
-                  { type: "text", text: order.customer_name?.trim() || "cliente" },
-                  { type: "text", text: restaurant?.name?.trim() || "el restaurante" },
+                  {
+                    type: "text",
+                    text: order.customer_name?.trim() || "cliente",
+                  },
+                  {
+                    type: "text",
+                    text: restaurant?.name?.trim() || "el restaurante",
+                  },
                 ],
               },
             ],
