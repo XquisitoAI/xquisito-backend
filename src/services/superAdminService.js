@@ -1330,6 +1330,22 @@ class SuperAdminService {
     return endDatePlusOne.toISOString();
   }
 
+  // Mexico City es UTC-6, sin horario de verano desde 2023
+  // Medianoche local (00:00 UTC-6) = 06:00 UTC
+  toLocalMidnightUTC(dateStr) {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split("T")[0].split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day, 6, 0, 0, 0)).toISOString();
+  }
+
+  toNextLocalMidnightUTC(dateStr) {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split("T")[0].split("-").map(Number);
+    return new Date(
+      Date.UTC(year, month - 1, day + 1, 6, 0, 0, 0),
+    ).toISOString();
+  }
+
   // Convierte rango de edad en filtro de edad mínima y máxima
   getAgeFilter(age_range) {
     const ranges = {
@@ -1429,9 +1445,29 @@ class SuperAdminService {
       view_type = "daily",
       start_date,
       end_date,
+      start_time = null,
+      end_time = null,
       restaurant_id = "todos",
       service = "todos",
     } = filters;
+
+    const isHourly = view_type === "hourly";
+    const startFilter =
+      isHourly && start_time && start_date
+        ? new Date(`${start_date}T${start_time}:00-06:00`).toISOString()
+        : start_date
+          ? this.toLocalMidnightUTC(start_date)
+          : null;
+    const endFilter =
+      isHourly && end_time && end_date
+        ? (() => {
+            const d = new Date(`${end_date}T${end_time}:00-06:00`);
+            d.setUTCHours(d.getUTCHours() + 1);
+            return d.toISOString();
+          })()
+        : end_date
+          ? this.toNextLocalMidnightUTC(end_date)
+          : null;
 
     try {
       // Obtener transacciones de Flex Bill
@@ -1440,13 +1476,9 @@ class SuperAdminService {
         .select("created_at, total_amount_charged, restaurant_id")
         .not("id_table_order", "is", null);
 
-      if (start_date)
-        flexBillQuery = flexBillQuery.gte("created_at", start_date);
-      if (end_date)
-        flexBillQuery = flexBillQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        flexBillQuery = flexBillQuery.gte("created_at", startFilter);
+      if (endFilter) flexBillQuery = flexBillQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           flexBillQuery = flexBillQuery.in("restaurant_id", restaurant_id);
@@ -1461,13 +1493,9 @@ class SuperAdminService {
         .select("created_at, total_amount_charged, restaurant_id")
         .not("id_tap_orders_and_pay", "is", null);
 
-      if (start_date)
-        tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
-      if (end_date)
-        tapOrderQuery = tapOrderQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        tapOrderQuery = tapOrderQuery.gte("created_at", startFilter);
+      if (endFilter) tapOrderQuery = tapOrderQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapOrderQuery = tapOrderQuery.in("restaurant_id", restaurant_id);
@@ -1482,13 +1510,10 @@ class SuperAdminService {
         .select("created_at, total_amount_charged, restaurant_id")
         .not("id_pick_and_go_order", "is", null);
 
-      if (start_date)
-        pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
-      if (end_date)
-        pickAndGoQuery = pickAndGoQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        pickAndGoQuery = pickAndGoQuery.gte("created_at", startFilter);
+      if (endFilter)
+        pickAndGoQuery = pickAndGoQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
@@ -1503,13 +1528,10 @@ class SuperAdminService {
         .select("created_at, total_amount_charged, restaurant_id")
         .not("id_room_order", "is", null);
 
-      if (start_date)
-        roomServiceQuery = roomServiceQuery.gte("created_at", start_date);
-      if (end_date)
-        roomServiceQuery = roomServiceQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        roomServiceQuery = roomServiceQuery.gte("created_at", startFilter);
+      if (endFilter)
+        roomServiceQuery = roomServiceQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           roomServiceQuery = roomServiceQuery.in(
@@ -1530,12 +1552,8 @@ class SuperAdminService {
         .select("created_at, total_amount_charged, restaurant_id")
         .not("id_tap_pay_order", "is", null);
 
-      if (start_date) tapPayQuery = tapPayQuery.gte("created_at", start_date);
-      if (end_date)
-        tapPayQuery = tapPayQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter) tapPayQuery = tapPayQuery.gte("created_at", startFilter);
+      if (endFilter) tapPayQuery = tapPayQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
@@ -1577,8 +1595,8 @@ class SuperAdminService {
         tapPayResult.data || [],
         view_type,
         "volume",
-        start_date,
-        end_date,
+        isHourly ? startFilter : start_date,
+        isHourly ? endFilter : end_date,
       );
 
       return groupedData;
@@ -1594,9 +1612,29 @@ class SuperAdminService {
       view_type = "daily",
       start_date,
       end_date,
+      start_time = null,
+      end_time = null,
       restaurant_id = "todos",
       service = "todos",
     } = filters;
+
+    const isHourly = view_type === "hourly";
+    const startFilter =
+      isHourly && start_time && start_date
+        ? new Date(`${start_date}T${start_time}:00-06:00`).toISOString()
+        : start_date
+          ? this.toLocalMidnightUTC(start_date)
+          : null;
+    const endFilter =
+      isHourly && end_time && end_date
+        ? (() => {
+            const d = new Date(`${end_date}T${end_time}:00-06:00`);
+            d.setUTCHours(d.getUTCHours() + 1);
+            return d.toISOString();
+          })()
+        : end_date
+          ? this.toNextLocalMidnightUTC(end_date)
+          : null;
 
     try {
       // Obtener órdenes de Flex Bill
@@ -1604,13 +1642,9 @@ class SuperAdminService {
         .from("table_order")
         .select("created_at, id, table_id, tables!inner(restaurant_id)");
 
-      if (start_date)
-        flexBillQuery = flexBillQuery.gte("created_at", start_date);
-      if (end_date)
-        flexBillQuery = flexBillQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        flexBillQuery = flexBillQuery.gte("created_at", startFilter);
+      if (endFilter) flexBillQuery = flexBillQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           flexBillQuery = flexBillQuery.in(
@@ -1630,13 +1664,9 @@ class SuperAdminService {
         .from("tap_orders_and_pay")
         .select("created_at, id, tables!inner(restaurant_id)");
 
-      if (start_date)
-        tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
-      if (end_date)
-        tapOrderQuery = tapOrderQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        tapOrderQuery = tapOrderQuery.gte("created_at", startFilter);
+      if (endFilter) tapOrderQuery = tapOrderQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapOrderQuery = tapOrderQuery.in(
@@ -1656,13 +1686,10 @@ class SuperAdminService {
         .from("pick_and_go_orders")
         .select("created_at, id, restaurant_id");
 
-      if (start_date)
-        pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
-      if (end_date)
-        pickAndGoQuery = pickAndGoQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        pickAndGoQuery = pickAndGoQuery.gte("created_at", startFilter);
+      if (endFilter)
+        pickAndGoQuery = pickAndGoQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
@@ -1676,16 +1703,10 @@ class SuperAdminService {
         .from("room_orders")
         .select(`created_at, id, rooms!inner (restaurant_id)`);
 
-      if (start_date) {
-        roomServiceQuery = roomServiceQuery.gte("created_at", start_date);
-      }
-
-      if (end_date) {
-        roomServiceQuery = roomServiceQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
-      }
+      if (startFilter)
+        roomServiceQuery = roomServiceQuery.gte("created_at", startFilter);
+      if (endFilter)
+        roomServiceQuery = roomServiceQuery.lt("created_at", endFilter);
 
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1706,16 +1727,8 @@ class SuperAdminService {
         .from("tap_pay_orders")
         .select(`created_at, id, restaurant_id`);
 
-      if (start_date) {
-        tapPayQuery = tapPayQuery.gte("created_at", start_date);
-      }
-
-      if (end_date) {
-        tapPayQuery = tapPayQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
-      }
+      if (startFilter) tapPayQuery = tapPayQuery.gte("created_at", startFilter);
+      if (endFilter) tapPayQuery = tapPayQuery.lt("created_at", endFilter);
 
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -1758,8 +1771,8 @@ class SuperAdminService {
         tapPayResult.data || [],
         view_type,
         "orders",
-        start_date,
-        end_date,
+        isHourly ? startFilter : start_date,
+        isHourly ? endFilter : end_date,
       );
 
       return groupedData;
@@ -1775,9 +1788,29 @@ class SuperAdminService {
       view_type = "daily",
       start_date,
       end_date,
+      start_time = null,
+      end_time = null,
       restaurant_id = "todos",
       service = "todos",
     } = filters;
+
+    const isHourly = view_type === "hourly";
+    const startFilter =
+      isHourly && start_time && start_date
+        ? new Date(`${start_date}T${start_time}:00-06:00`).toISOString()
+        : start_date
+          ? this.toLocalMidnightUTC(start_date)
+          : null;
+    const endFilter =
+      isHourly && end_time && end_date
+        ? (() => {
+            const d = new Date(`${end_date}T${end_time}:00-06:00`);
+            d.setUTCHours(d.getUTCHours() + 1);
+            return d.toISOString();
+          })()
+        : end_date
+          ? this.toNextLocalMidnightUTC(end_date)
+          : null;
 
     try {
       // Obtener transacciones de Flex Bill
@@ -1786,13 +1819,9 @@ class SuperAdminService {
         .select("created_at, id, restaurant_id")
         .not("id_table_order", "is", null);
 
-      if (start_date)
-        flexBillQuery = flexBillQuery.gte("created_at", start_date);
-      if (end_date)
-        flexBillQuery = flexBillQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        flexBillQuery = flexBillQuery.gte("created_at", startFilter);
+      if (endFilter) flexBillQuery = flexBillQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           flexBillQuery = flexBillQuery.in("restaurant_id", restaurant_id);
@@ -1807,13 +1836,9 @@ class SuperAdminService {
         .select("created_at, id, restaurant_id")
         .not("id_tap_orders_and_pay", "is", null);
 
-      if (start_date)
-        tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
-      if (end_date)
-        tapOrderQuery = tapOrderQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        tapOrderQuery = tapOrderQuery.gte("created_at", startFilter);
+      if (endFilter) tapOrderQuery = tapOrderQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapOrderQuery = tapOrderQuery.in("restaurant_id", restaurant_id);
@@ -1828,13 +1853,10 @@ class SuperAdminService {
         .select("created_at, id, restaurant_id")
         .not("id_pick_and_go_order", "is", null);
 
-      if (start_date)
-        pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
-      if (end_date)
-        pickAndGoQuery = pickAndGoQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        pickAndGoQuery = pickAndGoQuery.gte("created_at", startFilter);
+      if (endFilter)
+        pickAndGoQuery = pickAndGoQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           pickAndGoQuery = pickAndGoQuery.in("restaurant_id", restaurant_id);
@@ -1849,13 +1871,10 @@ class SuperAdminService {
         .select("created_at, id, restaurant_id")
         .not("id_room_order", "is", null);
 
-      if (start_date)
-        roomServiceQuery = roomServiceQuery.gte("created_at", start_date);
-      if (end_date)
-        roomServiceQuery = roomServiceQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter)
+        roomServiceQuery = roomServiceQuery.gte("created_at", startFilter);
+      if (endFilter)
+        roomServiceQuery = roomServiceQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           roomServiceQuery = roomServiceQuery.in(
@@ -1876,12 +1895,8 @@ class SuperAdminService {
         .select("created_at, id, restaurant_id")
         .not("id_tap_pay_order", "is", null);
 
-      if (start_date) tapPayQuery = tapPayQuery.gte("created_at", start_date);
-      if (end_date)
-        tapPayQuery = tapPayQuery.lt(
-          "created_at",
-          this.getEndDateInclusive(end_date),
-        );
+      if (startFilter) tapPayQuery = tapPayQuery.gte("created_at", startFilter);
+      if (endFilter) tapPayQuery = tapPayQuery.lt("created_at", endFilter);
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
           tapPayQuery = tapPayQuery.in("restaurant_id", restaurant_id);
@@ -1923,8 +1938,8 @@ class SuperAdminService {
         tapPayResult.data || [],
         view_type,
         "transactions",
-        start_date,
-        end_date,
+        isHourly ? startFilter : start_date,
+        isHourly ? endFilter : end_date,
       );
 
       return groupedData;
@@ -1948,36 +1963,29 @@ class SuperAdminService {
   ) {
     const grouped = {};
 
-    // Función para formatear la fecha según el tipo de vista
+    // Función para formatear la fecha según el tipo de vista (ajustada a UTC-6 Mexico City)
+    const TZ_OFFSET_MS = 6 * 60 * 60 * 1000;
     const getDateKey = (dateString) => {
       const date = new Date(dateString);
+      const local = new Date(date.getTime() - TZ_OFFSET_MS);
 
       if (viewType === "daily") {
-        return date.toISOString().split("T")[0]; // YYYY-MM-DD
+        return local.toISOString().split("T")[0];
       } else if (viewType === "weekly") {
-        // Obtener el inicio de la semana (lunes) usando UTC para evitar problemas de zona horaria
-        const year = date.getUTCFullYear();
-        const month = date.getUTCMonth();
-        const day = date.getUTCDate();
-
-        // Crear fecha en UTC
+        const year = local.getUTCFullYear();
+        const month = local.getUTCMonth();
+        const day = local.getUTCDate();
         const utcDate = new Date(Date.UTC(year, month, day));
         const dayOfWeek = utcDate.getUTCDay();
-
-        // Calcular días para retroceder hasta el lunes
-        // Si es domingo (0), retroceder 6 días; si es lunes-sábado (1-6), retroceder (dayOfWeek - 1) días
         const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-        // Restar los días necesarios para llegar al lunes
         const monday = new Date(Date.UTC(year, month, day - daysToMonday));
-        const mondayKey = monday.toISOString().split("T")[0];
-
-        return mondayKey;
+        return monday.toISOString().split("T")[0];
       } else if (viewType === "monthly") {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-          2,
-          "0",
-        )}`; // YYYY-MM
+        return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}`;
+      } else if (viewType === "hourly") {
+        const dateStr = local.toISOString().split("T")[0];
+        const hour = String(local.getUTCHours()).padStart(2, "0");
+        return `${dateStr}T${hour}`;
       }
     };
 
@@ -2219,6 +2227,34 @@ class SuperAdminService {
           // Avanzar al siguiente mes
           currentDate.setMonth(currentDate.getMonth() + 1);
         }
+      } else if (viewType === "hourly") {
+        const currentDate = new Date(filterStartDate);
+        const endDateObj = new Date(filterEndDate);
+        currentDate.setUTCMinutes(0, 0, 0);
+
+        while (currentDate < endDateObj) {
+          const local = new Date(currentDate.getTime() - TZ_OFFSET_MS);
+          const dateStr = local.toISOString().split("T")[0];
+          const hour = String(local.getUTCHours()).padStart(2, "0");
+          const dateKey = `${dateStr}T${hour}`;
+
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            filledData.push({
+              date: dateKey,
+              "Flex Bill": 0,
+              "Tap Order & Pay": 0,
+              "Pick & Go": 0,
+              "Room Service": 0,
+              "Tap & Pay": 0,
+            });
+          }
+
+          currentDate.setUTCHours(currentDate.getUTCHours() + 1);
+        }
       }
 
       return filledData;
@@ -2233,9 +2269,29 @@ class SuperAdminService {
       view_type = "daily",
       start_date,
       end_date,
+      start_time = null,
+      end_time = null,
       restaurant_id = "todos",
       service = "todos",
     } = filters;
+
+    const isHourly = view_type === "hourly";
+    const startFilter =
+      isHourly && start_time && start_date
+        ? new Date(`${start_date}T${start_time}:00-06:00`).toISOString()
+        : start_date
+          ? this.toLocalMidnightUTC(start_date)
+          : null;
+    const endFilter =
+      isHourly && end_time && end_date
+        ? (() => {
+            const d = new Date(`${end_date}T${end_time}:00-06:00`);
+            d.setUTCHours(d.getUTCHours() + 1);
+            return d.toISOString();
+          })()
+        : end_date
+          ? this.toNextLocalMidnightUTC(end_date)
+          : null;
 
     try {
       // Obtener transacciones con información del método de pago
@@ -2245,9 +2301,8 @@ class SuperAdminService {
           "created_at, id_table_order, id_tap_orders_and_pay, id_pick_and_go_order, id_room_order, id_tap_pay_order, restaurant_id, payment_method_id, card_type",
         );
 
-      if (start_date) query = query.gte("created_at", start_date);
-      if (end_date)
-        query = query.lt("created_at", this.getEndDateInclusive(end_date));
+      if (startFilter) query = query.gte("created_at", startFilter);
+      if (endFilter) query = query.lt("created_at", endFilter);
 
       if (restaurant_id && restaurant_id !== "todos") {
         if (Array.isArray(restaurant_id)) {
@@ -2284,8 +2339,8 @@ class SuperAdminService {
       const groupedData = this.groupPaymentMethodsByTimePeriod(
         transformedData || [],
         view_type,
-        start_date,
-        end_date,
+        isHourly ? startFilter : start_date,
+        isHourly ? endFilter : end_date,
       );
 
       return groupedData;
@@ -2413,26 +2468,29 @@ class SuperAdminService {
   ) {
     const grouped = {};
 
-    // Función para formatear la fecha según el tipo de vista
+    // Función para formatear la fecha según el tipo de vista (ajustada a UTC-6 Mexico City)
+    const TZ_OFFSET_MS = 6 * 60 * 60 * 1000;
     const getDateKey = (dateString) => {
       const date = new Date(dateString);
+      const local = new Date(date.getTime() - TZ_OFFSET_MS);
 
       if (viewType === "daily") {
-        return date.toISOString().split("T")[0];
+        return local.toISOString().split("T")[0];
       } else if (viewType === "weekly") {
-        const year = date.getUTCFullYear();
-        const month = date.getUTCMonth();
-        const day = date.getUTCDate();
+        const year = local.getUTCFullYear();
+        const month = local.getUTCMonth();
+        const day = local.getUTCDate();
         const utcDate = new Date(Date.UTC(year, month, day));
         const dayOfWeek = utcDate.getUTCDay();
         const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         const monday = new Date(Date.UTC(year, month, day - daysToMonday));
         return monday.toISOString().split("T")[0];
       } else if (viewType === "monthly") {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-          2,
-          "0",
-        )}`;
+        return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}`;
+      } else if (viewType === "hourly") {
+        const dateStr = local.toISOString().split("T")[0];
+        const hour = String(local.getUTCHours()).padStart(2, "0");
+        return `${dateStr}T${hour}`;
       }
     };
 
@@ -2572,6 +2630,30 @@ class SuperAdminService {
           }
 
           currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+      } else if (viewType === "hourly") {
+        const currentDate = new Date(startDate);
+        const endDateObj = new Date(endDate);
+        currentDate.setUTCMinutes(0, 0, 0);
+
+        while (currentDate < endDateObj) {
+          const local = new Date(currentDate.getTime() - TZ_OFFSET_MS);
+          const dateStr = local.toISOString().split("T")[0];
+          const hour = String(local.getUTCHours()).padStart(2, "0");
+          const dateKey = `${dateStr}T${hour}`;
+          const existingData = sortedData.find((item) => item.date === dateKey);
+
+          if (existingData) {
+            filledData.push(existingData);
+          } else {
+            const emptyEntry = { date: dateKey };
+            allPaymentMethods.forEach((method) => {
+              emptyEntry[method] = 0;
+            });
+            filledData.push(emptyEntry);
+          }
+
+          currentDate.setUTCHours(currentDate.getUTCHours() + 1);
         }
       }
       return filledData;
