@@ -1,5 +1,6 @@
 const supabase = require("../config/supabase");
 const paymentTransactionService = require("./paymentTransactionService");
+const { calculateCommissions } = require("../utils/commissionCalculator");
 
 /**
  * Servicio para gestionar pedidos Pick & Go
@@ -623,24 +624,29 @@ class PickAndGoService {
       if (dishError) throw dishError;
     }
 
-    // 3. Registrar transacción (el POS sync ocurre en background dentro del servicio)
+    // 3. Registrar transacción — comisiones recalculadas server-side, valores del cliente ignorados
+    const commissions = calculateCommissions(
+      Number(base_amount) || 0,
+      Number(tip_amount) || 0,
+    );
+
     const transactionResult = await paymentTransactionService.createTransaction(
       {
         payment_method_id,
         restaurant_id,
         pick_and_go_order_id: orderId,
-        base_amount,
-        tip_amount,
-        iva_tip,
-        xquisito_commission_total,
-        xquisito_commission_client,
-        xquisito_commission_restaurant,
-        iva_xquisito_client,
-        iva_xquisito_restaurant,
-        xquisito_client_charge,
-        xquisito_restaurant_charge,
-        xquisito_rate_applied,
-        total_amount_charged,
+        base_amount: Number(base_amount) || 0,
+        tip_amount: Number(tip_amount) || 0,
+        iva_tip: commissions.ivaTip,
+        xquisito_commission_total: commissions.xquisitoCommissionTotal,
+        xquisito_commission_client: commissions.xquisitoCommissionClient,
+        xquisito_commission_restaurant: commissions.xquisitoCommissionRestaurant,
+        iva_xquisito_client: commissions.ivaXquisitoClient,
+        iva_xquisito_restaurant: commissions.ivaXquisitoRestaurant,
+        xquisito_client_charge: commissions.xquisitoClientCharge,
+        xquisito_restaurant_charge: commissions.xquisitoRestaurantCharge,
+        xquisito_rate_applied: commissions.xquisitoRateApplied,
+        total_amount_charged: commissions.totalAmountCharged,
         transaction_by,
         currency: currency || "MXN",
       },
