@@ -156,6 +156,22 @@ class AnalyticsService {
     }
   }
 
+  async getAllSellingItems(filters) {
+    const { restaurant_id, branch_id, start_date, end_date } = filters;
+    try {
+      const { data, error } = await supabase.rpc("get_all_selling_items", {
+        p_restaurant_id: restaurant_id || null,
+        p_branch_id: branch_id || null,
+        p_start_date: start_date || null,
+        p_end_date: end_date || null,
+      });
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      throw new Error(`Error fetching all selling items: ${error.message}`);
+    }
+  }
+
   /**
    * Obtiene datos completos del dashboard incluyendo métricas, gráfico y datos adicionales
    * @param {Object} filters - Filtros aplicados
@@ -625,7 +641,9 @@ class AnalyticsService {
           .select("id, custom_fields")
           .in("id", ids);
         if (dishes) {
-          const cfMap = Object.fromEntries(dishes.map((d) => [d.id, d.custom_fields]));
+          const cfMap = Object.fromEntries(
+            dishes.map((d) => [d.id, d.custom_fields]),
+          );
           items.forEach((item) => {
             item.customFields = cfMap[item.id] || null;
           });
