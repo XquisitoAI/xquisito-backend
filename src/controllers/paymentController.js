@@ -1828,7 +1828,7 @@ class PaymentController {
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
-      const { amount, currency = "MXN", tableNumber, restaurantId } = req.body;
+      const { amount, currency = "MXN", tableNumber, restaurantId, customerName: bodyCustomerName } = req.body;
 
       if (!amount || typeof amount !== "number" || amount <= 0) {
         return res.status(400).json({
@@ -1845,30 +1845,35 @@ class PaymentController {
       );
 
       const ecartPay = ecartPayService;
+      const userEmail = req.user?.email;
 
-      // Buscar o crear customer solo para usuarios autenticados
+      // Guests: no crear customer, pasar email + nombre directo en la orden
+      // Auth: buscar/crear customer en EcartPay
       let customerId;
+      let customerEmail;
+      let customerFirstName;
+      let customerLastName;
 
-      if (!isGuest && userId) {
+      if (isGuest) {
+        customerEmail = userEmail;
+        const nameParts = (bodyCustomerName || "Invitado").split(" ");
+        customerFirstName = nameParts[0];
+        customerLastName = nameParts.slice(1).join(" ") || undefined;
+      } else if (userId) {
         const existingCustomer = await ecartPay.findCustomerByUserId(userId);
 
         if (existingCustomer.success && existingCustomer.customer?.id) {
           customerId = existingCustomer.customer.id;
         } else {
-          // No existe — crear con nombre real del perfil
           const { data: profileData } = await supabaseAdmin
             .from("profiles")
             .select("first_name, last_name, phone")
             .eq("id", userId)
             .maybeSingle();
-
           const customerName = profileData?.first_name
-            ? [profileData.first_name, profileData.last_name]
-                .filter(Boolean)
-                .join(" ")
+            ? [profileData.first_name, profileData.last_name].filter(Boolean).join(" ")
             : "Guest";
-          const phone =
-            profileData?.phone || `55${Date.now().toString().slice(-8)}`;
+          const phone = profileData?.phone || `55${Date.now().toString().slice(-8)}`;
 
           const newCustomer = await ecartPay.createCustomer({
             name: customerName,
@@ -1879,19 +1884,17 @@ class PaymentController {
           if (newCustomer.success) {
             customerId = newCustomer.customer.id;
           } else {
-            // No bloquear Apple Pay si falla la creación del customer
-            console.warn(
-              "No se pudo crear customer para Apple Pay, continuando sin customer:",
-              newCustomer.error,
-            );
+            console.warn("⚠️ No se pudo crear customer para Apple Pay:", newCustomer.error);
           }
         }
       }
-      // guests → customerId queda undefined → orden anónima
 
       // Crear la orden en Ecart Pay
       const orderResult = await ecartPay.createOrder({
         customerId,
+        customerEmail,
+        customerFirstName,
+        customerLastName,
         amount,
         currency,
         quantity: 1,
@@ -1937,7 +1940,7 @@ class PaymentController {
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
-      const { amount, currency = "MXN", tableNumber, restaurantId } = req.body;
+      const { amount, currency = "MXN", tableNumber, restaurantId, customerName: bodyCustomerName } = req.body;
 
       if (!amount || typeof amount !== "number" || amount <= 0) {
         return res.status(400).json({
@@ -1954,10 +1957,21 @@ class PaymentController {
       );
 
       const ecartPay = ecartPayService;
+      const userEmail = req.user?.email;
 
+      // Guests: no crear customer, pasar email + nombre directo en la orden
+      // Auth: buscar/crear customer en EcartPay
       let customerId;
+      let customerEmail;
+      let customerFirstName;
+      let customerLastName;
 
-      if (!isGuest && userId) {
+      if (isGuest) {
+        customerEmail = userEmail;
+        const nameParts = (bodyCustomerName || "Invitado").split(" ");
+        customerFirstName = nameParts[0];
+        customerLastName = nameParts.slice(1).join(" ") || undefined;
+      } else if (userId) {
         const existingCustomer = await ecartPay.findCustomerByUserId(userId);
 
         if (existingCustomer.success && existingCustomer.customer?.id) {
@@ -1968,14 +1982,10 @@ class PaymentController {
             .select("first_name, last_name, phone")
             .eq("id", userId)
             .maybeSingle();
-
           const customerName = profileData?.first_name
-            ? [profileData.first_name, profileData.last_name]
-                .filter(Boolean)
-                .join(" ")
+            ? [profileData.first_name, profileData.last_name].filter(Boolean).join(" ")
             : "Guest";
-          const phone =
-            profileData?.phone || `55${Date.now().toString().slice(-8)}`;
+          const phone = profileData?.phone || `55${Date.now().toString().slice(-8)}`;
 
           const newCustomer = await ecartPay.createCustomer({
             name: customerName,
@@ -1986,16 +1996,16 @@ class PaymentController {
           if (newCustomer.success) {
             customerId = newCustomer.customer.id;
           } else {
-            console.warn(
-              "⚠️ No se pudo crear customer para Google Pay, continuando sin customer:",
-              newCustomer.error,
-            );
+            console.warn("⚠️ No se pudo crear customer para Google Pay:", newCustomer.error);
           }
         }
       }
 
       const orderResult = await ecartPay.createOrder({
         customerId,
+        customerEmail,
+        customerFirstName,
+        customerLastName,
         amount,
         currency,
         quantity: 1,

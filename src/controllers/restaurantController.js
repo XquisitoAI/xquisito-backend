@@ -304,7 +304,6 @@ const validateRestaurantBranchTable = async (req, res) => {
       }
     }
 
-    console.log(`✅ Validation successful`);
     res.json({
       success: true,
       data: { valid: true },
