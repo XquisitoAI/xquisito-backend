@@ -102,7 +102,7 @@ const guestAuth = async (req, res, next) => {
 
     req.user = {
       id: guestId,
-      email: `guest-${guestId}@xquisito.temp`,
+      email: `guest-${guestId}@xquisito.ai`,
       isGuest: true,
     };
     req.isGuest = true;
@@ -114,7 +114,7 @@ const guestAuth = async (req, res, next) => {
     const guestId = `guest-error-${Date.now()}`;
     req.user = {
       id: guestId,
-      email: `guest-${guestId}@xquisito.temp`,
+      email: `guest-${guestId}@xquisito.ai`,
       isGuest: true,
     };
     req.isGuest = true;

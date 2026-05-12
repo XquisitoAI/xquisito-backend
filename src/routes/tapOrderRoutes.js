@@ -13,6 +13,9 @@ const router = express.Router();
 // Incluye branchNumber para validación de mesa por sucursal
 // ===============================================
 
+// Confirmar orden atómica (crea tap order + dish orders + transacción de pago)
+router.post("/tap-orders/confirm", tapOrderController.confirmOrder);
+
 // Verificar si existe orden activa en una mesa (NO auto-crear)
 router.get(
   "/tap-orders/restaurant/:restaurantId/branch/:branchNumber/table/:tableNumber",

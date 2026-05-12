@@ -132,16 +132,18 @@ class EcartPayService {
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
 
+      const customerPayload = {
+        phone: customerData.phone || "0000000000",
+        first_name: firstName,
+        last_name: lastName,
+        user_id: customerData.userId,
+      };
+      if (customerData.email) customerPayload.email = customerData.email;
+
       const response = await this.makeAuthenticatedRequest(
         "post",
         "/customers",
-        {
-          phone: customerData.phone || "0000000000", // Phone is required
-          first_name: firstName,
-          last_name: lastName,
-          user_id: customerData.userId,
-          // Note: email is NOT sent in customer creation according to docs
-        },
+        customerPayload,
       );
 
       return {
@@ -149,6 +151,12 @@ class EcartPayService {
         customer: response.data,
       };
     } catch (error) {
+      // 409 = customer ya existe — EcartPay devuelve el customer_id existente
+      const existingId = error.response?.data?.received?.customer_id;
+      if (error.response?.status === 409 && existingId) {
+        console.log("ℹ️ Customer ya existe en EcartPay, reutilizando:", existingId);
+        return { success: true, customer: { id: existingId } };
+      }
       console.error(
         "❌ eCartpay customer creation failed:",
         error.response?.data,
@@ -626,6 +634,10 @@ class EcartPayService {
 
       if (orderData.customerId) {
         payload.customer_id = orderData.customerId;
+      } else {
+        if (orderData.customerEmail) payload.email = orderData.customerEmail;
+        if (orderData.customerFirstName) payload.first_name = orderData.customerFirstName;
+        if (orderData.customerLastName) payload.last_name = orderData.customerLastName;
       }
 
       // Add reference_id with table information for webhook processing

@@ -1,4 +1,8 @@
 const supabase = require("../config/supabase");
+const paymentTransactionService = require("./paymentTransactionService");
+const { calculateCommissions } = require("../utils/commissionCalculator");
+const ecartPayService = require("./ecartpayService");
+const { logOrderFlowStep } = require("../utils/orderFlowLog");
 
 class TapOrderService {
   // Ya no necesitamos generar QR tokens para el flujo de URL directa
@@ -429,6 +433,196 @@ class TapOrderService {
     } catch (error) {
       return { success: false, error: error.message };
     }
+  }
+
+  // Crear orden, dish orders y transacción de pago en una sola operación atómica
+  async confirmOrder(data) {
+    const {
+      clerk_user_id = null,
+      guest_id = null,
+      customer_name,
+      customer_email = null,
+      customer_phone = null,
+      restaurant_id,
+      branch_number,
+      table_number,
+      order_notes = null,
+      items,
+      payment_method_id = null,
+      base_amount,
+      tip_amount = 0,
+      total_amount_charged,
+      currency = "MXN",
+      payment_source = null,
+      ecartpay_order_id = null,
+      transaction_by = null,
+      is_guest = false,
+      user_id = null,
+      installments = null,
+    } = data;
+
+    // Paso 0: verificar pago en EcartPay si corresponde
+    if (ecartpay_order_id) {
+      try {
+        const verification = await ecartPayService.getOrder(ecartpay_order_id);
+        if (verification.success && verification.order) {
+          const PAID_STATUSES = ["paid", "completed", "succeeded", "approved"];
+          if (!PAID_STATUSES.includes(verification.order.status)) {
+            return {
+              success: false,
+              error: `El pago no fue confirmado por EcartPay (status: ${verification.order.status})`,
+            };
+          }
+          const ecartAmount = parseFloat(verification.order.amount || 0);
+          const expectedAmount = parseFloat(total_amount_charged || 0);
+          if (Math.abs(ecartAmount - expectedAmount) > 1) {
+            return {
+              success: false,
+              error: "El monto del pago no coincide con el total de la orden",
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("[confirmOrder] No se pudo verificar EcartPay:", e.message);
+      }
+    }
+
+    // Paso 1: resolver table_id desde restaurant_id + branch_number + table_number
+    const { data: branchRow, error: branchError } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("restaurant_id", restaurant_id)
+      .eq("branch_number", branch_number)
+      .single();
+
+    if (branchError || !branchRow) {
+      return { success: false, error: "Sucursal no encontrada" };
+    }
+
+    const { data: tableRow, error: tableError } = await supabase
+      .from("tables")
+      .select("id")
+      .eq("branch_id", branchRow.id)
+      .eq("table_number", table_number)
+      .single();
+
+    if (tableError || !tableRow) {
+      return { success: false, error: "Mesa no encontrada" };
+    }
+
+    // Paso 2: crear tap_orders_and_pay ya pagado y completado
+    const { data: order, error: orderError } = await supabase
+      .from("tap_orders_and_pay")
+      .insert([
+        {
+          table_id: tableRow.id,
+          clerk_user_id: clerk_user_id || guest_id || null,
+          customer_name,
+          customer_phone,
+          customer_email,
+          total_amount: Number(total_amount_charged) || 0,
+          payment_status: "paid",
+          order_status: "completed",
+          session_data: {},
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
+    const tapOrderId = order.id;
+
+    // Paso 3: batch insert de dish_orders
+    if (items && items.length > 0) {
+      const dishRecords = items.map((item) => ({
+        user_order_id: null,
+        tap_order_id: tapOrderId,
+        item: item.item,
+        quantity: item.quantity || 1,
+        price: item.price,
+        status: "preparing",
+        payment_status: "paid",
+        images: item.images || [],
+        custom_fields: item.custom_fields || null,
+        extra_price: item.extra_price || 0,
+        menu_item_id: item.menu_item_id || null,
+        special_instructions: item.special_instructions || null,
+      }));
+
+      const { error: dishError } = await supabase
+        .from("dish_order")
+        .insert(dishRecords);
+
+      if (dishError) throw dishError;
+    }
+
+    // Log del paso payment — solo para flujos directos (Apple Pay / Google Pay / dev).
+    // Para tarjetas guardadas, processPayment ya escribió este log.
+    const isDirectPayment = !payment_method_id || payment_method_id === "system-default-card";
+    if (isDirectPayment) {
+      logOrderFlowStep({
+        order_id: tapOrderId,
+        order_type: "tap-order-pay",
+        restaurant_id,
+        step: "payment",
+        status: "success",
+        metadata: {
+          payment_method_id: payment_method_id || null,
+          total_amount_charged: Number(total_amount_charged) || 0,
+          currency: currency || "MXN",
+        },
+      }).catch(() => {});
+    }
+
+    // Paso 4: grabar transacción de pago (comisiones recalculadas en el servidor)
+    const commissions = calculateCommissions(
+      Number(base_amount) || 0,
+      Number(tip_amount) || 0,
+    );
+
+    const transactionResult = await paymentTransactionService.createTransaction(
+      {
+        payment_method_id,
+        restaurant_id,
+        id_tap_orders_and_pay: tapOrderId,
+        base_amount: Number(base_amount) || 0,
+        tip_amount: Number(tip_amount) || 0,
+        iva_tip: commissions.ivaTip,
+        xquisito_commission_total: commissions.xquisitoCommissionTotal,
+        xquisito_commission_client: commissions.xquisitoCommissionClient,
+        xquisito_commission_restaurant: commissions.xquisitoCommissionRestaurant,
+        iva_xquisito_client: commissions.ivaXquisitoClient,
+        iva_xquisito_restaurant: commissions.ivaXquisitoRestaurant,
+        xquisito_client_charge: commissions.xquisitoClientCharge,
+        xquisito_restaurant_charge: commissions.xquisitoRestaurantCharge,
+        xquisito_rate_applied: commissions.xquisitoRateApplied,
+        total_amount_charged: commissions.totalAmountCharged,
+        transaction_by: transaction_by || customer_name,
+        currency,
+        payment_source,
+        ecartpay_order_id,
+        installments: installments || null,
+      },
+      is_guest || false,
+      user_id || null,
+    );
+
+    if (!transactionResult.success) {
+      console.error(
+        "❌ [confirmOrder] Transaction recording failed:",
+        transactionResult.error,
+      );
+    }
+
+    return {
+      success: true,
+      data: {
+        order,
+        transaction: transactionResult.transaction || null,
+      },
+    };
   }
 
   // Abandonar orden (cleanup)

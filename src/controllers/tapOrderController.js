@@ -1,4 +1,7 @@
 const tapOrderService = require("../services/tapOrderService");
+const {
+  emitPrintJobForTapOrder,
+} = require("../services/printJobService");
 
 class TapOrderController {
   // POST /api/tap-orders - Crear nueva orden de tap
@@ -396,6 +399,103 @@ class TapOrderController {
       res
         .status(500)
         .json({ success: false, message: "Internal server error" });
+    }
+  }
+
+  // POST /api/tap-orders/confirm - Crear orden, dish orders y transacción en una sola llamada
+  async confirmOrder(req, res) {
+    try {
+      const {
+        clerk_user_id,
+        guest_id,
+        customer_name,
+        customer_email,
+        customer_phone,
+        restaurant_id,
+        branch_number,
+        table_number,
+        order_notes,
+        items,
+        payment_method_id,
+        base_amount,
+        tip_amount,
+        total_amount_charged,
+        currency,
+        payment_source,
+        ecartpay_order_id,
+        transaction_by,
+        is_guest,
+        user_id,
+        installments,
+      } = req.body;
+
+      if (!customer_name) {
+        return res.status(400).json({ success: false, error: "customer_name is required" });
+      }
+      if (!restaurant_id) {
+        return res.status(400).json({ success: false, error: "restaurant_id is required" });
+      }
+      if (!branch_number) {
+        return res.status(400).json({ success: false, error: "branch_number is required" });
+      }
+      if (!table_number) {
+        return res.status(400).json({ success: false, error: "table_number is required" });
+      }
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: "items array is required" });
+      }
+      if (!base_amount || Number(base_amount) <= 0) {
+        return res.status(400).json({ success: false, error: "base_amount must be > 0" });
+      }
+      if (!total_amount_charged || Number(total_amount_charged) <= 0) {
+        return res.status(400).json({ success: false, error: "total_amount_charged must be > 0" });
+      }
+
+      const result = await tapOrderService.confirmOrder({
+        clerk_user_id,
+        guest_id,
+        customer_name,
+        customer_email,
+        customer_phone,
+        restaurant_id: parseInt(restaurant_id),
+        branch_number: parseInt(branch_number),
+        table_number: parseInt(table_number),
+        order_notes,
+        items,
+        payment_method_id,
+        base_amount,
+        tip_amount,
+        total_amount_charged,
+        currency,
+        payment_source: payment_source || null,
+        ecartpay_order_id: ecartpay_order_id || null,
+        transaction_by,
+        is_guest,
+        user_id,
+        installments,
+      });
+
+      if (!result.success) {
+        return res.status(500).json(result);
+      }
+
+      // Emitir print job para cocina (fire-and-forget)
+      const orderId = result.data.order.id;
+      emitPrintJobForTapOrder(
+        orderId,
+        items.map((item) => ({
+          name: item.item,
+          quantity: item.quantity || 1,
+          menu_item_id: item.menu_item_id || null,
+          custom_fields: item.custom_fields || null,
+          special_instructions: item.special_instructions || null,
+        })),
+      );
+
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("💥 Error in confirmOrder controller:", error);
+      res.status(500).json({ success: false, error: "Internal server error" });
     }
   }
 
