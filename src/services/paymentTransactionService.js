@@ -273,7 +273,10 @@ class PaymentTransactionService {
       let orderId = null;
       let orderType = null;
 
-      if (id_tap_orders_and_pay) {
+      if (id_table_order) {
+        orderId = id_table_order;
+        orderType = "table_order";
+      } else if (id_tap_orders_and_pay) {
         orderId = id_tap_orders_and_pay;
         orderType = "tap_orders_and_pay";
       } else if (id_tap_pay_order) {
