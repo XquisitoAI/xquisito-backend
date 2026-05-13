@@ -595,9 +595,13 @@ class PickAndGoService {
             error: `El pago no fue confirmado por EcartPay (status: ${orderStatus})`,
           };
         }
-        const ecartAmount = parseFloat(verification.order.amount || 0);
+        const ecartAmount = parseFloat(verification.order.totals?.total || 0);
         const expectedAmount = parseFloat(total_amount_charged || 0);
-        if (Math.abs(ecartAmount - expectedAmount) > 1) {
+        if (ecartAmount === 0) {
+          console.warn(
+            `[confirmOrder] EcartPay order ${ecartpay_order_id} returned totals.total=0 — skipping amount validation (status confirmed as paid). Expected: ${expectedAmount}`,
+          );
+        } else if (Math.abs(ecartAmount - expectedAmount) > 1) {
           console.warn(
             `[confirmOrder] Amount mismatch: EcartPay ${ecartAmount} vs expected ${expectedAmount}`,
           );
