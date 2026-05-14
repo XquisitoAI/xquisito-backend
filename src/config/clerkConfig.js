@@ -5,14 +5,6 @@ require("dotenv").config();
 // ===============================================
 
 const clerkConfigs = {
-  // Configuración para el proyecto even-frontend (existente)
-  even: {
-    secretKey:
-      process.env.CLERK_SECRET_KEY_EVEN || process.env.CLERK_SECRET_KEY,
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY_EVEN,
-    project: "even-frontend",
-  },
-
   // Configuración para el proyecto admin-portal
   adminPortal: {
     secretKey: process.env.CLERK_SECRET_KEY_ADMIN_PORTAL,
@@ -32,11 +24,7 @@ const clerkConfigs = {
 // FUNCIONES DE UTILIDAD
 // ===============================================
 
-/**
- * Obtiene la configuración de Clerk para un proyecto específico
- * @param {string} project - 'even', 'adminPortal' o 'mainPortal'
- * @returns {object} Configuración de Clerk
- */
+// Obtiene la configuración de Clerk para un proyecto específico
 const getClerkConfig = (project) => {
   const config = clerkConfigs[project];
 
@@ -55,16 +43,9 @@ const getClerkConfig = (project) => {
   return config;
 };
 
-/**
- * Valida que todas las configuraciones necesarias estén presentes
- */
+// Valida que todas las configuraciones necesarias estén presentes
 const validateClerkConfigs = () => {
   const errors = [];
-
-  // Validar configuración even (existente)
-  if (!clerkConfigs.even.secretKey) {
-    errors.push("CLERK_SECRET_KEY_EVEN o CLERK_SECRET_KEY no está configurado");
-  }
 
   // Validar configuración admin-portal
   if (!clerkConfigs.adminPortal.secretKey) {

@@ -1,7 +1,7 @@
 const POSFactory = require("./POSFactory");
 const { supabaseAdmin } = require("../../config/supabaseAuth");
 const agentConnectionManager = require("../../socket/agentConnectionManager");
-const { enrichItemsWithClasificacion } = require("../printerEnrichService");
+const { enrichItemsWithClasificacion } = require("../shared/printerEnrichService");
 
 // Helper: log de simulación de ticket para depuración
 function logTicketSimulation({ identifier, folio, orderedBy, items }) {

@@ -1,4 +1,4 @@
-const superAdminService = require("../services/superAdminService");
+const superAdminService = require("../services/main-portal/superAdminService");
 const supabase = require("../config/supabase");
 
 // Presencia de dispositivos crew por sucursal (en memoria)
