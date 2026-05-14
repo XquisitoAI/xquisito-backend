@@ -8,7 +8,7 @@ const crypto = require("crypto");
 function generateSyncToken() {
   const randomBytes = crypto.randomBytes(18); // 18 bytes = 24 caracteres en base64url
   const randomString = randomBytes.toString("base64url").substring(0, 24);
-  return `xqai_pos_${randomString}`;
+  return `even_pos_${randomString}`;
 }
 
 class POSController {
@@ -526,7 +526,12 @@ class POSController {
       const branchNumber = parseInt(req.params.branchNumber, 10);
 
       if (isNaN(restaurantId) || isNaN(branchNumber)) {
-        return res.status(400).json({ success: false, error: "restaurantId y branchNumber deben ser números" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "restaurantId y branchNumber deben ser números",
+          });
       }
 
       const { data: branch } = await require("../config/supabase")
@@ -537,7 +542,13 @@ class POSController {
         .single();
 
       if (!branch) {
-        return res.json({ success: true, hasIntegration: false, isAgentConnected: false, isActive: false, providerName: null });
+        return res.json({
+          success: true,
+          hasIntegration: false,
+          isAgentConnected: false,
+          isActive: false,
+          providerName: null,
+        });
       }
 
       const status = await POSMenuSyncService.getAgentStatus(branch.id);

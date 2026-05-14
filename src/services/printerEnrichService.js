@@ -10,7 +10,7 @@ async function enrichItemsWithClasificacion(branchId, items) {
 
   // Obtener IDs de menu_items relevantes
   // Los items del payload tienen productId (pos_item_id) que mapea a menu_items.id
-  // o directamente menu_item_id si viene de Xquisito nativo
+  // o directamente menu_item_id si viene de Even nativo
   const menuItemIds = items
     .map((i) => i.menuItemId || i.menu_item_id)
     .filter(Boolean)

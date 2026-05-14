@@ -1,16 +1,16 @@
 function getCommissionRates(amount) {
   if (amount >= 20 && amount <= 30) {
-    return { xquisitoTotal: 11.0, clientPays: 9.0, restaurantPays: 2.0 };
+    return { evenTotal: 11.0, clientPays: 9.0, restaurantPays: 2.0 };
   } else if (amount >= 31 && amount <= 49) {
-    return { xquisitoTotal: 8.0, clientPays: 6.0, restaurantPays: 2.0 };
+    return { evenTotal: 8.0, clientPays: 6.0, restaurantPays: 2.0 };
   } else if (amount >= 50 && amount <= 100) {
-    return { xquisitoTotal: 5.8, clientPays: 3.8, restaurantPays: 2.0 };
+    return { evenTotal: 5.8, clientPays: 3.8, restaurantPays: 2.0 };
   } else if (amount >= 101 && amount <= 150) {
-    return { xquisitoTotal: 4.2, clientPays: 2.2, restaurantPays: 2.0 };
+    return { evenTotal: 4.2, clientPays: 2.2, restaurantPays: 2.0 };
   } else if (amount > 150) {
-    return { xquisitoTotal: 4.0, clientPays: 2.0, restaurantPays: 2.0 };
+    return { evenTotal: 4.0, clientPays: 2.0, restaurantPays: 2.0 };
   } else {
-    return { xquisitoTotal: 11.0, clientPays: 9.0, restaurantPays: 2.0 };
+    return { evenTotal: 11.0, clientPays: 9.0, restaurantPays: 2.0 };
   }
 }
 
@@ -22,28 +22,29 @@ function calculateCommissions(baseAmount, tipAmount) {
   const subtotalForCommission = baseAmount + tipAmount;
   const rates = getCommissionRates(subtotalForCommission);
 
-  const xquisitoCommissionTotal = subtotalForCommission * (rates.xquisitoTotal / 100);
-  const xquisitoCommissionClient = subtotalForCommission * (rates.clientPays / 100);
-  const xquisitoCommissionRestaurant = subtotalForCommission * (rates.restaurantPays / 100);
+  const evenCommissionTotal = subtotalForCommission * (rates.evenTotal / 100);
+  const evenCommissionClient = subtotalForCommission * (rates.clientPays / 100);
+  const evenCommissionRestaurant =
+    subtotalForCommission * (rates.restaurantPays / 100);
 
-  const ivaXquisitoClient = xquisitoCommissionClient * 0.16;
-  const ivaXquisitoRestaurant = xquisitoCommissionRestaurant * 0.16;
+  const ivaEvenClient = evenCommissionClient * 0.16;
+  const ivaEvenRestaurant = evenCommissionRestaurant * 0.16;
 
   // Solo se redondean los valores finales, igual que el frontend
-  const xquisitoClientCharge = r2(xquisitoCommissionClient + ivaXquisitoClient);
-  const xquisitoRestaurantCharge = r2(xquisitoCommissionRestaurant + ivaXquisitoRestaurant);
-  const totalAmountCharged = r2(baseAmount + tipAmount + xquisitoClientCharge);
+  const evenClientCharge = r2(evenCommissionClient + ivaEvenClient);
+  const evenRestaurantCharge = r2(evenCommissionRestaurant + ivaEvenRestaurant);
+  const totalAmountCharged = r2(baseAmount + tipAmount + evenClientCharge);
 
   return {
     ivaTip,
-    xquisitoCommissionTotal,
-    xquisitoCommissionClient,
-    xquisitoCommissionRestaurant,
-    ivaXquisitoClient,
-    ivaXquisitoRestaurant,
-    xquisitoClientCharge,
-    xquisitoRestaurantCharge,
-    xquisitoRateApplied: rates.xquisitoTotal,
+    evenCommissionTotal,
+    evenCommissionClient,
+    evenCommissionRestaurant,
+    ivaEvenClient,
+    ivaEvenRestaurant,
+    evenClientCharge,
+    evenRestaurantCharge,
+    evenRateApplied: rates.evenTotal,
     totalAmountCharged,
   };
 }

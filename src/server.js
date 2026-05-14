@@ -30,7 +30,7 @@ app.set("io", io);
 
 // Usar httpServer.listen en lugar de app.listen
 httpServer.listen(PORT, () => {
-  console.log(`XQUISITO server running on port ${PORT}`);
+  console.log(`EVEN server running on port ${PORT}`);
 
   // Iniciar cron job de renovacion de suscripciones
   // Solo iniciar si no estamos en ambiente de pruebas

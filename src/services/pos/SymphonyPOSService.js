@@ -21,7 +21,7 @@ class SymphonyPOSService extends BasePOSService {
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "Xquisito-Backend/1.0.0",
+        "User-Agent": "Even-Backend/1.0.0",
       },
     });
 
@@ -277,7 +277,7 @@ class SymphonyPOSService extends BasePOSService {
           checkEmployeeRef: this.settings.employee_ref,
           orderTypeRef: this.settings.order_type_ref,
           checkName:
-            orderData.check_name || orderData.table_number || "Xquisito Order",
+            orderData.check_name || orderData.table_number || "Even Order",
           guestCount: orderData.guest_count || 1,
           tableName: orderData.table_number || null,
           orderChannelRef: this.settings.order_channel_ref || undefined,
@@ -501,10 +501,14 @@ class SymphonyPOSService extends BasePOSService {
         params.sinceTime = options.sinceTime;
       }
 
-      const response = await this.axiosInstance.get("/api/v1/checks", { params });
+      const response = await this.axiosInstance.get("/api/v1/checks", {
+        params,
+      });
 
       const checks = response.data.items || [];
-      console.log(`✅ ${checks.length} check(s) encontrado(s) para mesa ${tableNumber}`);
+      console.log(
+        `✅ ${checks.length} check(s) encontrado(s) para mesa ${tableNumber}`,
+      );
 
       return {
         success: true,
@@ -530,7 +534,9 @@ class SymphonyPOSService extends BasePOSService {
   // Obtener un check abierto de una mesa (el primero si hay varios)
   async getOpenCheckByTable(tableNumber) {
     try {
-      const result = await this.getChecksByTable(tableNumber, { includeClosed: false });
+      const result = await this.getChecksByTable(tableNumber, {
+        includeClosed: false,
+      });
 
       if (!result.success || result.checks.length === 0) {
         return {
@@ -541,7 +547,9 @@ class SymphonyPOSService extends BasePOSService {
 
       // Retornar el primer check abierto
       const check = result.checks[0];
-      console.log(`✅ Check abierto encontrado: ${check.checkRef} (${check.checkNumber})`);
+      console.log(
+        `✅ Check abierto encontrado: ${check.checkRef} (${check.checkNumber})`,
+      );
 
       return {
         success: true,

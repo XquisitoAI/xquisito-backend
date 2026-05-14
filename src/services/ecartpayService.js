@@ -28,7 +28,7 @@ class EcartPayService {
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "Xquisito-Backend/1.0.0",
+        "User-Agent": "Even-Backend/1.0.0",
       },
     });
 
@@ -154,7 +154,10 @@ class EcartPayService {
       // 409 = customer ya existe — EcartPay devuelve el customer_id existente
       const existingId = error.response?.data?.received?.customer_id;
       if (error.response?.status === 409 && existingId) {
-        console.log("ℹ️ Customer ya existe en EcartPay, reutilizando:", existingId);
+        console.log(
+          "ℹ️ Customer ya existe en EcartPay, reutilizando:",
+          existingId,
+        );
         return { success: true, customer: { id: existingId } };
       }
       console.error(
@@ -438,12 +441,12 @@ class EcartPayService {
 
       const payload = {
         customer_id: checkoutData.customerId,
-        title: checkoutData.title || "Xquisito Restaurant Payment",
+        title: checkoutData.title || "Even Restaurant Payment",
         currency: checkoutData.currency || "MXN",
         amounts: [checkoutData.amount],
         concept: checkoutData.description || "Restaurant order payment",
         notify_url: checkoutData.webhookUrl,
-        reference_id: checkoutData.referenceId || `xq_${Date.now()}`,
+        reference_id: checkoutData.referenceId || `ev_${Date.now()}`,
       };
 
       const response = await this.makeAuthenticatedRequest(
@@ -527,7 +530,7 @@ class EcartPayService {
       if (!orderData.items || orderData.items.length === 0) {
         orderData.items = [
           {
-            name: orderData.description || "Xquisito Restaurant Order",
+            name: orderData.description || "Even Restaurant Order",
             quantity: orderData.quantity || 1,
             price: orderData.amount,
           },
@@ -610,7 +613,7 @@ class EcartPayService {
         // Create default item if not provided
         orderData.items = [
           {
-            name: orderData.description || "Xquisito Restaurant Order",
+            name: orderData.description || "Even Restaurant Order",
             quantity: orderData.quantity,
             price: orderData.amount,
           },
@@ -636,13 +639,15 @@ class EcartPayService {
         payload.customer_id = orderData.customerId;
       } else {
         if (orderData.customerEmail) payload.email = orderData.customerEmail;
-        if (orderData.customerFirstName) payload.first_name = orderData.customerFirstName;
-        if (orderData.customerLastName) payload.last_name = orderData.customerLastName;
+        if (orderData.customerFirstName)
+          payload.first_name = orderData.customerFirstName;
+        if (orderData.customerLastName)
+          payload.last_name = orderData.customerLastName;
       }
 
       // Add reference_id with table information for webhook processing
       if (orderData.tableNumber) {
-        payload.reference_id = `xq_table_${orderData.tableNumber}_${Date.now()}`;
+        payload.reference_id = `ev_table_${orderData.tableNumber}_${Date.now()}`;
       } else if (orderData.referenceId) {
         payload.reference_id = orderData.referenceId;
       }
@@ -682,7 +687,7 @@ class EcartPayService {
       redirectUrl: paymentData.redirectUrl,
       items: [
         {
-          name: paymentData.description || "Xquisito Restaurant Payment",
+          name: paymentData.description || "Even Restaurant Payment",
           quantity: paymentData.quantity,
           price: paymentData.amount,
         },

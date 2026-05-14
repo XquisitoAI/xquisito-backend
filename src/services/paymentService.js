@@ -62,7 +62,7 @@ class PaymentService {
         // Use provided email but make it unique for eCartpay to avoid conflicts
         const uniqueGuestEmail = userEmail
           ? `${userEmail.split("@")[0]}+${cleanGuestId}${timestamp}${randomSuffix}@${userEmail.split("@")[1]}`
-          : `guest${cleanGuestId}${timestamp}${randomSuffix}@xquisito.com`;
+          : `guest${cleanGuestId}${timestamp}${randomSuffix}@letseven.io`;
 
         user = {
           user: {

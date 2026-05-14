@@ -2,7 +2,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
 /**
@@ -40,7 +40,7 @@ exports.getAllQRCodes = async (req, res) => {
         clients:client_id(id, name),
         restaurants:restaurant_id(id, name),
         branches:branch_id(id, name, branch_number)
-      `
+      `,
       )
       .order("created_at", { ascending: false });
 
@@ -87,7 +87,7 @@ exports.getQRCodeById = async (req, res) => {
         clients:client_id(id, name),
         restaurants:restaurant_id(id, name),
         branches:branch_id(id, name, branch_number)
-      `
+      `,
       )
       .eq("id", id)
       .single();
@@ -465,7 +465,15 @@ exports.createBatchQRCodes = async (req, res) => {
 exports.updateQRCode = async (req, res) => {
   try {
     const { id } = req.params;
-    const { service, qr_type, table_number, room_number, is_active, branch_id, branch_number } = req.body;
+    const {
+      service,
+      qr_type,
+      table_number,
+      room_number,
+      is_active,
+      branch_id,
+      branch_number,
+    } = req.body;
 
     // Build update object with only provided fields
     const updates = {};

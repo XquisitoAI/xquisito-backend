@@ -12,7 +12,7 @@ const authenticateSupabaseToken = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-        
+
     const {
       data: { user },
       error,
@@ -39,11 +39,17 @@ const authenticateSupabaseToken = async (req, res, next) => {
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    console.log("🔍 optionalAuth - Authorization header:", authHeader ? "present" : "missing");
+    console.log(
+      "🔍 optionalAuth - Authorization header:",
+      authHeader ? "present" : "missing",
+    );
 
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
-      console.log("🔍 optionalAuth - Token extracted:", token.substring(0, 20) + "...");
+      console.log(
+        "🔍 optionalAuth - Token extracted:",
+        token.substring(0, 20) + "...",
+      );
 
       const {
         data: { user },
@@ -53,14 +59,17 @@ const optionalAuth = async (req, res, next) => {
       console.log("🔍 optionalAuth - Supabase response:", {
         hasUser: !!user,
         userId: user?.id,
-        error: error?.message
+        error: error?.message,
       });
 
       if (!error && user) {
         req.user = user;
         console.log("✅ optionalAuth - User set in req.user:", user.id);
       } else {
-        console.log("❌ optionalAuth - Failed to authenticate:", error?.message);
+        console.log(
+          "❌ optionalAuth - Failed to authenticate:",
+          error?.message,
+        );
       }
     } else {
       console.log("🔍 optionalAuth - No valid Bearer token found");
@@ -102,7 +111,7 @@ const guestAuth = async (req, res, next) => {
 
     req.user = {
       id: guestId,
-      email: `guest-${guestId}@xquisito.ai`,
+      email: `guest-${guestId}@letseven.io`,
       isGuest: true,
     };
     req.isGuest = true;
@@ -114,7 +123,7 @@ const guestAuth = async (req, res, next) => {
     const guestId = `guest-error-${Date.now()}`;
     req.user = {
       id: guestId,
-      email: `guest-${guestId}@xquisito.ai`,
+      email: `guest-${guestId}@letseven.io`,
       isGuest: true,
     };
     req.isGuest = true;

@@ -183,11 +183,10 @@ async function authenticateSocket(socket, next) {
       return next();
     }
 
-    // Caso 5: Xquisito Crew (shared secret + branchId, sin Clerk)
+    // Caso 5: Even Crew (shared secret + branchId, sin Clerk)
     if (clientType === "crew") {
       const { branchId, secret, deviceId } = socket.handshake.auth;
-      const CREW_SECRET =
-        process.env.CREW_SOCKET_SECRET || "xquisito-crew-secret";
+      const CREW_SECRET = process.env.CREW_SOCKET_SECRET || "even-crew-secret";
 
       if (secret !== CREW_SECRET || !branchId) {
         console.log("⚠️ Socket connection rejected: Invalid crew credentials");

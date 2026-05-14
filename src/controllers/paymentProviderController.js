@@ -200,7 +200,7 @@ class PaymentProviderController {
   }
 
   // GET /api/payment-providers/resolve/:restaurantId
-  // Endpoint público para xquisito-flexbill — resuelve por restaurant_id (integer)
+  // Endpoint público para even-flexbill — resuelve por restaurant_id (integer)
   async resolveByRestaurantId(req, res) {
     try {
       const { restaurantId } = req.params;
