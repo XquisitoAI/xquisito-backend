@@ -1,6 +1,6 @@
 const BasePOSService = require("./BasePOSService");
 const agentConnectionManager = require("../../socket/agentConnectionManager");
-const { enrichItemsWithClasificacion } = require("../printerEnrichService");
+const { enrichItemsWithClasificacion } = require("../shared/printerEnrichService");
 
 class SoftRestaurantPOSService extends BasePOSService {
   constructor(integration) {

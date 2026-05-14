@@ -1,4 +1,4 @@
-const SubscriptionService = require('../services/subscriptionService');
+const SubscriptionService = require('../services/admin-portal/subscriptionService');
 
 /**
  * Middleware to check if restaurant has access to a specific feature

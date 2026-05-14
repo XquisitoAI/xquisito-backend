@@ -12,7 +12,7 @@
  */
 
 const cron = require('node-cron');
-const RenewalService = require('../services/renewalService');
+const RenewalService = require('../services/main-portal/renewalService');
 
 class RenewalJob {
     constructor() {

@@ -4,35 +4,40 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 require("dotenv").config();
 
-const authRoutes = require("./routes/authRoutes");
-const profileRoutes = require("./routes/profileRoutes");
-const tableRoutes = require("./routes/tableRoutes");
-const paymentRoutes = require("./routes/paymentRoutes");
-const userRoutes = require("./routes/userRoutes");
-const menuRoutes = require("./routes/menuRoutes");
-const restaurantRoutes = require("./routes/restaurantRoutes");
-const cartRoutes = require("./routes/cartRoutes");
-
-const userAdminPortalRoutes = require("./routes/userAdminPortalRoutes");
-const menuAdminPortalRoutes = require("./routes/menuAdminPortalRoutes");
-const imageUploadRoutes = require("./routes/imageUploadRoutes");
-const analyticsRoutes = require("./routes/analytics");
-const tapOrderRoutes = require("./routes/tapOrderRoutes");
-const roomOrderRoutes = require("./routes/roomOrderRoutes");
-const mainPortalRoutes = require("./routes/mainPortalRoutes");
-const qrCodeRoutes = require("./routes/qrCodeRoutes");
-const qrResolverRoutes = require("./routes/qrResolverRoutes");
-const superAdminRoutes = require("./routes/superAdminRoutes");
-const aiAgentRoutes = require("./routes/aiAgentRoutes");
-const flexBillStatisticsRoutes = require("./routes/flexBillRoutes");
-const pickAndGoRoutes = require("./routes/pickAndGoRoutes");
-const tapPayRoutes = require("./routes/tapPayRoutes");
-const segmentsRoutes = require("./routes/segmentsRoutes");
-const campaignsRoutes = require("./routes/campaignsRoutes");
-const smsTemplateRoutes = require("./routes/smsTemplateRoutes");
-const subscriptionRoutes = require("./routes/subscriptionRoutes");
-const posRoutes = require("./routes/posRoutes");
-const printerRoutes = require("./routes/printerRoutes");
+// shared
+const authRoutes = require("./routes/shared/authRoutes");
+const profileRoutes = require("./routes/shared/profileRoutes");
+const paymentRoutes = require("./routes/shared/paymentRoutes");
+const userRoutes = require("./routes/shared/userRoutes");
+const menuRoutes = require("./routes/shared/menuRoutes");
+const restaurantRoutes = require("./routes/shared/restaurantRoutes");
+const cartRoutes = require("./routes/shared/cartRoutes");
+const imageUploadRoutes = require("./routes/shared/imageUploadRoutes");
+const qrResolverRoutes = require("./routes/shared/qrResolverRoutes");
+const aiAgentRoutes = require("./routes/shared/aiAgentRoutes");
+const posRoutes = require("./routes/shared/posRoutes");
+const printerRoutes = require("./routes/shared/printerRoutes");
+const kitchenRoutes = require("./routes/shared/kitchenRoutes");
+const paymentProviderRoutes = require("./routes/shared/paymentProviderRoutes");
+// services
+const flexBillRoutes = require("./routes/flex-bill/flexBillRoutes");
+const pickAndGoRoutes = require("./routes/pick-and-go/pickAndGoRoutes");
+const tapOrderRoutes = require("./routes/tap-order-and-pay/tapOrderRoutes");
+const roomOrderRoutes = require("./routes/room-service/roomOrderRoutes");
+const tapPayRoutes = require("./routes/tap-and-pay/tapPayRoutes");
+// admin-portal
+const userAdminPortalRoutes = require("./routes/admin-portal/userAdminPortalRoutes");
+const menuAdminPortalRoutes = require("./routes/admin-portal/menuAdminPortalRoutes");
+const analyticsRoutes = require("./routes/admin-portal/analyticsRoutes");
+const qrCodeRoutes = require("./routes/admin-portal/qrCodeRoutes");
+const flexBillDashboardRoutes = require("./routes/admin-portal/flexBillDashboardRoutes");
+const segmentsRoutes = require("./routes/admin-portal/segmentsRoutes");
+const campaignsRoutes = require("./routes/admin-portal/campaignsRoutes");
+const smsTemplateRoutes = require("./routes/admin-portal/smsTemplateRoutes");
+const subscriptionRoutes = require("./routes/admin-portal/subscriptionRoutes");
+// main-portal
+const mainPortalRoutes = require("./routes/main-portal/mainPortalRoutes");
+const superAdminRoutes = require("./routes/main-portal/superAdminRoutes");
 const supabase = require("./config/supabase");
 const { supabaseAdmin } = require("./config/supabaseAuth");
 
@@ -176,7 +181,7 @@ app.get("/health/supabase", async (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profileRoutes);
 
-app.use("/api", tableRoutes);
+app.use("/api", flexBillRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/menu", menuRoutes);
@@ -206,8 +211,8 @@ app.use("/api/qr", qrResolverRoutes);
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/ai-agent", aiAgentRoutes);
 
-// FlexBill Statistics
-app.use("/api/flex-bill", flexBillStatisticsRoutes);
+// FlexBill Dashboard (admin portal)
+app.use("/api/flex-bill", flexBillDashboardRoutes);
 
 // Pick & Go
 app.use("/api/pick-and-go", pickAndGoRoutes);
@@ -231,14 +236,12 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/pos", posRoutes);
 
 // Payment Providers
-const paymentProviderRoutes = require("./routes/paymentProviderRoutes");
 app.use("/api/payment-providers", paymentProviderRoutes);
 
 // Printers
 app.use("/api/pos", printerRoutes);
 
 // Kitchen (Even Crew)
-const kitchenRoutes = require("./routes/kitchenRoutes");
 app.use("/api/kitchen", kitchenRoutes);
 
 app.use("/api", (req, res) => {
