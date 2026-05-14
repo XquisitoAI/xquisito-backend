@@ -78,8 +78,13 @@ class SoftRestaurantPOSService extends BasePOSService {
         throw new Error("El agente no retornó un folio válido");
       }
 
-      console.log(`[SR] Respuesta completa del agente:`, JSON.stringify(response));
-      console.log(`✅ Orden creada en SR: folio=${response.folio}, numcheque=${response.numcheque}`);
+      console.log(
+        `[SR] Respuesta completa del agente:`,
+        JSON.stringify(response),
+      );
+      console.log(
+        `✅ Orden creada en SR: folio=${response.folio}, numcheque=${response.numcheque}`,
+      );
       if (response.totals?.descuento > 0) {
         console.log(`🏷️ Descuento aplicado: $${response.totals.descuento}`);
       }
@@ -263,7 +268,7 @@ class SoftRestaurantPOSService extends BasePOSService {
         folio: folioNum,
         amount: amount,
         tenderId: tenderData.tender_id || tenderData.forma_pago || null,
-        reference: tenderData.reference || "XQUISITO",
+        reference: tenderData.reference || "EVEN",
         tip: tenderData.tip || 0,
       });
 

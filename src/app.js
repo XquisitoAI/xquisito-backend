@@ -47,13 +47,14 @@ const allowedOrigins = [
   "https://tapandpay.xquisito.ai",
   "https://admin-portal.xquisito.ai",
   "https://main-portal.xquisito.ai",
+
   "https://xquisito-flexbill-git-dev-leonardo-xquisito.vercel.app",
   "https://xquisito-pick-and-go-git-adrian-pick-and-go-xquisito.vercel.app",
   "https://xquisito-flexbill-git-diego-branch-xquisito.vercel.app",
 
-  "http://tauri.localhost", // Xquisito Crew (Windows .exe)
-  "https://tauri.localhost", // Xquisito Crew (Android APK)
-  "http://localhost:5173", // Xquisito Crew (tauri:dev)
+  "http://tauri.localhost", // Even Crew (Windows .exe)
+  "https://tauri.localhost", // Even Crew (Android APK)
+  "http://localhost:5173", // Even Crew (tauri:dev)
 
   // Solo desarrollo local
   ...(process.env.NODE_ENV === "development"
@@ -61,6 +62,7 @@ const allowedOrigins = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:3002",
+        "http://localhost:5173",
       ]
     : []),
 ];
@@ -117,7 +119,7 @@ app.use((req, res, next) => {
           result: res.statusCode < 400 ? "success" : "failure",
           source_ip:
             req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
-          service: "xquisito-backend",
+          service: "even-backend",
           metadata: {
             status_code: res.statusCode,
             user_agent: req.headers["user-agent"],
@@ -133,9 +135,7 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (req, res) => {
-  res
-    .status(200)
-    .json({ status: "OK", message: "Xquisito Backend is running" });
+  res.status(200).json({ status: "OK", message: "Even Backend is running" });
 });
 
 app.get("/health/supabase", async (req, res) => {
@@ -237,10 +237,9 @@ app.use("/api/payment-providers", paymentProviderRoutes);
 // Printers
 app.use("/api/pos", printerRoutes);
 
-// Kitchen (Xquisito Crew)
+// Kitchen (Even Crew)
 const kitchenRoutes = require("./routes/kitchenRoutes");
 app.use("/api/kitchen", kitchenRoutes);
-
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API endpoint not found" });

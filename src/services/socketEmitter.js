@@ -31,7 +31,7 @@ class SocketEmitter {
     });
   }
 
-  // Emite un trabajo de impresión a dispositivos xquisito-crew del restaurante
+  // Emite un trabajo de impresión a dispositivos even-crew del restaurante
   // printData: { branchId, items: [{name, quantity, clasificacion}], orderInfo: {identifier} }
   emitPrintJob(restaurantId, printData) {
     return this.emitToRestaurant(restaurantId, "kitchen:print_job", printData);

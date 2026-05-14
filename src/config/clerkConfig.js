@@ -5,12 +5,12 @@ require("dotenv").config();
 // ===============================================
 
 const clerkConfigs = {
-  // Configuración para el proyecto xquisito-frontend (existente)
-  xquisito: {
+  // Configuración para el proyecto even-frontend (existente)
+  even: {
     secretKey:
-      process.env.CLERK_SECRET_KEY_XQUISITO || process.env.CLERK_SECRET_KEY,
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY_XQUISITO,
-    project: "xquisito-frontend",
+      process.env.CLERK_SECRET_KEY_EVEN || process.env.CLERK_SECRET_KEY,
+    publishableKey: process.env.CLERK_PUBLISHABLE_KEY_EVEN,
+    project: "even-frontend",
   },
 
   // Configuración para el proyecto admin-portal
@@ -34,7 +34,7 @@ const clerkConfigs = {
 
 /**
  * Obtiene la configuración de Clerk para un proyecto específico
- * @param {string} project - 'xquisito', 'adminPortal' o 'mainPortal'
+ * @param {string} project - 'even', 'adminPortal' o 'mainPortal'
  * @returns {object} Configuración de Clerk
  */
 const getClerkConfig = (project) => {
@@ -61,11 +61,9 @@ const getClerkConfig = (project) => {
 const validateClerkConfigs = () => {
   const errors = [];
 
-  // Validar configuración xquisito (existente)
-  if (!clerkConfigs.xquisito.secretKey) {
-    errors.push(
-      "CLERK_SECRET_KEY_XQUISITO o CLERK_SECRET_KEY no está configurado",
-    );
+  // Validar configuración even (existente)
+  if (!clerkConfigs.even.secretKey) {
+    errors.push("CLERK_SECRET_KEY_EVEN o CLERK_SECRET_KEY no está configurado");
   }
 
   // Validar configuración admin-portal

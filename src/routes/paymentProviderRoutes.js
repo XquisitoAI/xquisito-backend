@@ -6,7 +6,7 @@ const router = express.Router();
 // Lista todos los proveedores disponibles (público)
 router.get("/", paymentProviderController.getProviders);
 
-// Resuelve el proveedor activo por restaurant_id (integer) — usado por xquisito-flexbill
+// Resuelve el proveedor activo por restaurant_id (integer) — usado por even-flexbill
 router.get(
   "/resolve/:restaurantId",
   paymentProviderController.resolveByRestaurantId,

@@ -117,7 +117,7 @@ class TableController {
         result,
       );
 
-      // Notificar a cocina (xquisito-crew) sobre nueva orden FlexBill
+      // Notificar a cocina (even-crew) sobre nueva orden FlexBill
       socketEmitter.emitNewTransaction(parseInt(restaurantId), {
         orderType: "flex_bill",
         identifier: `Mesa ${tableNumber}`,
@@ -126,7 +126,7 @@ class TableController {
         orderedBy: guestName || null,
       });
 
-      // Imprimir en xquisito-crew (fire-and-forget)
+      // Imprimir en even-crew (fire-and-forget)
       if (result.table_order_id) {
         const resolvedCustomFields =
           customFields ?? req.body.custom_fields ?? null;

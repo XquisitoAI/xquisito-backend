@@ -106,15 +106,15 @@ class PaymentTransactionService {
         tip_amount,
         iva_tip,
 
-        // Comisiones Xquisito (vienen del frontend)
-        xquisito_commission_total,
-        xquisito_commission_client,
-        xquisito_commission_restaurant,
-        iva_xquisito_client,
-        iva_xquisito_restaurant,
-        xquisito_client_charge,
-        xquisito_restaurant_charge,
-        xquisito_rate_applied,
+        // Comisiones Even (vienen del frontend)
+        even_commission_total,
+        even_commission_client,
+        even_commission_restaurant,
+        iva_even_client,
+        iva_even_restaurant,
+        even_client_charge,
+        even_restaurant_charge,
+        even_rate_applied,
 
         // Totales (vienen del frontend)
         total_amount_charged,
@@ -188,23 +188,19 @@ class PaymentTransactionService {
       const baseAmountNum = parseFloat(base_amount);
       const tipAmountNum = parseFloat(tip_amount || 0);
       const ivaTipNum = parseFloat(iva_tip || 0);
-      const xquisitoClientChargeNum = parseFloat(xquisito_client_charge || 0);
-      const xquisitoRestaurantChargeNum = parseFloat(
-        xquisito_restaurant_charge || 0,
-      );
+      const evenClientChargeNum = parseFloat(even_client_charge || 0);
+      const evenRestaurantChargeNum = parseFloat(even_restaurant_charge || 0);
       const ecartCommissionTotalNum = parseFloat(
         ecartCommission.ecart_commission_total,
       );
 
       // Ingreso neto del restaurante = base + propina - comisión_restaurante
       const restaurantNetIncome =
-        baseAmountNum + tipAmountNum - xquisitoRestaurantChargeNum;
+        baseAmountNum + tipAmountNum - evenRestaurantChargeNum;
 
-      // Ingreso neto de Xquisito = comisiones totales - comisión E-cart
-      const xquisitoNetIncome =
-        xquisitoClientChargeNum +
-        xquisitoRestaurantChargeNum -
-        ecartCommissionTotalNum;
+      // Ingreso neto de Even = comisiones totales - comisión E-cart
+      const evenNetIncome =
+        evenClientChargeNum + evenRestaurantChargeNum - ecartCommissionTotalNum;
 
       // Preparar datos para inserción
       const transactionRecord = {
@@ -223,17 +219,15 @@ class PaymentTransactionService {
         tip_amount: tipAmountNum,
         iva_tip: ivaTipNum,
 
-        // Comisiones Xquisito
-        xquisito_commission_total: parseFloat(xquisito_commission_total || 0),
-        xquisito_commission_client: parseFloat(xquisito_commission_client || 0),
-        xquisito_commission_restaurant: parseFloat(
-          xquisito_commission_restaurant || 0,
-        ),
-        iva_xquisito_client: parseFloat(iva_xquisito_client || 0),
-        iva_xquisito_restaurant: parseFloat(iva_xquisito_restaurant || 0),
-        xquisito_client_charge: xquisitoClientChargeNum,
-        xquisito_restaurant_charge: xquisitoRestaurantChargeNum,
-        xquisito_rate_applied: parseFloat(xquisito_rate_applied || 0),
+        // Comisiones Even
+        even_commission_total: parseFloat(even_commission_total || 0),
+        even_commission_client: parseFloat(even_commission_client || 0),
+        even_commission_restaurant: parseFloat(even_commission_restaurant || 0),
+        iva_even_client: parseFloat(iva_even_client || 0),
+        iva_even_restaurant: parseFloat(iva_even_restaurant || 0),
+        even_client_charge: evenClientChargeNum,
+        even_restaurant_charge: evenRestaurantChargeNum,
+        even_rate_applied: parseFloat(even_rate_applied || 0),
 
         // Comisión E-cart (calculada en backend)
         ...ecartCommission,
@@ -247,7 +241,7 @@ class PaymentTransactionService {
 
         // Ingresos netos (calculados en backend)
         restaurant_net_income: parseFloat(restaurantNetIncome.toFixed(2)),
-        xquisito_net_income: parseFloat(xquisitoNetIncome.toFixed(2)),
+        even_net_income: parseFloat(evenNetIncome.toFixed(2)),
 
         // Metadata
         currency,

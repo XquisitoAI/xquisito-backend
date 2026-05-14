@@ -756,7 +756,7 @@ class PaymentController {
 
       // Prepare order data for eCartPay
       const orderDescription =
-        description || `Xquisito Restaurant - Table ${tableNumber}`;
+        description || `Even Restaurant - Table ${tableNumber}`;
       const itemName = `${orderDescription}${req.body.selectedUsers ? " - " + req.body.selectedUsers : ""}`;
 
       console.log("💰 Processing eCartPay order:", {
@@ -901,7 +901,7 @@ class PaymentController {
           },
         ],
         webhookUrl: `${process.env.BASE_URL || "http://localhost:5000"}/api/payments/webhooks/ecartpay`,
-        redirectUrl: `${process.env.FRONTEND_URL || "https://pickandgo.xquisito.ai"}/payment-success?orderId=${orderId}&amount=${amount}&table=${tableNumber}`,
+        redirectUrl: `${process.env.FRONTEND_URL || "https://pickandgo.even.ai"}/payment-success?orderId=${orderId}&amount=${amount}&table=${tableNumber}`,
       });
 
       if (!orderResult.success) {
@@ -1321,9 +1321,9 @@ class PaymentController {
 
       // Try to extract table number from reference_id or description
       if (paymentObject.reference_id) {
-        // Match our format: xq_table_12_timestamp
+        // Match our format: ev_table_12_timestamp
         const match = paymentObject.reference_id.match(
-          /(?:xq_)?table[_-]?(\d+)/i,
+          /(?:ev_)?table[_-]?(\d+)/i,
         );
         if (match) {
           tableNumber = parseInt(match[1]);
@@ -1828,7 +1828,13 @@ class PaymentController {
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
-      const { amount, currency = "MXN", tableNumber, restaurantId, customerName: bodyCustomerName } = req.body;
+      const {
+        amount,
+        currency = "MXN",
+        tableNumber,
+        restaurantId,
+        customerName: bodyCustomerName,
+      } = req.body;
 
       if (!amount || typeof amount !== "number" || amount <= 0) {
         return res.status(400).json({
@@ -1871,9 +1877,12 @@ class PaymentController {
             .eq("id", userId)
             .maybeSingle();
           const customerName = profileData?.first_name
-            ? [profileData.first_name, profileData.last_name].filter(Boolean).join(" ")
+            ? [profileData.first_name, profileData.last_name]
+                .filter(Boolean)
+                .join(" ")
             : "Guest";
-          const phone = profileData?.phone || `55${Date.now().toString().slice(-8)}`;
+          const phone =
+            profileData?.phone || `55${Date.now().toString().slice(-8)}`;
 
           const newCustomer = await ecartPay.createCustomer({
             name: customerName,
@@ -1884,7 +1893,10 @@ class PaymentController {
           if (newCustomer.success) {
             customerId = newCustomer.customer.id;
           } else {
-            console.warn("⚠️ No se pudo crear customer para Apple Pay:", newCustomer.error);
+            console.warn(
+              "⚠️ No se pudo crear customer para Apple Pay:",
+              newCustomer.error,
+            );
           }
         }
       }
@@ -1898,10 +1910,10 @@ class PaymentController {
         amount,
         currency,
         quantity: 1,
-        description: `Xquisito Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
+        description: `Even Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
         tableNumber: tableNumber || null,
-        referenceId: `xq_applepay_${Date.now()}`,
-        redirectUrl: `${process.env.FRONTEND_URL || "https://pickandgo.xquisito.ai"}/payment-success`,
+        referenceId: `ev_applepay_${Date.now()}`,
+        redirectUrl: `${process.env.FRONTEND_URL || "https://pickandgo.even.ai"}/payment-success`,
       });
 
       if (!orderResult.success || !orderResult.order?.id) {
@@ -1940,7 +1952,13 @@ class PaymentController {
     try {
       const userId = req.user?.id;
       const isGuest = req.isGuest || req.user?.isGuest;
-      const { amount, currency = "MXN", tableNumber, restaurantId, customerName: bodyCustomerName } = req.body;
+      const {
+        amount,
+        currency = "MXN",
+        tableNumber,
+        restaurantId,
+        customerName: bodyCustomerName,
+      } = req.body;
 
       if (!amount || typeof amount !== "number" || amount <= 0) {
         return res.status(400).json({
@@ -1983,9 +2001,12 @@ class PaymentController {
             .eq("id", userId)
             .maybeSingle();
           const customerName = profileData?.first_name
-            ? [profileData.first_name, profileData.last_name].filter(Boolean).join(" ")
+            ? [profileData.first_name, profileData.last_name]
+                .filter(Boolean)
+                .join(" ")
             : "Guest";
-          const phone = profileData?.phone || `55${Date.now().toString().slice(-8)}`;
+          const phone =
+            profileData?.phone || `55${Date.now().toString().slice(-8)}`;
 
           const newCustomer = await ecartPay.createCustomer({
             name: customerName,
@@ -1996,7 +2017,10 @@ class PaymentController {
           if (newCustomer.success) {
             customerId = newCustomer.customer.id;
           } else {
-            console.warn("⚠️ No se pudo crear customer para Google Pay:", newCustomer.error);
+            console.warn(
+              "⚠️ No se pudo crear customer para Google Pay:",
+              newCustomer.error,
+            );
           }
         }
       }
@@ -2009,9 +2033,9 @@ class PaymentController {
         amount,
         currency,
         quantity: 1,
-        description: `Xquisito Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
+        description: `Even Restaurant Payment${tableNumber ? ` - Mesa ${tableNumber}` : ""}`,
         tableNumber: tableNumber || null,
-        referenceId: `xq_googlepay_${Date.now()}`,
+        referenceId: `ev_googlepay_${Date.now()}`,
         redirectUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success`,
       });
 

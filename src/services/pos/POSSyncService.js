@@ -430,13 +430,13 @@ class POSSyncService {
     };
   }
 
-  // Transformar orden de Xquisito a formato POS
+  // Transformar orden de Even a formato POS
   static async transformOrderToPOS(order, integration) {
     // Obtener items de la orden con mapeo POS
     const items = await this.getOrderItemsWithMapping(order.id, integration.id);
 
     // Generar check number único
-    const checkNumber = `XQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const checkNumber = `EVEN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Obtener table_number o room_number según el tipo de orden
     let tableNumber = null;
@@ -1032,7 +1032,7 @@ class POSSyncService {
       return null;
     }
   }
-  // ==================== TAP & PAY (POS → Xquisito) ====================
+  // ==================== TAP & PAY (POS → Even) ====================
 
   // Obtener check abierto de una mesa desde el POS
   static async getTapPayCheckByTable(branchId, tableNumber) {
@@ -1074,8 +1074,8 @@ class POSSyncService {
 
       const check = result.check;
 
-      // 4. Mapear items del POS a Xquisito (mapeo inverso)
-      const mappedItems = await this.mapPOSItemsToXquisito(
+      // 4. Mapear items del POS a Even (mapeo inverso)
+      const mappedItems = await this.mapPOSItemsToEven(
         check.menuItems,
         integration.id,
       );
@@ -1106,8 +1106,8 @@ class POSSyncService {
     }
   }
 
-  // Mapeo inverso: POS items → Xquisito menu_items
-  static async mapPOSItemsToXquisito(posItems, integrationId) {
+  // Mapeo inverso: POS items → Even menu_items
+  static async mapPOSItemsToEven(posItems, integrationId) {
     if (!posItems || posItems.length === 0) {
       return [];
     }
@@ -1159,7 +1159,7 @@ class POSSyncService {
         }
 
         if (mapping && mapping.menu_items) {
-          // Item mapeado - usar datos de Xquisito (nombre, descripción, precio, imagen)
+          // Item mapeado - usar datos de Even (nombre, descripción, precio, imagen)
           const price =
             parseFloat(mapping.menu_items.price) ||
             posItem.unitPrice ||
@@ -1200,7 +1200,7 @@ class POSSyncService {
 
     const mappedCount = mappedItems.filter((i) => i.mapped).length;
     console.log(
-      `📋 ${mappedCount}/${mappedItems.length} items mapeados a Xquisito`,
+      `📋 ${mappedCount}/${mappedItems.length} items mapeados a Even`,
     );
 
     return mappedItems;
@@ -1284,7 +1284,7 @@ class POSSyncService {
         const paymentResult = await posService.applyTender(posOrderId, {
           amount: paymentAmount || 0,
           tip: tipAmount,
-          reference: `XQ-${orderId.substring(0, 8)}`,
+          reference: `EVEN-${orderId.substring(0, 8)}`,
         });
 
         // 4. Actualizar registro de sync con estado cerrado

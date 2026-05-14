@@ -669,7 +669,7 @@ class PickAndGoController {
         return res.status(500).json(result);
       }
 
-      // Notificar al dashboard (admin-portal) y a crew (xquisito-crew)
+      // Notificar al dashboard (admin-portal) y a crew (even-crew)
       const restaurantId = result.data?.restaurant_id;
       if (restaurantId) {
         socketEmitter.emitOrderUpdate(
@@ -792,14 +792,14 @@ class PickAndGoController {
         base_amount,
         tip_amount,
         iva_tip,
-        xquisito_commission_total,
-        xquisito_commission_client,
-        xquisito_commission_restaurant,
-        iva_xquisito_client,
-        iva_xquisito_restaurant,
-        xquisito_client_charge,
-        xquisito_restaurant_charge,
-        xquisito_rate_applied,
+        even_commission_total,
+        even_commission_client,
+        even_commission_restaurant,
+        iva_even_client,
+        iva_even_restaurant,
+        even_client_charge,
+        even_restaurant_charge,
+        even_rate_applied,
         total_amount_charged,
         transaction_by,
         currency,
@@ -825,28 +825,22 @@ class PickAndGoController {
           .json({ success: false, error: "branch_number is required" });
       }
       if (!items || !Array.isArray(items) || items.length === 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: "items array is required and must not be empty",
-          });
+        return res.status(400).json({
+          success: false,
+          error: "items array is required and must not be empty",
+        });
       }
       if (!base_amount || base_amount <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: "base_amount must be greater than 0",
-          });
+        return res.status(400).json({
+          success: false,
+          error: "base_amount must be greater than 0",
+        });
       }
       if (!total_amount_charged || total_amount_charged <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: "total_amount_charged must be greater than 0",
-          });
+        return res.status(400).json({
+          success: false,
+          error: "total_amount_charged must be greater than 0",
+        });
       }
 
       const result = await pickAndGoService.confirmOrder({
@@ -865,14 +859,14 @@ class PickAndGoController {
         base_amount,
         tip_amount,
         iva_tip,
-        xquisito_commission_total,
-        xquisito_commission_client,
-        xquisito_commission_restaurant,
-        iva_xquisito_client,
-        iva_xquisito_restaurant,
-        xquisito_client_charge,
-        xquisito_restaurant_charge,
-        xquisito_rate_applied,
+        even_commission_total,
+        even_commission_client,
+        even_commission_restaurant,
+        iva_even_client,
+        iva_even_restaurant,
+        even_client_charge,
+        even_restaurant_charge,
+        even_rate_applied,
         total_amount_charged,
         transaction_by,
         currency,

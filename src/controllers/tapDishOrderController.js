@@ -109,7 +109,7 @@ class TapDishOrderController {
         });
       }
 
-      // Imprimir en xquisito-crew (fire-and-forget)
+      // Imprimir en even-crew (fire-and-forget)
       // skipAgent: true → el agente imprime via new_order (con folio real de SR)
       emitPrintJob({
         restaurantId: parseInt(restaurantId),
@@ -206,7 +206,7 @@ class TapDishOrderController {
         });
       }
 
-      // Imprimir en xquisito-crew (fire-and-forget)
+      // Imprimir en even-crew (fire-and-forget)
       emitPrintJobForTapOrder(tapOrderId, [
         {
           name: dishData.item,

@@ -98,7 +98,7 @@ class KitchenController {
 
   /**
    * POST /api/kitchen/printers/sync
-   * Upsert de impresoras encontradas en un scan local (desde xquisito-crew)
+   * Upsert de impresoras encontradas en un scan local (desde even-crew)
    * Body: { branchId, printers: [{ip, port}] | [{usb_device_name, connection_type: 'usb'}] }
    */
   async syncPrinters(req, res) {
@@ -158,15 +158,13 @@ class KitchenController {
               .update({ last_seen_at: now })
               .eq("id", existingId);
           } else {
-            await supabase
-              .from("branch_printers")
-              .insert({
-                branch_id: branchId,
-                ip,
-                port,
-                connection_type: "wifi",
-                last_seen_at: now,
-              });
+            await supabase.from("branch_printers").insert({
+              branch_id: branchId,
+              ip,
+              port,
+              connection_type: "wifi",
+              last_seen_at: now,
+            });
           }
         }
 
@@ -178,16 +176,14 @@ class KitchenController {
               .update({ last_seen_at: now })
               .eq("id", existingId);
           } else {
-            await supabase
-              .from("branch_printers")
-              .insert({
-                branch_id: branchId,
-                ip: null,
-                port: null,
-                connection_type: "usb",
-                usb_device_name,
-                last_seen_at: now,
-              });
+            await supabase.from("branch_printers").insert({
+              branch_id: branchId,
+              ip: null,
+              port: null,
+              connection_type: "usb",
+              usb_device_name,
+              last_seen_at: now,
+            });
           }
         }
       }
@@ -209,7 +205,7 @@ class KitchenController {
 
   /**
    * PUT /api/kitchen/printers/:printerId
-   * Actualiza nombre/rol de una impresora (desde xquisito-crew)
+   * Actualiza nombre/rol de una impresora (desde even-crew)
    */
   async updatePrinter(req, res) {
     try {

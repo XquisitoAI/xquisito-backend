@@ -60,7 +60,7 @@ class SuperAdminService {
       // Ejecutar consultas para período actual
       const [
         transactionVolume,
-        xquisitoIncome,
+        evenIncome,
         activeDiners,
         successfulOrders,
         activeAdmins,
@@ -73,7 +73,7 @@ class SuperAdminService {
         activeCampaigns,
       ] = await Promise.all([
         this.getTransactionVolume(filters),
-        this.getXquisitoIncome(filters),
+        this.getEvenIncome(filters),
         this.getActiveDiners(filters),
         this.getSuccessfulOrders(filters),
         this.getActiveAdmins(filters),
@@ -91,7 +91,7 @@ class SuperAdminService {
       if (previous_start_date && previous_end_date) {
         const [
           prevTransactionVolume,
-          prevXquisitoIncome,
+          prevEvenIncome,
           prevActiveDiners,
           prevSuccessfulOrders,
           prevActiveAdmins,
@@ -99,7 +99,7 @@ class SuperAdminService {
           prevTotalCampaigns,
         ] = await Promise.all([
           this.getTransactionVolume(previousFilters),
-          this.getXquisitoIncome(previousFilters),
+          this.getEvenIncome(previousFilters),
           this.getActiveDiners(previousFilters),
           this.getSuccessfulOrders(previousFilters),
           this.getActiveAdmins(previousFilters),
@@ -109,7 +109,7 @@ class SuperAdminService {
 
         previousStats = {
           transaction_volume: prevTransactionVolume,
-          xquisito_income: prevXquisitoIncome,
+          even_income: prevEvenIncome,
           active_diners: prevActiveDiners,
           successful_orders: prevSuccessfulOrders,
           active_admins: prevActiveAdmins,
@@ -125,9 +125,9 @@ class SuperAdminService {
               transactionVolume,
               previousStats.transaction_volume,
             ),
-            xquisito_income_change: this.calculateChange(
-              xquisitoIncome,
-              previousStats.xquisito_income,
+            even_income_change: this.calculateChange(
+              evenIncome,
+              previousStats.even_income,
             ),
             active_diners_change: this.calculateChange(
               activeDiners,
@@ -152,7 +152,7 @@ class SuperAdminService {
           }
         : {
             transaction_volume_change: 0,
-            xquisito_income_change: 0,
+            even_income_change: 0,
             active_diners_change: 0,
             successful_orders_change: 0,
             active_admins_change: 0,
@@ -165,7 +165,7 @@ class SuperAdminService {
         data: {
           // Métricas principales
           transaction_volume: transactionVolume,
-          xquisito_income: xquisitoIncome,
+          even_income: evenIncome,
           active_diners: activeDiners,
           successful_orders: successfulOrders,
           active_admins: activeAdmins,
@@ -222,12 +222,12 @@ class SuperAdminService {
     }
   }
 
-  // Obtiene los ingresos netos de Xquisito
-  async getXquisitoIncome(filters) {
+  // Obtiene los ingresos netos de Even
+  async getEvenIncome(filters) {
     try {
       let query = supabase
         .from("payment_transactions")
-        .select("xquisito_net_income");
+        .select("even_net_income");
 
       query = this.applyFilters(query, filters);
 
@@ -236,12 +236,12 @@ class SuperAdminService {
       if (error) throw error;
 
       const total = data.reduce(
-        (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+        (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
         0,
       );
       return parseFloat(total.toFixed(2));
     } catch (error) {
-      console.error("Error getting xquisito income:", error);
+      console.error("Error getting even income:", error);
       return 0;
     }
   }
@@ -249,14 +249,21 @@ class SuperAdminService {
   // Obtiene el número de diners activos (usuarios únicos con transacciones en el período)
   async getActiveDiners(filters) {
     try {
-      const { start_date, end_date, restaurant_id, service, gender, age_range } = filters;
+      const {
+        start_date,
+        end_date,
+        restaurant_id,
+        service,
+        gender,
+        age_range,
+      } = filters;
 
-      const startFilter = start_date ? this.toLocalMidnightUTC(start_date) : null;
+      const startFilter = start_date
+        ? this.toLocalMidnightUTC(start_date)
+        : null;
       const endFilter = end_date ? this.toNextLocalMidnightUTC(end_date) : null;
 
-      let query = supabase
-        .from("payment_transactions")
-        .select("user_id");
+      let query = supabase.from("payment_transactions").select("user_id");
 
       if (startFilter) query = query.gte("created_at", startFilter);
       if (endFilter) query = query.lt("created_at", endFilter);
@@ -270,11 +277,16 @@ class SuperAdminService {
       }
 
       if (service && service !== "todos") {
-        if (service === "flex-bill") query = query.not("id_table_order", "is", null);
-        else if (service === "tap-order-pay") query = query.not("id_tap_orders_and_pay", "is", null);
-        else if (service === "pick-and-go") query = query.not("id_pick_and_go_order", "is", null);
-        else if (service === "room-service") query = query.not("id_room_order", "is", null);
-        else if (service === "tap-and-pay") query = query.not("id_tap_pay_order", "is", null);
+        if (service === "flex-bill")
+          query = query.not("id_table_order", "is", null);
+        else if (service === "tap-order-pay")
+          query = query.not("id_tap_orders_and_pay", "is", null);
+        else if (service === "pick-and-go")
+          query = query.not("id_pick_and_go_order", "is", null);
+        else if (service === "room-service")
+          query = query.not("id_room_order", "is", null);
+        else if (service === "tap-and-pay")
+          query = query.not("id_tap_pay_order", "is", null);
       }
 
       const { data, error } = await query;
@@ -282,14 +294,17 @@ class SuperAdminService {
 
       // Obtener IDs únicos de usuarios
       const uniqueUserIds = new Set(
-        (data || []).filter((r) => r.user_id).map((r) => r.user_id)
+        (data || []).filter((r) => r.user_id).map((r) => r.user_id),
       );
 
       if (uniqueUserIds.size === 0) return 0;
 
       // Aplicar filtros demográficos si los hay
       if (gender !== "todos" || age_range !== "todos") {
-        let userQuery = supabase.from("users").select("id").in("id", Array.from(uniqueUserIds));
+        let userQuery = supabase
+          .from("users")
+          .select("id")
+          .in("id", Array.from(uniqueUserIds));
         if (gender !== "todos") userQuery = userQuery.eq("gender", gender);
         if (age_range !== "todos") {
           const ageFilter = this.getAgeFilter(age_range);
@@ -624,7 +639,7 @@ class SuperAdminService {
       if (service === "todos" || service === "flex-bill") {
         let flexBillQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_table_order");
+          .select("total_amount_charged, even_net_income, id_table_order");
 
         if (start_date)
           flexBillQuery = flexBillQuery.gte("created_at", start_date);
@@ -651,7 +666,7 @@ class SuperAdminService {
           : 0;
         const flexBillIncome = flexBillResult.data
           ? flexBillResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -671,7 +686,9 @@ class SuperAdminService {
       if (service === "todos" || service === "tap-order-pay") {
         let tapOrderQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_tap_orders_and_pay");
+          .select(
+            "total_amount_charged, even_net_income, id_tap_orders_and_pay",
+          );
 
         if (start_date)
           tapOrderQuery = tapOrderQuery.gte("created_at", start_date);
@@ -698,7 +715,7 @@ class SuperAdminService {
           : 0;
         const tapOrderIncome = tapOrderResult.data
           ? tapOrderResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -718,7 +735,9 @@ class SuperAdminService {
       if (service === "todos" || service === "pick-and-go") {
         let pickAndGoQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_pick_and_go_order");
+          .select(
+            "total_amount_charged, even_net_income, id_pick_and_go_order",
+          );
 
         if (start_date)
           pickAndGoQuery = pickAndGoQuery.gte("created_at", start_date);
@@ -745,7 +764,7 @@ class SuperAdminService {
           : 0;
         const pickAndGoIncome = pickAndGoResult.data
           ? pickAndGoResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -765,7 +784,7 @@ class SuperAdminService {
       if (service === "todos" || service === "room-service") {
         let roomServiceQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_room_order");
+          .select("total_amount_charged, even_net_income, id_room_order");
 
         if (start_date)
           roomServiceQuery = roomServiceQuery.gte("created_at", start_date);
@@ -798,7 +817,7 @@ class SuperAdminService {
           : 0;
         const roomServiceIncome = roomServiceResult.data
           ? roomServiceResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -818,7 +837,7 @@ class SuperAdminService {
       if (service === "todos" || service === "tap-and-pay") {
         let tapAndPayQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_tap_pay_order");
+          .select("total_amount_charged, even_net_income, id_tap_pay_order");
 
         if (start_date)
           tapAndPayQuery = tapAndPayQuery.gte("created_at", start_date);
@@ -845,7 +864,7 @@ class SuperAdminService {
           : 0;
         const tapPayIncome = tapAndPayResult.data
           ? tapAndPayResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -1438,7 +1457,9 @@ class SuperAdminService {
       // Obtener transacciones de Flex Bill
       let flexBillQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
+        .select(
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
+        )
         .not("id_table_order", "is", null);
 
       if (startFilter)
@@ -1455,7 +1476,9 @@ class SuperAdminService {
       // Obtener transacciones de Tap Order & Pay
       let tapOrderQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
+        .select(
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
+        )
         .not("id_tap_orders_and_pay", "is", null);
 
       if (startFilter)
@@ -1472,7 +1495,9 @@ class SuperAdminService {
       // Obtener transacciones de Pick & Go
       let pickAndGoQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
+        .select(
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
+        )
         .not("id_pick_and_go_order", "is", null);
 
       if (startFilter)
@@ -1490,7 +1515,9 @@ class SuperAdminService {
       // Obtener transacciones de Room Service
       let roomServiceQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
+        .select(
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
+        )
         .not("id_room_order", "is", null);
 
       if (startFilter)
@@ -1514,7 +1541,9 @@ class SuperAdminService {
       // Obtener transacciones de Tap & Pay
       let tapPayQuery = supabase
         .from("payment_transactions")
-        .select("created_at, total_amount_charged, xquisito_net_income, restaurant_id")
+        .select(
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
+        )
         .not("id_tap_pay_order", "is", null);
 
       if (startFilter) tapPayQuery = tapPayQuery.gte("created_at", startFilter);
@@ -1977,8 +2006,12 @@ class SuperAdminService {
       const dateKey = getDateKey(item.created_at);
       if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Flex Bill"] += parseFloat(item.total_amount_charged || 0);
-        grouped[dateKey]["Flex Bill_income"] += parseFloat(item.xquisito_net_income || 0);
+        grouped[dateKey]["Flex Bill"] += parseFloat(
+          item.total_amount_charged || 0,
+        );
+        grouped[dateKey]["Flex Bill_income"] += parseFloat(
+          item.even_net_income || 0,
+        );
       } else {
         grouped[dateKey]["Flex Bill"] += 1;
       }
@@ -1989,8 +2022,12 @@ class SuperAdminService {
       const dateKey = getDateKey(item.created_at);
       if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Tap Order & Pay"] += parseFloat(item.total_amount_charged || 0);
-        grouped[dateKey]["Tap Order & Pay_income"] += parseFloat(item.xquisito_net_income || 0);
+        grouped[dateKey]["Tap Order & Pay"] += parseFloat(
+          item.total_amount_charged || 0,
+        );
+        grouped[dateKey]["Tap Order & Pay_income"] += parseFloat(
+          item.even_net_income || 0,
+        );
       } else {
         grouped[dateKey]["Tap Order & Pay"] += 1;
       }
@@ -2001,8 +2038,12 @@ class SuperAdminService {
       const dateKey = getDateKey(item.created_at);
       if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Pick & Go"] += parseFloat(item.total_amount_charged || 0);
-        grouped[dateKey]["Pick & Go_income"] += parseFloat(item.xquisito_net_income || 0);
+        grouped[dateKey]["Pick & Go"] += parseFloat(
+          item.total_amount_charged || 0,
+        );
+        grouped[dateKey]["Pick & Go_income"] += parseFloat(
+          item.even_net_income || 0,
+        );
       } else {
         grouped[dateKey]["Pick & Go"] += 1;
       }
@@ -2013,8 +2054,12 @@ class SuperAdminService {
       const dateKey = getDateKey(item.created_at);
       if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Room Service"] += parseFloat(item.total_amount_charged || 0);
-        grouped[dateKey]["Room Service_income"] += parseFloat(item.xquisito_net_income || 0);
+        grouped[dateKey]["Room Service"] += parseFloat(
+          item.total_amount_charged || 0,
+        );
+        grouped[dateKey]["Room Service_income"] += parseFloat(
+          item.even_net_income || 0,
+        );
       } else {
         grouped[dateKey]["Room Service"] += 1;
       }
@@ -2025,8 +2070,12 @@ class SuperAdminService {
       const dateKey = getDateKey(item.created_at);
       if (!grouped[dateKey]) grouped[dateKey] = makeEntry(dateKey);
       if (dataType === "volume") {
-        grouped[dateKey]["Tap & Pay"] += parseFloat(item.total_amount_charged || 0);
-        grouped[dateKey]["Tap & Pay_income"] += parseFloat(item.xquisito_net_income || 0);
+        grouped[dateKey]["Tap & Pay"] += parseFloat(
+          item.total_amount_charged || 0,
+        );
+        grouped[dateKey]["Tap & Pay_income"] += parseFloat(
+          item.even_net_income || 0,
+        );
       } else {
         grouped[dateKey]["Tap & Pay"] += 1;
       }
@@ -2266,7 +2315,7 @@ class SuperAdminService {
           total_amount_charged,
           tip_amount,
           restaurant_net_income,
-          xquisito_net_income,
+          even_net_income,
           ecart_commission_total,
           created_at,
           restaurant_id,
@@ -2327,7 +2376,7 @@ class SuperAdminService {
         total_amount_charged: parseFloat(tx.total_amount_charged) || 0,
         tip_amount: parseFloat(tx.tip_amount) || 0,
         restaurant_net_income: parseFloat(tx.restaurant_net_income) || 0,
-        xquisito_net_income: parseFloat(tx.xquisito_net_income) || 0,
+        even_net_income: parseFloat(tx.even_net_income) || 0,
         ecart_commission_total: parseFloat(tx.ecart_commission_total) || 0,
         created_at: tx.created_at,
         restaurant_id: tx.restaurant_id,

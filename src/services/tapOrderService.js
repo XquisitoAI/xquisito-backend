@@ -483,7 +483,10 @@ class TapOrderService {
           }
         }
       } catch (e) {
-        console.warn("[confirmOrder] No se pudo verificar EcartPay:", e.message);
+        console.warn(
+          "[confirmOrder] No se pudo verificar EcartPay:",
+          e.message,
+        );
       }
     }
 
@@ -560,7 +563,8 @@ class TapOrderService {
 
     // Log del paso payment — solo para flujos directos (Apple Pay / Google Pay / dev).
     // Para tarjetas guardadas, processPayment ya escribió este log.
-    const isDirectPayment = !payment_method_id || payment_method_id === "system-default-card";
+    const isDirectPayment =
+      !payment_method_id || payment_method_id === "system-default-card";
     if (isDirectPayment) {
       logOrderFlowStep({
         order_id: tapOrderId,
@@ -590,14 +594,14 @@ class TapOrderService {
         base_amount: Number(base_amount) || 0,
         tip_amount: Number(tip_amount) || 0,
         iva_tip: commissions.ivaTip,
-        xquisito_commission_total: commissions.xquisitoCommissionTotal,
-        xquisito_commission_client: commissions.xquisitoCommissionClient,
-        xquisito_commission_restaurant: commissions.xquisitoCommissionRestaurant,
-        iva_xquisito_client: commissions.ivaXquisitoClient,
-        iva_xquisito_restaurant: commissions.ivaXquisitoRestaurant,
-        xquisito_client_charge: commissions.xquisitoClientCharge,
-        xquisito_restaurant_charge: commissions.xquisitoRestaurantCharge,
-        xquisito_rate_applied: commissions.xquisitoRateApplied,
+        even_commission_total: commissions.evenCommissionTotal,
+        even_commission_client: commissions.evenCommissionClient,
+        even_commission_restaurant: commissions.evenCommissionRestaurant,
+        iva_even_client: commissions.ivaEvenClient,
+        iva_even_restaurant: commissions.ivaEvenRestaurant,
+        even_client_charge: commissions.evenClientCharge,
+        even_restaurant_charge: commissions.evenRestaurantCharge,
+        even_rate_applied: commissions.evenRateApplied,
         total_amount_charged: commissions.totalAmountCharged,
         transaction_by: transaction_by || customer_name,
         currency,

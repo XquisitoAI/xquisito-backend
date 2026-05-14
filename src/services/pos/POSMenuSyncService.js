@@ -4,9 +4,9 @@ const { getIO, isSocketInitialized } = require("../../socket/socketServer");
 
 /**
  * POSMenuSyncService
- * Sincronización bidireccional de menú entre Xquisito y POS (Soft Restaurant)
+ * Sincronización bidireccional de menú entre Even y POS (Soft Restaurant)
  *
- * Tablas Xquisito: menu_sections, menu_items, item_branch_availability
+ * Tablas Even: menu_sections, menu_items, item_branch_availability
  * Tablas POS: grupos, productos, productosdetalle
  */
 class POSMenuSyncService {
@@ -74,7 +74,7 @@ class POSMenuSyncService {
         message: "Conexión establecida",
       });
 
-      // 1. PULL: POS → Xquisito
+      // 1. PULL: POS → Even
       this.emitSyncProgress(branchId, restaurantId, "pulling", "started", {
         message: "Obteniendo datos del POS...",
       });
@@ -93,7 +93,7 @@ class POSMenuSyncService {
         items: pullResult.items,
       });
 
-      // 2. PUSH: Xquisito → POS
+      // 2. PUSH: Even → POS
       this.emitSyncProgress(branchId, restaurantId, "pushing", "started", {
         message: "Enviando cambios al POS...",
       });
@@ -139,7 +139,7 @@ class POSMenuSyncService {
     }
   }
 
-  // PULL: Obtener menú del POS y sincronizar a Xquisito (OPTIMIZADO con batch)
+  // PULL: Obtener menú del POS y sincronizar a Even (OPTIMIZADO con batch)
   static async pullFromPOS(branchId, integration, restaurantId) {
     const result = {
       sections: { created: 0, updated: 0, skipped: 0 },
@@ -215,7 +215,7 @@ class POSMenuSyncService {
       const existing = sectionMapByPosId.get(group.idgrupo);
 
       if (existing) {
-        // Solo verificar si cambió nombre o clasificacion — display_order lo mantiene Xquisito
+        // Solo verificar si cambió nombre o clasificacion — display_order lo mantiene Even
         const currentName = existing.menu_sections?.name;
         const currentClasificacion = existing.menu_sections?.clasificacion;
         if (
@@ -325,7 +325,7 @@ class POSMenuSyncService {
 
       if (existing) {
         // Solo verificar si cambió el nombre (POS gana en nombre)
-        // NO se actualiza description ni price - Xquisito mantiene los suyos
+        // NO se actualiza description ni price - Even mantiene los suyos
         const current = existing.menu_items;
         if (current?.name !== product.descripcion) {
           itemsToUpdate.push({
@@ -421,7 +421,7 @@ class POSMenuSyncService {
     }
 
     // Batch UPDATE items existentes (en lotes de 50 para no sobrecargar)
-    // Solo actualiza name — description y price los mantiene Xquisito
+    // Solo actualiza name — description y price los mantiene Even
     const BATCH_SIZE = 50;
     for (let i = 0; i < itemsToUpdate.length; i += BATCH_SIZE) {
       const batch = itemsToUpdate.slice(i, i + BATCH_SIZE);
@@ -449,7 +449,7 @@ class POSMenuSyncService {
     return result;
   }
 
-  // PUSH: Enviar items sin mapeo de Xquisito al POS
+  // PUSH: Enviar items sin mapeo de Even al POS
   static async pushToPOS(branchId, integration, restaurantId) {
     const result = {
       sections: { created: 0 },

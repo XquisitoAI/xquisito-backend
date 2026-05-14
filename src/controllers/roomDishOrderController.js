@@ -65,7 +65,7 @@ exports.createOrderWithFirstDish = async (req, res) => {
     // Obtener la orden completa usando room_order_id
     const order = await roomOrderService.getRoomOrderById(result.room_order_id);
 
-    // Imprimir en xquisito-crew (fire-and-forget)
+    // Imprimir en even-crew (fire-and-forget)
     // skipAgent: true → syncOrder dispara el print al agente con folio SR al momento del pago
     emitPrintJob({
       restaurantId: parseInt(restaurantId),
@@ -130,7 +130,7 @@ exports.addDishToOrder = async (req, res) => {
       menuItemId: menu_item_id,
     });
 
-    // Imprimir en xquisito-crew (fire-and-forget)
+    // Imprimir en even-crew (fire-and-forget)
     emitPrintJobForRoomOrder(roomOrderId, [
       { name: item_name, quantity, menu_item_id: menu_item_id },
     ]);
