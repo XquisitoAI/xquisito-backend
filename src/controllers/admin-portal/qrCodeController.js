@@ -144,15 +144,12 @@ exports.resolveQRCode = async (req, res) => {
 
     // Get service base URLs from environment variables
     const serviceUrls = {
-      "flex-bill": process.env.FLEX_BILL_URL || "https://flexbill.xquisito.ai",
+      "flex-bill": process.env.FLEX_BILL_URL || "https://fb.letseven.io",
       "tap-order-pay":
-        process.env.TAP_ORDER_PAY_URL || "https://taporderpay.xquisito.ai",
-      "room-service":
-        process.env.ROOM_SERVICE_URL || "https://room-service.xquisito.ai",
-      "pick-n-go":
-        process.env.PICK_AND_GO_URL || "https://pickandgo.xquisito.ai",
-      "tap-pay":
-        process.env.TAP_AND_PAY_GO_URL || "https://tapandpay.xquisito.ai",
+        process.env.TAP_ORDER_PAY_URL || "https://top.letseven.io",
+      "room-service": process.env.ROOM_SERVICE_URL || "https://rs.letseven.io",
+      "pick-n-go": process.env.PICK_AND_GO_URL || "https://pc.letseven.io",
+      "tap-pay": process.env.TAP_AND_PAY_GO_URL || "https://tp.letseven.io",
     };
 
     const baseUrl = serviceUrls[service];

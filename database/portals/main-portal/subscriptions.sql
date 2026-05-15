@@ -1,6 +1,6 @@
 -- ============================================================
 -- Main Portal — Configuración de planes
--- Portal: Superadmin Xquisito (límites globales por plan)
+-- Portal: Superadmin Even (límites globales por plan)
 -- Nota: subscriptions, plan_usage y subscription_transactions
 --       están en portals/admin-portal/subscriptions.sql
 -- Última verificación: 2026-05-14

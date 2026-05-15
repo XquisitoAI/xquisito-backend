@@ -81,7 +81,7 @@ ALTER TABLE public.pos_order_sync ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "pos_order_sync_all_service"
   ON public.pos_order_sync FOR ALL TO public USING (true) WITH CHECK (true);
 
--- POS MENU MAPPING — Mapeo de items Xquisito ↔ POS
+-- POS MENU MAPPING — Mapeo de items Even ↔ POS
 CREATE TABLE IF NOT EXISTS public.pos_menu_mapping (
   id             uuid    NOT NULL DEFAULT gen_random_uuid(),
   integration_id uuid    NOT NULL,
@@ -106,7 +106,7 @@ ALTER TABLE public.pos_menu_mapping ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "pos_menu_mapping_all_service"
   ON public.pos_menu_mapping FOR ALL TO public USING (true) WITH CHECK (true);
 
--- POS SECTION MAPPING — Mapeo de secciones Xquisito ↔ grupos POS
+-- POS SECTION MAPPING — Mapeo de secciones Even ↔ grupos POS
 CREATE TABLE IF NOT EXISTS public.pos_section_mapping (
   id               uuid    NOT NULL DEFAULT gen_random_uuid(),
   integration_id   uuid    NOT NULL,

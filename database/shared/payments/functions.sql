@@ -23,24 +23,24 @@ BEGIN
         RAISE EXCEPTION 'iva_tip debe ser 16%% de tip_amount';
     END IF;
 
-    -- xquisito_client_charge = xquisito_commission_client + iva_xquisito_client
-    IF ABS(NEW.xquisito_client_charge - (NEW.xquisito_commission_client + NEW.iva_xquisito_client)) > 0.01 THEN
-        RAISE EXCEPTION 'xquisito_client_charge debe ser igual a comisión + IVA';
+    -- even_client_charge = even_commission_client + iva_even_client
+    IF ABS(NEW.even_client_charge - (NEW.even_commission_client + NEW.iva_even_client)) > 0.01 THEN
+        RAISE EXCEPTION 'even_client_charge debe ser igual a comisión + IVA';
     END IF;
 
-    -- total_amount_charged = base_amount + tip_amount + xquisito_client_charge
-    IF ABS(NEW.total_amount_charged - (NEW.base_amount + NEW.tip_amount + NEW.xquisito_client_charge)) > 0.01 THEN
+    -- total_amount_charged = base_amount + tip_amount + even_client_charge
+    IF ABS(NEW.total_amount_charged - (NEW.base_amount + NEW.tip_amount + NEW.even_client_charge)) > 0.01 THEN
         RAISE EXCEPTION 'total_amount_charged debe ser base + propina + comisión cliente';
     END IF;
 
-    -- restaurant_net_income = base_amount + tip_amount - xquisito_restaurant_charge
-    IF ABS(NEW.restaurant_net_income - (NEW.base_amount + NEW.tip_amount - NEW.xquisito_restaurant_charge)) > 0.01 THEN
+    -- restaurant_net_income = base_amount + tip_amount - even_restaurant_charge
+    IF ABS(NEW.restaurant_net_income - (NEW.base_amount + NEW.tip_amount - NEW.even_restaurant_charge)) > 0.01 THEN
         RAISE EXCEPTION 'restaurant_net_income debe ser base + propina - comisión restaurante';
     END IF;
 
-    -- xquisito_net_income = (xquisito_client_charge + xquisito_restaurant_charge) - ecart_commission_total
-    IF ABS(NEW.xquisito_net_income - ((NEW.xquisito_client_charge + NEW.xquisito_restaurant_charge) - NEW.ecart_commission_total)) > 0.01 THEN
-        RAISE EXCEPTION 'xquisito_net_income debe ser comisiones totales - comisión E-cart';
+    -- even_net_income = (even_client_charge + even_restaurant_charge) - ecart_commission_total
+    IF ABS(NEW.even_net_income - ((NEW.even_client_charge + NEW.even_restaurant_charge) - NEW.ecart_commission_total)) > 0.01 THEN
+        RAISE EXCEPTION 'even_net_income debe ser comisiones totales - comisión E-cart';
     END IF;
 
     RETURN NEW;

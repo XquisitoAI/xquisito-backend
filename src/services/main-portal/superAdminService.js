@@ -165,7 +165,7 @@ class SuperAdminService {
         data: {
           // Métricas principales
           transaction_volume: transactionVolume,
-          xquisito_income: evenIncome,
+          even_income: evenIncome,
           active_diners: activeDiners,
           successful_orders: successfulOrders,
           active_admins: activeAdmins,
@@ -227,7 +227,7 @@ class SuperAdminService {
     try {
       let query = supabase
         .from("payment_transactions")
-        .select("xquisito_net_income");
+        .select("even_net_income");
 
       query = this.applyFilters(query, filters);
 
@@ -236,7 +236,7 @@ class SuperAdminService {
       if (error) throw error;
 
       const total = data.reduce(
-        (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+        (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
         0,
       );
       return parseFloat(total.toFixed(2));
@@ -639,7 +639,7 @@ class SuperAdminService {
       if (service === "todos" || service === "flex-bill") {
         let flexBillQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_table_order");
+          .select("total_amount_charged, even_net_income, id_table_order");
 
         if (start_date)
           flexBillQuery = flexBillQuery.gte("created_at", start_date);
@@ -666,7 +666,7 @@ class SuperAdminService {
           : 0;
         const flexBillIncome = flexBillResult.data
           ? flexBillResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -687,7 +687,7 @@ class SuperAdminService {
         let tapOrderQuery = supabase
           .from("payment_transactions")
           .select(
-            "total_amount_charged, xquisito_net_income, id_tap_orders_and_pay",
+            "total_amount_charged, even_net_income, id_tap_orders_and_pay",
           );
 
         if (start_date)
@@ -715,7 +715,7 @@ class SuperAdminService {
           : 0;
         const tapOrderIncome = tapOrderResult.data
           ? tapOrderResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -736,7 +736,7 @@ class SuperAdminService {
         let pickAndGoQuery = supabase
           .from("payment_transactions")
           .select(
-            "total_amount_charged, xquisito_net_income, id_pick_and_go_order",
+            "total_amount_charged, even_net_income, id_pick_and_go_order",
           );
 
         if (start_date)
@@ -764,7 +764,7 @@ class SuperAdminService {
           : 0;
         const pickAndGoIncome = pickAndGoResult.data
           ? pickAndGoResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -784,7 +784,7 @@ class SuperAdminService {
       if (service === "todos" || service === "room-service") {
         let roomServiceQuery = supabase
           .from("payment_transactions")
-          .select("total_amount_charged, xquisito_net_income, id_room_order");
+          .select("total_amount_charged, even_net_income, id_room_order");
 
         if (start_date)
           roomServiceQuery = roomServiceQuery.gte("created_at", start_date);
@@ -817,7 +817,7 @@ class SuperAdminService {
           : 0;
         const roomServiceIncome = roomServiceResult.data
           ? roomServiceResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -837,9 +837,7 @@ class SuperAdminService {
       if (service === "todos" || service === "tap-and-pay") {
         let tapAndPayQuery = supabase
           .from("payment_transactions")
-          .select(
-            "total_amount_charged, xquisito_net_income, id_tap_pay_order",
-          );
+          .select("total_amount_charged, even_net_income, id_tap_pay_order");
 
         if (start_date)
           tapAndPayQuery = tapAndPayQuery.gte("created_at", start_date);
@@ -866,7 +864,7 @@ class SuperAdminService {
           : 0;
         const tapPayIncome = tapAndPayResult.data
           ? tapAndPayResult.data.reduce(
-              (sum, row) => sum + (parseFloat(row.xquisito_net_income) || 0),
+              (sum, row) => sum + (parseFloat(row.even_net_income) || 0),
               0,
             )
           : 0;
@@ -1460,7 +1458,7 @@ class SuperAdminService {
       let flexBillQuery = supabase
         .from("payment_transactions")
         .select(
-          "created_at, total_amount_charged, xquisito_net_income, restaurant_id",
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
         )
         .not("id_table_order", "is", null);
 
@@ -1479,7 +1477,7 @@ class SuperAdminService {
       let tapOrderQuery = supabase
         .from("payment_transactions")
         .select(
-          "created_at, total_amount_charged, xquisito_net_income, restaurant_id",
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
         )
         .not("id_tap_orders_and_pay", "is", null);
 
@@ -1498,7 +1496,7 @@ class SuperAdminService {
       let pickAndGoQuery = supabase
         .from("payment_transactions")
         .select(
-          "created_at, total_amount_charged, xquisito_net_income, restaurant_id",
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
         )
         .not("id_pick_and_go_order", "is", null);
 
@@ -1518,7 +1516,7 @@ class SuperAdminService {
       let roomServiceQuery = supabase
         .from("payment_transactions")
         .select(
-          "created_at, total_amount_charged, xquisito_net_income, restaurant_id",
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
         )
         .not("id_room_order", "is", null);
 
@@ -1544,7 +1542,7 @@ class SuperAdminService {
       let tapPayQuery = supabase
         .from("payment_transactions")
         .select(
-          "created_at, total_amount_charged, xquisito_net_income, restaurant_id",
+          "created_at, total_amount_charged, even_net_income, restaurant_id",
         )
         .not("id_tap_pay_order", "is", null);
 
@@ -2012,7 +2010,7 @@ class SuperAdminService {
           item.total_amount_charged || 0,
         );
         grouped[dateKey]["Flex Bill_income"] += parseFloat(
-          item.xquisito_net_income || 0,
+          item.even_net_income || 0,
         );
       } else {
         grouped[dateKey]["Flex Bill"] += 1;
@@ -2028,7 +2026,7 @@ class SuperAdminService {
           item.total_amount_charged || 0,
         );
         grouped[dateKey]["Tap Order & Pay_income"] += parseFloat(
-          item.xquisito_net_income || 0,
+          item.even_net_income || 0,
         );
       } else {
         grouped[dateKey]["Tap Order & Pay"] += 1;
@@ -2044,7 +2042,7 @@ class SuperAdminService {
           item.total_amount_charged || 0,
         );
         grouped[dateKey]["Pick & Go_income"] += parseFloat(
-          item.xquisito_net_income || 0,
+          item.even_net_income || 0,
         );
       } else {
         grouped[dateKey]["Pick & Go"] += 1;
@@ -2060,7 +2058,7 @@ class SuperAdminService {
           item.total_amount_charged || 0,
         );
         grouped[dateKey]["Room Service_income"] += parseFloat(
-          item.xquisito_net_income || 0,
+          item.even_net_income || 0,
         );
       } else {
         grouped[dateKey]["Room Service"] += 1;
@@ -2076,7 +2074,7 @@ class SuperAdminService {
           item.total_amount_charged || 0,
         );
         grouped[dateKey]["Tap & Pay_income"] += parseFloat(
-          item.xquisito_net_income || 0,
+          item.even_net_income || 0,
         );
       } else {
         grouped[dateKey]["Tap & Pay"] += 1;
@@ -2317,7 +2315,7 @@ class SuperAdminService {
           total_amount_charged,
           tip_amount,
           restaurant_net_income,
-          xquisito_net_income,
+          even_net_income,
           ecart_commission_total,
           created_at,
           restaurant_id,
@@ -2378,7 +2376,7 @@ class SuperAdminService {
         total_amount_charged: parseFloat(tx.total_amount_charged) || 0,
         tip_amount: parseFloat(tx.tip_amount) || 0,
         restaurant_net_income: parseFloat(tx.restaurant_net_income) || 0,
-        xquisito_net_income: parseFloat(tx.xquisito_net_income) || 0,
+        even_net_income: parseFloat(tx.even_net_income) || 0,
         ecart_commission_total: parseFloat(tx.ecart_commission_total) || 0,
         created_at: tx.created_at,
         restaurant_id: tx.restaurant_id,

@@ -23,16 +23,16 @@ CREATE TABLE IF NOT EXISTS public.payment_transactions (
   total_amount_charged        numeric NOT NULL,
   subtotal_for_commission     numeric NOT NULL,
 
-  -- Comisión Xquisito
-  xquisito_rate_applied       numeric NOT NULL,
-  xquisito_commission_total   numeric NOT NULL DEFAULT 0,
-  xquisito_commission_client  numeric NOT NULL DEFAULT 0,
-  xquisito_commission_restaurant numeric NOT NULL DEFAULT 0,
-  iva_xquisito_client         numeric NOT NULL DEFAULT 0,
-  iva_xquisito_restaurant     numeric NOT NULL DEFAULT 0,
-  xquisito_client_charge      numeric NOT NULL DEFAULT 0,
-  xquisito_restaurant_charge  numeric NOT NULL DEFAULT 0,
-  xquisito_net_income         numeric NOT NULL,
+  -- Comisión Even
+  even_rate_applied       numeric NOT NULL,
+  even_commission_total   numeric NOT NULL DEFAULT 0,
+  even_commission_client  numeric NOT NULL DEFAULT 0,
+  even_commission_restaurant numeric NOT NULL DEFAULT 0,
+  iva_even_client         numeric NOT NULL DEFAULT 0,
+  iva_even_restaurant     numeric NOT NULL DEFAULT 0,
+  even_client_charge      numeric NOT NULL DEFAULT 0,
+  even_restaurant_charge  numeric NOT NULL DEFAULT 0,
+  even_net_income         numeric NOT NULL,
 
   -- Comisión E-Cart (procesador de pagos)
   ecart_commission_rate       numeric NOT NULL,
