@@ -1,4 +1,4 @@
-# Database — Xquisito
+# Database — Even
 
 Un solo proyecto Supabase (PostgreSQL) para todos los servicios y portales.
 
@@ -23,7 +23,7 @@ database/
 │   └── tap-and-pay/        Paga la cuenta del POS desde el celular
 └── portals/
     ├── admin-portal/   Por restaurante (Clerk auth)
-    └── main-portal/    Xquisito superadmin global
+    └── main-portal/    Even superadmin global
 ```
 
 ## Servicios (5) — orientados al cliente final
@@ -45,7 +45,7 @@ database/
 - Tablas: `clients`, `user_admin_portal`, `pending_invitations`
 - También contiene: suscripciones, campañas, templates (todo tiene `restaurant_id`)
 
-**main-portal** — Superadmin Xquisito, datos globales sin `restaurant_id`.
+**main-portal** — Superadmin Even, datos globales sin `restaurant_id`.
 
 - Solo: `plan_configurations`, `waitlist`, `pci_audit_logs`
 

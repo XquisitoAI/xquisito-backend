@@ -241,7 +241,7 @@ class PaymentTransactionService {
 
         // Ingresos netos (calculados en backend)
         restaurant_net_income: parseFloat(restaurantNetIncome.toFixed(2)),
-        xquisito_net_income: parseFloat(evenNetIncome.toFixed(2)),
+        even_net_income: parseFloat(evenNetIncome.toFixed(2)),
 
         // Metadata
         currency,

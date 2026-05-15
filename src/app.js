@@ -45,11 +45,6 @@ const app = express();
 
 // Orígenes permitidos para CORS
 const allowedOrigins = [
-  "https://flexbill.xquisito.ai",
-  "https://taporderpay.xquisito.ai",
-  "https://room-service.xquisito.ai",
-  "https://pickandgo.xquisito.ai",
-  "https://tapandpay.xquisito.ai",
   "https://admin-portal.xquisito.ai",
   "https://main-portal.xquisito.ai",
 

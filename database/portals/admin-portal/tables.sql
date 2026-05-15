@@ -4,7 +4,7 @@
 -- Última verificación: 2026-05-14
 -- ============================================================
 
--- CLIENTS — Empresa/cliente que contrata los servicios de Xquisito
+-- CLIENTS — Empresa/cliente que contrata los servicios de Even
 CREATE TABLE IF NOT EXISTS public.clients (
   id          uuid         NOT NULL DEFAULT gen_random_uuid(),
   name        varchar(255) NOT NULL,

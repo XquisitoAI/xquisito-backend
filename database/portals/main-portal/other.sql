@@ -1,6 +1,6 @@
 -- ============================================================
 -- Main Portal — Tablas auxiliares
--- Portal: Superadmin Xquisito
+-- Portal: Superadmin Even
 -- Última verificación: 2026-05-14
 -- ============================================================
 
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.pci_audit_logs (
   resource    text    NOT NULL,
   result      text    NOT NULL,
   source_ip   text,
-  service     text    DEFAULT 'xquisito-backend',
+  service     text    DEFAULT 'even-backend',
   metadata    jsonb,
 
   CONSTRAINT pci_audit_logs_pkey PRIMARY KEY (id)
