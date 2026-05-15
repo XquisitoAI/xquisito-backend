@@ -53,9 +53,13 @@ const allowedOrigins = [
   "https://admin-portal.xquisito.ai",
   "https://main-portal.xquisito.ai",
 
-  "https://xquisito-flexbill-git-dev-leonardo-xquisito.vercel.app",
-  "https://xquisito-pick-and-go-git-adrian-pick-and-go-xquisito.vercel.app",
-  "https://xquisito-flexbill-git-diego-branch-xquisito.vercel.app",
+  "https://fb.letseven.io",
+  "https://top.letseven.io",
+  "https://rs.letseven.io",
+  "https://pg.letseven.io",
+  "https://tp.letseven.io",
+  "https://admin-portal.letseven.io",
+  "https://main-portal.letseven.io",
 
   "http://tauri.localhost", // Even Crew (Windows .exe)
   "https://tauri.localhost", // Even Crew (Android APK)
